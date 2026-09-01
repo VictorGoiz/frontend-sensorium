@@ -1,0 +1,245 @@
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+    font-family: 'Inter', sans-serif;
+}
+
+body {
+    background-color: #f0f2f5;
+    color: #1a1a1a;
+    font-size: 13px; /* Smaller base font for professional system look */
+}
+
+.app-layout {
+    display: flex;
+    height: 100vh;
+    overflow: hidden;
+}
+
+/* Estilo da Barra Lateral - Mais compacto */
+.sidebar {
+    width: 220px;
+    background-color: #1e293b;
+    color: #ffffff;
+    display: flex;
+    flex-direction: column;
+    padding: 15px 0;
+    box-shadow: 2px 0 10px rgba(0,0,0,0.15);
+}
+
+.logo-container {
+    display: flex;
+    align-items: center;
+    padding: 0 15px;
+    margin-bottom: 30px;
+    gap: 10px;
+}
+
+.logo-icon {
+    width: 20px;
+    height: 20px;
+    background: #1e3a8a;
+    border-radius: 4px;
+    position: relative;
+}
+.logo-icon::after {
+    content: '';
+    position: absolute;
+    width: 8px;
+    height: 8px;
+    background: #000000;
+    border-radius: 50%;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+}
+
+.sidebar h2 {
+    font-size: 16px;
+    font-weight: 500;
+    letter-spacing: 0.5px;
+}
+
+nav {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+}
+
+.nav-item {
+    padding: 10px 15px;
+    color: #888888;
+    text-decoration: none;
+    font-weight: 500;
+    transition: all 0.2s ease;
+    border-left: 2px solid transparent;
+    font-size: 13px;
+}
+
+.nav-item:hover {
+    background: rgba(255, 255, 255, 0.05);
+    color: #dddddd;
+}
+
+.nav-item.active {
+    background: rgba(30, 58, 138, 0.08);
+    color: #1e3a8a;
+    border-left: 2px solid #1e3a8a;
+}
+
+.user-info {
+    padding: 15px;
+    border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.logout-btn {
+    display: block;
+    text-align: center;
+    padding: 8px;
+    color: #ffffff;
+    background: #1e3a8a;
+    text-decoration: none;
+    border-radius: 4px;
+    font-weight: 500;
+    font-size: 12px;
+    transition: background 0.2s ease;
+}
+
+.logout-btn:hover {
+    background: #1e40af;
+}
+
+/* Estilo do Conteúdo Principal - Espaçamento ajustado */
+.main-content {
+    flex: 1;
+    overflow-y: auto;
+    padding: 25px;
+    background-color: #f0f2f5;
+}
+
+header {
+    margin-bottom: 20px;
+    padding-bottom: 10px;
+    border-bottom: 1px solid #e1e4e8;
+}
+
+header h1 {
+    font-size: 22px;
+    color: #111111;
+    margin-bottom: 4px;
+    font-weight: 500;
+}
+
+header p {
+    color: #555555;
+    font-size: 13px;
+}
+
+/* Cartões - Compactos */
+.dashboard-cards {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 15px;
+    margin-bottom: 20px;
+}
+
+.card {
+    background: #ffffff;
+    border: 1px solid #e1e4e8;
+    border-radius: 6px;
+    padding: 15px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+    border-top: 2px solid #1e3a8a;
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 10px rgba(0,0,0,0.08);
+}
+
+.card h3 {
+    font-size: 11px;
+    color: #777777;
+    margin-bottom: 6px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    font-weight: 500;
+}
+
+.card-value {
+    font-size: 24px;
+    font-weight: 500;
+    color: #111111;
+    margin-bottom: 6px;
+}
+
+.card-value.warning {
+    color: #d4a000;
+}
+
+.card-indicator {
+    font-size: 11px;
+    font-weight: 500;
+}
+
+.positive { color: #208b3a; }
+.neutral { color: #5c6ac4; }
+
+/* Gráficos */
+.charts-container {
+    display: grid;
+    grid-template-columns: 2fr 1fr;
+    gap: 15px;
+}
+
+.chart-box {
+    background: #ffffff;
+    border: 1px solid #e1e4e8;
+    border-radius: 6px;
+    padding: 15px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+}
+
+.chart-box h2 {
+    font-size: 13px;
+    margin-bottom: 15px;
+    color: #333333;
+    font-weight: 500;
+    border-bottom: 1px solid #f0f0f0;
+    padding-bottom: 8px;
+}
+
+/* Responsividade */
+@media (max-width: 768px) {
+    .app-layout {
+        flex-direction: column;
+    }
+    .sidebar {
+        width: 100%;
+        padding: 10px;
+        flex-direction: row;
+        align-items: center;
+        justify-content: space-between;
+    }
+    .logo-container { margin-bottom: 0; }
+    .sidebar nav {
+        flex-direction: row;
+    }
+    .nav-item {
+        padding: 8px 12px;
+        border-left: none;
+        border-bottom: 2px solid transparent;
+    }
+    .nav-item.active {
+        border-left: none;
+        border-bottom: 2px solid #1e3a8a;
+    }
+    .user-info { border: none; padding: 0; }
+    .charts-container {
+        grid-template-columns: 1fr;
+    }
+}
+
+

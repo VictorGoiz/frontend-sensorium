@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sensorium - Gerenciar Dispositivos</title>
+    <link rel="stylesheet" href="../home/home.css">
+    <link rel="stylesheet" href="admin.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap" rel="stylesheet">
+    <script src="../config.js"></script>
+    <style>
+        .devices-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 20px;
+        }
+        .devices-table th, .devices-table td {
+            text-align: left;
+            padding: 12px;
+            border-bottom: 1px solid #e1e4e8;
+            font-size: 13px;
+        }
+        .devices-table th {
+            background-color: #f8f9fa;
+            color: #555;
+            font-weight: 600;
+        }
+        .devices-table tr:hover {
+            background-color: #f1f5f9;
+        }
+        .status-badge {
+            padding: 4px 8px;
+            border-radius: 12px;
+            font-size: 11px;
+            font-weight: 600;
+        }
+        .status-operacional { background-color: #d1fae5; color: #065f46; }
+        .status-atencao { background-color: #fef3c7; color: #92400e; }
+        .status-critico { background-color: #fee2e2; color: #991b1b; }
+    </style>
+</head>
+<body>
+    <div class="app-layout">
+        <aside class="sidebar">
+            <div class="logo-container">
+                <div class="logo-icon"></div>
+                <h2>Sensorium (Admin)</h2>
+            </div>
+            <nav>
+                <a href="index.html" class="nav-item">Administração</a>
+                <a href="dispositivos.html" class="nav-item active">Gerenciar Dispositivos</a>
+            </nav>
+            <div class="user-info">
+                <a href="../login/index.html" class="logout-btn" onclick="localStorage.removeItem('sensorium_user'); localStorage.removeItem('sensorium_token');">Sair</a>
+            </div>
+        </aside>
+
+        <main class="main-content">
+            <header>
+                <h1>Gerenciar Dispositivos</h1>
+                <p>Lista de dispositivos cadastrados no sistema e suas respectivas empresas</p>
+            </header>
+
+            <div class="card" style="padding: 20px;">
+                <table class="devices-table">
+                    <thead>
+                        <tr>
+                            <th>Nº de Série</th>
+                            <th>Empresa</th>
+                            <th>Status</th>
+                            <th>Data de Cadastro</th>
+                        </tr>
+                    </thead>
+                    <tbody id="devicesTableBody">
+                        <tr>
+                            <td colspan="4" style="text-align: center;">Carregando dispositivos...</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </main>
+    </div>
+
+    <script src="dispositivos.js"></script>
+</body>
+</html>
+

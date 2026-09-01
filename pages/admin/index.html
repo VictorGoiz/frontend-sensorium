@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sensorium - Administração</title>
+    <!-- Reaproveitamos o css da home para o layout base, e adicionamos um admin.css para os forms -->
+    <link rel="stylesheet" href="../home/home.css">
+    <link rel="stylesheet" href="admin.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap" rel="stylesheet">
+    <script src="../config.js"></script>
+</head>
+<body>
+    <div class="app-layout">
+        <aside class="sidebar">
+            <div class="logo-container">
+                <div class="logo-icon"></div>
+                <h2>Sensorium (Admin)</h2>
+            </div>
+            <nav>
+                <a href="index.html" class="nav-item active">Administração</a>
+                <a href="dispositivos.html" class="nav-item">Gerenciar Dispositivos</a>
+            </nav>
+            <div class="user-info">
+                <a href="../login/index.html" class="logout-btn" onclick="localStorage.removeItem('sensorium_user'); localStorage.removeItem('sensorium_token');">Sair</a>
+            </div>
+        </aside>
+
+        <main class="main-content">
+            <header>
+                <h1>Painel de Administração</h1>
+                <p>Gerenciamento de Empresas e Usuários (Super Admin)</p>
+            </header>
+
+            <div class="admin-container">
+                <!-- Seção de Criar Empresa -->
+                <div class="admin-section card">
+                    <h2>Cadastrar Nova Empresa</h2>
+                    <form id="formEmpresa">
+                        <div class="form-group">
+                            <label for="nomeEmpresa">Nome da Empresa</label>
+                            <input type="text" id="nomeEmpresa" required placeholder="Ex: Cliente X">
+                        </div>
+                        <div class="form-group">
+                            <label for="cnpjEmpresa">CNPJ (Opcional)</label>
+                            <input type="text" id="cnpjEmpresa" placeholder="00.000.000/0001-00">
+                        </div>
+                        <button type="submit" class="btn-primary">Criar Empresa</button>
+                    </form>
+                </div>
+
+                <!-- Seção de Criar Usuário -->
+                <div class="admin-section card">
+                    <h2>Cadastrar Novo Usuário</h2>
+                    <form id="formUsuario">
+                        <div class="form-group">
+                            <label for="selectEmpresa">Empresa Vinculada</label>
+                            <select id="selectEmpresa" required>
+                                <option value="">Carregando empresas...</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label for="nomeUsuario">Nome do Usuário</label>
+                            <input type="text" id="nomeUsuario" required placeholder="Ex: João Silva">
+                        </div>
+                        <div class="form-group">
+                            <label for="emailUsuario">E-mail</label>
+                            <input type="email" id="emailUsuario" required placeholder="joao@empresa.com">
+                        </div>
+                        <div class="form-group">
+                            <label for="senhaUsuario">Senha</label>
+                            <input type="password" id="senhaUsuario" required placeholder="******">
+                        </div>
+                        <div class="form-group">
+                            <label for="perfilUsuario">Perfil</label>
+                            <select id="perfilUsuario">
+                                <option value="user">Usuário Comum</option>
+                                <option value="admin">Administrador da Empresa</option>
+                            </select>
+                        </div>
+                        <button type="submit" class="btn-primary">Criar Usuário</button>
+                    </form>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <script src="admin.js"></script>
+</body>
+</html>
+

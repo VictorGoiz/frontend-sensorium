@@ -1,0 +1,235 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sensorium - Relés</title>
+    <link rel="stylesheet" href="../home/home.css">
+    <link rel="stylesheet" href="../components/chat.css">
+    <link rel="stylesheet" href="reles.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- Socket.IO Client -->
+    <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+    <!-- Leaflet CSS for Maps -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="../config.js"></script>
+</head>
+<body>
+    <div class="app-layout">
+        <aside class="sidebar">
+            <div class="logo-container">
+                <div class="logo-icon"></div>
+                <h2>Sensorium</h2>
+            </div>
+            <nav>
+                <a href="../home/index.html" class="nav-item">Visão Geral</a>
+                <a href="../sensores/index.html" class="nav-item">Sensores</a>
+                <a href="index.html" class="nav-item active">Relés</a>
+            </nav>
+            <div class="user-info">
+                <a href="../login/index.html" class="logout-btn">Sair</a>
+            </div>
+        </aside>
+
+        <main class="main-content">
+            <header class="page-header">
+                <div class="header-left">
+                    <div class="header-title">
+                        <h1>Monitoramento de Relés</h1>
+                        <span class="badge live">● AO VIVO</span>
+                    </div>
+                    <p>Monitoramento em tempo real dos Relés com base no banco de dados</p>
+                </div>
+
+                <!-- Header Avisos e Alertas Button & Drawer -->
+                <div class="header-alerts-container">
+                    <button class="header-alert-btn" id="headerAlertBtn" onclick="toggleHeaderAlerts()" title="Central de Avisos e Alertas">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" fill="currentColor" viewBox="0 0 16 16">
+                            <path d="M8 16a2 2 0 0 0 2-2H6a2 2 0 0 0 2 2zM8 1.918l-.797.161A4.002 4.002 0 0 0 4 6c0 .628-.134 2.197-.459 3.742-.16.767-.376 1.566-.663 2.258h10.244c-.287-.692-.502-1.49-.663-2.258C12.134 8.197 12 6.628 12 6a4.002 4.002 0 0 0-3.203-3.92L8 1.917zM14.22 12c.223.447.481.801.78 1H1c.299-.199.557-.553.78-1C2.68 10.2 3 6.88 3 6c0-2.42 1.72-4.44 4.005-4.901a1 1 0 1 1 1.99 0A5.002 5.002 0 0 1 13 6c0 .88.32 4.2 1.22 6z"/>
+                        </svg>
+                        <span class="alert-badge" id="headerAlertBadge">0</span>
+                    </button>
+
+                    <!-- Dropdown / Popover de Alertas -->
+                    <div class="header-alerts-popover" id="headerAlertsPopover">
+                        <div class="popover-header">
+                            <div class="popover-title">
+                                <span>Central de Avisos e Alertas</span>
+                            </div>
+                            <button class="btn-clear-all" onclick="markAllAlertsAsRead()">Marcar todos como lidos</button>
+                        </div>
+                        <div class="popover-filters">
+                            <button class="filter-tab active" onclick="filterAlerts('todos', this)">Todos</button>
+                            <button class="filter-tab" onclick="filterAlerts('Critico', this)">Críticos</button>
+                            <button class="filter-tab" onclick="filterAlerts('Aviso', this)">Avisos</button>
+                        </div>
+                        <div class="popover-body" id="headerAlertsList">
+                            <div class="alerts-loading">Carregando alertas...</div>
+                        </div>
+                    </div>
+                </div>
+            </header>
+
+            <div class="dashboard-cards sensor-cards">
+                <div class="card dark-card">
+                    <h3>Status Geral dos Dispositivos</h3>
+                    <div class="card-value" id="cardStatusGeral">Operacional</div>
+                    <div class="card-indicator positive" id="cardStatusGeralSub">Relés funcionando corretamente</div>
+                </div>
+                <div class="card dark-card">
+                    <h3>Dispositivos em Atenção</h3>
+                    <div class="card-value warning" id="cardCountAtencao">0</div>
+                    <div class="card-indicator warning">Sensível a desvios</div>
+                </div>
+                <div class="card dark-card alert-card">
+                    <h3>Alertas Ativos não Lidos</h3>
+                    <div class="card-value warning" id="cardCountAlertas">0</div>
+                    <div class="card-indicator" id="cardAlertasSub">Ação requerida</div>
+                </div>
+            </div>
+
+            <!-- Header da Lista de Dispositivos -->
+            <div class="section-title" style="display: flex; justify-content: space-between; align-items: center; margin-top: 25px;">
+                <h2>Dispositivos Conectados (Relés)</h2>
+            </div>
+
+            <div class="sensor-list" id="sensorListContainer">
+                <div style="grid-column: 1/-1; padding: 20px; text-align: center; color: #888;">Carregando dispositivos do banco de dados...</div>
+            </div>
+
+            <div class="charts-container" style="margin-top: 25px;">
+                <div class="chart-box" style="width: 100%;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+                        <h2>Histórico de Acionamento (ON/OFF) e Pressão</h2>
+                        <div style="display: flex; gap: 10px;">
+                            <select id="releDeviceSelect" onchange="loadAndRenderHistoryChart()" style="padding: 8px; border-radius: 4px; border: 1px solid #e2e8f0; background: white; min-width: 250px; font-family: inherit;">
+                                <option value="">Selecione um Dispositivo</option>
+                            </select>
+                            <select id="chartHistoryPeriod" onchange="loadAndRenderHistoryChart()" style="padding: 8px; border-radius: 4px; border: 1px solid #e2e8f0; background: white; font-family: inherit;">
+                                <option value="all">Últimas (Padrão)</option>
+                                <option value="1h">Última 1 hora</option>
+                                <option value="6h">Últimas 6 horas</option>
+                                <option value="24h">Últimas 24 horas</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="chart-wrapper">
+                        <canvas id="historyChart"></canvas>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- Modal for Detailed Sensor Info -->
+    <div class="modal-overlay" id="sensorModal">
+        <div class="modal-content sensor-detail-modal">
+            <div class="modal-header">
+                <h2 id="modalSensorTitle">Detalhes do Dispositivo</h2>
+                <button class="close-btn" onclick="closeSensorModal()">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="modal-info-grid">
+                    <div class="device-summary-box">
+                        <h3>Status em Tempo Real</h3>
+                        <div class="led-indicator-large" id="modalLedIndicator">
+                            <span class="led-dot" id="modalLedDot"></span>
+                            <span id="modalLedText">LED: Verde</span>
+                        </div>
+                        <div class="device-status-badge" id="modalDeviceStatus">Status: Operacional</div>
+                    </div>
+
+                    <div class="location-box">
+                        <h3>Informações do Dispositivo</h3>
+                        <p id="modalLocationText">Número de Série: --</p>
+                        <p id="modalLastTimestamp">Última Leitura: --</p>
+                    </div>
+                </div>
+
+                <h3 style="margin-top: 20px; font-size: 15px;">Leitura dos Relés e Sensor 1</h3>
+                <div class="params-detail-grid" id="modalParamsGrid">
+                    <!-- Preenchido via JavaScript -->
+                </div>
+
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 20px;">
+                    <h3 style="font-size: 15px; margin: 0;">Histórico Recente de Leituras</h3>
+                    <select id="modalHistoryPeriod" onchange="fetchDeviceHistory(this.dataset.device, this.value)" style="padding: 4px; border-radius: 4px; background: #1e293b; color: white; border: 1px solid #334155; font-size: 12px; outline: none;">
+                        <option value="all">Últimas (Padrão)</option>
+                        <option value="1h">Última 1 hora</option>
+                        <option value="6h">Últimas 6 horas</option>
+                        <option value="24h">Últimas 24 horas</option>
+                    </select>
+                </div>
+                <div id="modalHistoryContainer" style="min-height: 150px; max-height: 450px; overflow-y: auto; background: #0f172a; padding: 12px; border-radius: 8px; border: 1px solid #1e293b; color: #cbd5e1; font-size: 12px; margin-top: 8px;">
+                    <div>Carregando histórico...</div>
+                </div>
+
+                <div class="modal-map" id="map" style="margin-top: 20px; height: 200px; border-radius: 8px;"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal for Prescribed Ranges Info -->
+    <div class="modal-overlay" id="rangesModal">
+        <div class="modal-content ranges-modal-content">
+            <div class="modal-header">
+                <h2>Tabela de Limites e Ranges Prescritos (LEFOO LFG60)</h2>
+                <button class="close-btn" onclick="closeRangesModal()">&times;</button>
+            </div>
+            <div class="modal-body">
+                <p style="font-size: 13px; color: #555; margin-bottom: 15px;">
+                    Valores prescritos para controle automático de alertas e sinalização do LED Tricolor.
+                </p>
+                <div class="table-responsive">
+                    <table class="ranges-table">
+                        <thead>
+                            <tr>
+                                <th>Parâmetro</th>
+                                <th>Unidade</th>
+                                <th>Faixa Ideal (Verde)</th>
+                                <th>Aviso (Amarelo)</th>
+                                <th>Crítico (Vermelho)</th>
+                            </tr>
+                        </thead>
+                        <tbody id="rangesTableBody">
+                            <!-- Preenchido via JavaScript com inputs editáveis -->
+                        </tbody>
+                    </table>
+                </div>
+                <div style="margin-top: 20px; text-align: right;">
+                    <button class="btn-config-main" onclick="savePrescribedRanges()">Salvar Configurações</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Chat / Alertas Lateral -->
+    <div class="chat-sidebar-overlay" id="chatOverlay" onclick="toggleChat()"></div>
+    <div class="chat-sidebar" id="chatSidebar">
+        <div class="chat-header">
+            <h3>Central de Alertas</h3>
+            <button class="close-chat-btn" onclick="toggleChat()">&times;</button>
+        </div>
+        <div class="chat-body" id="chatBody"></div>
+        <div class="chat-footer">
+            <input type="text" id="chatInput" placeholder="Faça uma pergunta sobre os sensores...">
+            <button id="chatSendBtn">Enviar</button>
+        </div>
+    </div>
+
+    <!-- Floating Button for Chat -->
+    <button class="chat-fab" onclick="toggleChat()">
+        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" fill="currentColor" viewBox="0 0 16 16">
+          <path d="M16 8c0 3.866-3.582 7-8 7a9.06 9.06 0 0 1-2.347-.306c-2.316.5-4.741.97-4.741.97a.499.499 0 0 1-.58-.58c0 0 .47-2.425.97-4.741A8.99 8.99 0 0 1 0 8c0-3.866 3.582-7 8-7s8 3.134 8 7zM5 8a1 1 0 1 0-2 0 1 1 0 0 0 2 0zm4 0a1 1 0 1 0-2 0 1 1 0 0 0 2 0zm3 1a1 1 0 1 0 0-2 1 1 0 0 0 0 2z"/>
+        </svg>
+    </button>
+
+    <!-- Leaflet JS -->
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="../components/chat.js"></script>
+    <script src="reles.js"></script>
+</body>
+</html>
+
+

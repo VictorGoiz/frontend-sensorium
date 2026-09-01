@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sensorium - Login</title>
+    <link rel="stylesheet" href="login.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <script src="../config.js"></script>
+</head>
+<body>
+    <div class="bg-animation">
+        <div class="circle circle-1"></div>
+        <div class="circle circle-2"></div>
+        <div class="circle circle-3"></div>
+    </div>
+    
+    <div class="split-layout">
+        <!-- Lado Esquerdo: Informações -->
+        <div class="info-side">
+            <div class="info-content">
+                <div class="logo-container left-logo">
+                    <div class="logo-icon"></div>
+                    <h1>Sensorium</h1>
+                </div>
+                <h2>Controle Total, Zero Desperdício.</h2>
+                <p class="info-desc">A plataforma definitiva de monitoramento IoT para redes de choppeiras. Antecipe problemas e garanta a temperatura perfeita.</p>
+                
+                <div class="features-list">
+                    <div class="feature-item">
+                        <div class="feature-icon">🌡️</div>
+                        <div class="feature-text">
+                            <strong>Prevenção de Congelamento</strong>
+                            <span>Alertas dinâmicos antes da temperatura atingir o ponto crítico (-2.5 °C).</span>
+                        </div>
+                    </div>
+                    <div class="feature-item">
+                        <div class="feature-icon">📍</div>
+                        <div class="feature-text">
+                            <strong>Monitoramento Georreferenciado</strong>
+                            <span>Acompanhe o mapa de saúde térmica e a posição de cada equipamento em tempo real.</span>
+                        </div>
+                    </div>
+                    <div class="feature-item">
+                        <div class="feature-icon">📊</div>
+                        <div class="feature-text">
+                            <strong>Dashboard Inteligente</strong>
+                            <span>Análise de dados de temperatura para manutenção preditiva e redução de custos.</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Lado Direito: Login -->
+        <div class="login-side">
+            <div class="login-box" id="loginBox">
+                <h3 class="login-title">Acesse o Sistema</h3>
+                <p class="subtitle">Insira suas credenciais corporativas</p>
+                <form id="loginForm">
+                    <div class="input-group">
+                        <label for="email">E-mail corporativo</label>
+                        <input type="email" id="email" placeholder="usuario@empresa.com.br" required autocomplete="email">
+                    </div>
+                    <div class="input-group">
+                        <label for="password">Senha</label>
+                        <input type="password" id="password" placeholder="••••••••" required>
+                    </div>
+                    <div class="options">
+                        <label class="remember">
+                            <input type="checkbox"> Lembrar acesso
+                        </label>
+                        <a href="#" class="forgot-pwd">Esqueceu a senha?</a>
+                    </div>
+                    <button type="submit" class="login-btn">
+                        <span class="btn-text">Entrar no Sistema</span>
+                        <span class="loader hidden"></span>
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
+    
+    <script src="login.js"></script>
+</body>
+</html>
+

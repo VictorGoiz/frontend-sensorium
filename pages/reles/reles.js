@@ -5,15 +5,17 @@ let activeAlertFilter = 'todos';
 let historyChartInstance = null;
 let socketInstance = null;
 let isUpdatingDashboard = false;
+let lastDevicesSignature = '';
+let lastChartSignature = '';
 
 document.addEventListener('DOMContentLoaded', function() {
     initRealtimeConnection();
     loadDashboardData();
 
-    // Polling contínuo de 2.5s para garantir atualização fluida em qualquer ambiente
+    // Polling contínuo de alta velocidade (1s) para fluxo em tempo real estilo streaming
     setInterval(() => {
         loadDashboardData(true);
-    }, 2500);
+    }, 1000);
 
     // Fechar popover de alertas ao clicar fora
     document.addEventListener('click', function(e) {
@@ -118,7 +120,7 @@ async function fetchDevicesFromApi() {
             // Atualiza o gráfico se houver dispositivo selecionado
             const select = document.getElementById('releDeviceSelect');
             if (select && select.value) {
-                loadAndRenderHistoryChart(select.value);
+                loadAndRenderHistoryChart(select.value, false);
             }
 
             // Atualiza modal se estiver aberto
@@ -145,8 +147,28 @@ function renderSensorCards(devices) {
 
     if (devices.length === 0) {
         container.innerHTML = `<div style="grid-column: 1/-1; padding: 20px; text-align: center; color: #888;">Nenhum relé cadastrado ou com leituras no momento.</div>`;
+        lastDevicesSignature = '';
         return;
     }
+
+    // Cria assinatura dos dados dos dispositivos para evitar redesenho inútil
+    const newSignature = JSON.stringify(devices.map(d => ({
+        s: d.numero_serie,
+        st: d.status,
+        ts: d.ultima_leitura?.timestamp,
+        s1: d.ultima_leitura?.sensor1,
+        r1_on: d.ultima_leitura?.rele1_on,
+        r1_off: d.ultima_leitura?.rele1_off,
+        r1_ac: d.ultima_leitura?.rele1_acionamentos,
+        r2_on: d.ultima_leitura?.rele2_on,
+        r2_off: d.ultima_leitura?.rele2_off,
+        r2_ac: d.ultima_leitura?.rele2_acionamentos
+    })));
+
+    if (lastDevicesSignature === newSignature) {
+        return; // Nada mudou nos cards, não reconstrói o DOM
+    }
+    lastDevicesSignature = newSignature;
 
     const cardsHtml = devices.map(dev => {
         const l = dev.ultima_leitura || {};
@@ -262,9 +284,9 @@ function populateDeviceSelect(devices) {
 }
 
 /**
- * Busca histórico do dispositivo e renderiza o gráfico
+ * Busca histórico do dispositivo e renderiza o gráfico com animação fluida
  */
-async function loadAndRenderHistoryChart(forcedNumeroSerie = null) {
+async function loadAndRenderHistoryChart(forcedNumeroSerie = null, forceRedraw = false) {
     const select = document.getElementById('releDeviceSelect');
     const numeroSerie = forcedNumeroSerie || (select ? select.value : null);
     if (!numeroSerie) return;
@@ -279,8 +301,14 @@ async function loadAndRenderHistoryChart(forcedNumeroSerie = null) {
         
         if (result.success && Array.isArray(result.data)) {
             // Reverte para ordem cronológica (do mais antigo para o mais recente)
-            const chronologicalData = result.data.slice().reverse();
-            renderHistoryChart(chronologicalData);
+            let chronologicalData = result.data.slice().reverse();
+            
+            // Para visual de streaming contínuo ("correndo"), exibe os últimos 25 pontos na visualização padrão
+            if (periodo === 'all' && chronologicalData.length > 25) {
+                chronologicalData = chronologicalData.slice(-25);
+            }
+            
+            renderHistoryChart(chronologicalData, numeroSerie, periodo, forceRedraw);
         }
     } catch (err) {
         console.error('Erro ao carregar dados do gráfico:', err);
@@ -288,11 +316,19 @@ async function loadAndRenderHistoryChart(forcedNumeroSerie = null) {
 }
 
 /**
- * Renderiza o gráfico de relés com linhas contínuas e fluidas (sem tracejado)
+ * Renderiza o gráfico de relés com animações de esteira / streaming contínuo
  */
-function renderHistoryChart(data) {
+function renderHistoryChart(data, numeroSerie = '', periodo = '', forceRedraw = false) {
     const ctx = document.getElementById('historyChart');
     if (!ctx) return;
+
+    // Assinatura dos dados para detectar novidades
+    const currentSignature = `${numeroSerie}_${periodo}_` + data.map(d => `${d.id || ''}_${d.sensor1}_${d.rele1_on}_${d.rele1_off}_${d.timestamp_leitura || d.created_at}`).join('|');
+
+    if (!forceRedraw && lastChartSignature === currentSignature && historyChartInstance) {
+        return;
+    }
+    lastChartSignature = currentSignature;
     
     const labels = data.map(d => {
         const t = d.timestamp_leitura || d.created_at;
@@ -312,6 +348,8 @@ function renderHistoryChart(data) {
         historyChartInstance.data.datasets[2].data = r1Off;
         historyChartInstance.data.datasets[3].data = r2On;
         historyChartInstance.data.datasets[4].data = r2Off;
+        
+        // Transição linear rápida que dá o aspecto de esteira/correndo em tempo real
         historyChartInstance.update(); 
         return;
     }
@@ -327,10 +365,13 @@ function renderHistoryChart(data) {
                     borderColor: '#0ea5e9', // Sky Blue
                     backgroundColor: 'rgba(14, 165, 233, 0.12)',
                     borderWidth: 2.5,
-                    borderDash: [], // Linha sólida contínua (sem tracejado)
-                    pointRadius: 2,
+                    borderDash: [], // Linha 100% sólida e contínua
+                    pointRadius: 0, // Sem pontos
                     pointHoverRadius: 6,
+                    pointHitRadius: 10,
                     tension: 0.35,
+                    cubicInterpolationMode: 'monotone',
+                    spanGaps: true,
                     fill: true,
                     yAxisID: 'y'
                 },
@@ -340,10 +381,12 @@ function renderHistoryChart(data) {
                     borderColor: '#10b981', // Verde Esmeralda
                     backgroundColor: 'transparent',
                     borderWidth: 2,
-                    borderDash: [], // Linha sólida contínua (sem tracejado)
+                    borderDash: [], // Linha 100% sólida e contínua
                     pointRadius: 0,
                     pointHoverRadius: 5,
+                    pointHitRadius: 10,
                     tension: 0.2,
+                    spanGaps: true,
                     fill: false,
                     yAxisID: 'y'
                 },
@@ -353,10 +396,12 @@ function renderHistoryChart(data) {
                     borderColor: '#ef4444', // Vermelho
                     backgroundColor: 'transparent',
                     borderWidth: 2,
-                    borderDash: [], // Linha sólida contínua (sem tracejado)
+                    borderDash: [], // Linha 100% sólida e contínua
                     pointRadius: 0,
                     pointHoverRadius: 5,
+                    pointHitRadius: 10,
                     tension: 0.2,
+                    spanGaps: true,
                     fill: false,
                     yAxisID: 'y'
                 },
@@ -366,10 +411,12 @@ function renderHistoryChart(data) {
                     borderColor: '#8b5cf6', // Roxo / Indigo
                     backgroundColor: 'transparent',
                     borderWidth: 2,
-                    borderDash: [], // Linha sólida contínua (sem tracejado)
+                    borderDash: [], // Linha 100% sólida e contínua
                     pointRadius: 0,
                     pointHoverRadius: 5,
+                    pointHitRadius: 10,
                     tension: 0.2,
+                    spanGaps: true,
                     fill: false,
                     hidden: true,
                     yAxisID: 'y'
@@ -380,10 +427,12 @@ function renderHistoryChart(data) {
                     borderColor: '#f43f5e', // Rosa / Coral
                     backgroundColor: 'transparent',
                     borderWidth: 2,
-                    borderDash: [], // Linha sólida contínua (sem tracejado)
+                    borderDash: [], // Linha 100% sólida e contínua
                     pointRadius: 0,
                     pointHoverRadius: 5,
+                    pointHitRadius: 10,
                     tension: 0.2,
+                    spanGaps: true,
                     fill: false,
                     hidden: true,
                     yAxisID: 'y'
@@ -395,7 +444,14 @@ function renderHistoryChart(data) {
             maintainAspectRatio: false,
             animation: {
                 duration: 400,
-                easing: 'easeOutQuart'
+                easing: 'linear'
+            },
+            transitions: {
+                active: {
+                    animation: {
+                        duration: 200
+                    }
+                }
             },
             interaction: {
                 mode: 'index',

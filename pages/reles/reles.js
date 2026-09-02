@@ -12,10 +12,10 @@ document.addEventListener('DOMContentLoaded', function() {
     initRealtimeConnection();
     loadDashboardData();
 
-    // Polling contínuo de alta velocidade (1s) para fluxo em tempo real estilo streaming
+    // Polling contínuo ultrarrápido (150ms) para streaming contínuo em milissegundos
     setInterval(() => {
         loadDashboardData(true);
-    }, 1000);
+    }, 150);
 
     // Fechar popover de alertas ao clicar fora
     document.addEventListener('click', function(e) {
@@ -52,9 +52,17 @@ function initRealtimeConnection() {
                 console.log('[Socket.IO] Conectado em tempo real ao servidor.');
             });
 
+            // Recepção instantânea de leituras em milissegundos
+            socketInstance.on('rele_reading', (data) => {
+                handleLiveReading(data);
+            });
+
             socketInstance.on('dashboard_update', (data) => {
-                console.log('[Socket.IO] Atualização em tempo real recebida:', data);
-                loadDashboardData(false);
+                if (data?.data && data.type === 'reles_data') {
+                    handleLiveReading(data.data);
+                } else {
+                    loadDashboardData(false);
+                }
 
                 // Se o modal estiver aberto e o dispositivo corresponder, atualiza o modal na hora
                 const modal = document.getElementById('sensorModal');
@@ -64,9 +72,6 @@ function initRealtimeConnection() {
                         const currentModalDev = currentDevices.find(d => title.includes(d.numero_serie));
                         if (currentModalDev) {
                             updateModalLiveValues(currentModalDev);
-                            const periodSelect = document.getElementById('modalHistoryPeriod');
-                            const periodo = periodSelect ? periodSelect.value : 'all';
-                            fetchDeviceHistory(currentModalDev.numero_serie, periodo);
                         }
                     }
                 }
@@ -80,6 +85,86 @@ function initRealtimeConnection() {
         }
     } else {
         console.warn('Socket.IO não disponível. Usando polling contínuo.');
+    }
+}
+
+/**
+ * Processa uma leitura em tempo real instantaneamente (Latência Zero)
+ * Atualiza o card, o gráfico e os indicadores na hora em que a variação (ex: 50, 49, 48) ocorre
+ */
+function handleLiveReading(reading) {
+    if (!reading || !reading.numeroSerie) return;
+    const { numeroSerie, sensor1, rele1_on, rele1_off, rele1_acionamentos, rele2_on, rele2_off, rele2_acionamentos, timestamp } = reading;
+
+    // 1. Atualiza o objeto no array de dispositivos
+    let dev = currentDevices.find(d => d.numero_serie === numeroSerie);
+    if (dev) {
+        dev.ultima_leitura = {
+            sensor1,
+            rele1_on,
+            rele1_off,
+            rele1_acionamentos,
+            rele2_on,
+            rele2_off,
+            rele2_acionamentos,
+            timestamp: timestamp || new Date()
+        };
+    }
+
+    // 2. Atualiza os valores do Card específico instantaneamente
+    const cardEl = document.querySelector(`.sensor-card[data-serie="${numeroSerie}"]`);
+    if (cardEl) {
+        const pressureEl = cardEl.querySelector('.pressure-live-val');
+        if (pressureEl && sensor1 !== null && sensor1 !== undefined) {
+            pressureEl.innerText = Number(sensor1).toFixed(2);
+            pressureEl.classList.add('pulse');
+            setTimeout(() => pressureEl.classList.remove('pulse'), 150);
+        }
+
+        const timeEl = cardEl.querySelector('.time-live-val');
+        if (timeEl) {
+            timeEl.innerText = new Date(timestamp || Date.now()).toLocaleTimeString('pt-BR');
+        }
+
+        const r1OnEl = cardEl.querySelector('.r1-on-val');
+        if (r1OnEl && rele1_on !== null && rele1_on !== undefined) r1OnEl.innerText = Number(rele1_on).toFixed(1);
+
+        const r1OffEl = cardEl.querySelector('.r1-off-val');
+        if (r1OffEl && rele1_off !== null && rele1_off !== undefined) r1OffEl.innerText = Number(rele1_off).toFixed(1);
+
+        const r1AcEl = cardEl.querySelector('.r1-ac-val');
+        if (r1AcEl && rele1_acionamentos !== null && rele1_acionamentos !== undefined) r1AcEl.innerText = rele1_acionamentos;
+    }
+
+    // 3. Se o gráfico ativo for deste dispositivo, faz o streaming instantâneo
+    const select = document.getElementById('releDeviceSelect');
+    if (select && select.value === numeroSerie && historyChartInstance) {
+        const nowLabel = new Date(timestamp || Date.now()).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+        
+        historyChartInstance.data.labels.push(nowLabel);
+        historyChartInstance.data.datasets[0].data.push(sensor1 !== null && sensor1 !== undefined ? Number(sensor1) : null);
+        historyChartInstance.data.datasets[1].data.push(rele1_on !== null && rele1_on !== undefined ? Number(rele1_on) : null);
+        historyChartInstance.data.datasets[2].data.push(rele1_off !== null && rele1_off !== undefined ? Number(rele1_off) : null);
+        historyChartInstance.data.datasets[3].data.push(rele2_on !== null && rele2_on !== undefined ? Number(rele2_on) : null);
+        historyChartInstance.data.datasets[4].data.push(rele2_off !== null && rele2_off !== undefined ? Number(rele2_off) : null);
+
+        // Mantém janela deslizante de 20 pontos para visualização ágil e contínua
+        if (historyChartInstance.data.labels.length > 20) {
+            historyChartInstance.data.labels.shift();
+            historyChartInstance.data.datasets.forEach(ds => ds.data.shift());
+        }
+
+        // Renderiza com transição suave e ultrarrápida
+        historyChartInstance.update();
+    }
+
+    // 4. Se o modal estiver aberto para este dispositivo, atualiza os campos
+    const modal = document.getElementById('sensorModal');
+    if (modal && modal.classList.contains('active')) {
+        const title = document.getElementById('modalSensorTitle')?.innerText || '';
+        if (title.includes(numeroSerie) && dev) {
+            updateModalLiveValues(dev);
+        }
     }
 }
 
@@ -194,16 +279,16 @@ function renderSensorCards(devices) {
                         <h4>Relé ${dev.numero_serie}</h4>
                         <span class="status-dot ${dotClass}" title="Status: ${statusText}"></span>
                     </div>
-                    <span style="font-size: 10px; color: #94a3b8;">${timeStr}</span>
+                    <span class="time-live-val" style="font-size: 10px; color: #94a3b8;">${timeStr}</span>
                 </div>
                 <div class="sensor-body">
                     <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; background: #f8fafc; padding: 6px 10px; border-radius: 6px; border: 1px solid #e2e8f0;">
                         <span style="font-size: 11px; color: #475569; font-weight: 500;">Pressão (Sensor 1):</span>
-                        <strong style="font-size: 14px; color: #0284c7;">${sensor1}</strong>
+                        <strong class="pressure-live-val metric-live-val" style="font-size: 14px; color: #0284c7;">${sensor1}</strong>
                     </div>
                     <div style="font-size: 11px; color: #334155; line-height: 1.6;">
-                        <p style="margin: 2px 0;"><strong>R1:</strong> ON: <span class="val-display">${rele1_on}</span> | OFF: <span class="val-display">${rele1_off}</span> | Acionamentos: <strong>${rele1_acionamentos}</strong></p>
-                        <p style="margin: 2px 0;"><strong>R2:</strong> ON: <span class="val-display">${rele2_on}</span> | OFF: <span class="val-display">${rele2_off}</span> | Acionamentos: <strong>${rele2_acionamentos}</strong></p>
+                        <p style="margin: 2px 0;"><strong>R1:</strong> ON: <span class="val-display r1-on-val">${rele1_on}</span> | OFF: <span class="val-display r1-off-val">${rele1_off}</span> | Acionamentos: <strong class="r1-ac-val">${rele1_acionamentos}</strong></p>
+                        <p style="margin: 2px 0;"><strong>R2:</strong> ON: <span class="val-display r2-on-val">${rele2_on}</span> | OFF: <span class="val-display r2-off-val">${rele2_off}</span> | Acionamentos: <strong class="r2-ac-val">${rele2_acionamentos}</strong></p>
                     </div>
                 </div>
             </div>
@@ -303,9 +388,9 @@ async function loadAndRenderHistoryChart(forcedNumeroSerie = null, forceRedraw =
             // Reverte para ordem cronológica (do mais antigo para o mais recente)
             let chronologicalData = result.data.slice().reverse();
             
-            // Para visual de streaming contínuo ("correndo"), exibe os últimos 25 pontos na visualização padrão
-            if (periodo === 'all' && chronologicalData.length > 25) {
-                chronologicalData = chronologicalData.slice(-25);
+            // Para visual de streaming contínuo ("correndo"), exibe os últimos 20 pontos na visualização padrão
+            if (periodo === 'all' && chronologicalData.length > 20) {
+                chronologicalData = chronologicalData.slice(-20);
             }
             
             renderHistoryChart(chronologicalData, numeroSerie, periodo, forceRedraw);
@@ -316,7 +401,7 @@ async function loadAndRenderHistoryChart(forcedNumeroSerie = null, forceRedraw =
 }
 
 /**
- * Renderiza o gráfico de relés com animações de esteira / streaming contínuo
+ * Renderiza o gráfico de relés com animações suaves e contínuas
  */
 function renderHistoryChart(data, numeroSerie = '', periodo = '', forceRedraw = false) {
     const ctx = document.getElementById('historyChart');
@@ -349,7 +434,7 @@ function renderHistoryChart(data, numeroSerie = '', periodo = '', forceRedraw = 
         historyChartInstance.data.datasets[3].data = r2On;
         historyChartInstance.data.datasets[4].data = r2Off;
         
-        // Transição linear rápida que dá o aspecto de esteira/correndo em tempo real
+        // Atualiza com animação suave e ultrarrápida
         historyChartInstance.update(); 
         return;
     }
@@ -366,13 +451,16 @@ function renderHistoryChart(data, numeroSerie = '', periodo = '', forceRedraw = 
                     backgroundColor: 'rgba(14, 165, 233, 0.12)',
                     borderWidth: 2.5,
                     borderDash: [], // Linha 100% sólida e contínua
-                    pointRadius: 0, // Sem pontos
+                    pointRadius: 0, // Sem pontos para suavidade total
                     pointHoverRadius: 6,
                     pointHitRadius: 10,
-                    tension: 0.35,
+                    tension: 0.45,
+                    borderCapStyle: 'round',
+                    borderJoinStyle: 'round',
                     cubicInterpolationMode: 'monotone',
                     spanGaps: true,
                     fill: true,
+                    normalized: true,
                     yAxisID: 'y'
                 },
                 {
@@ -385,9 +473,12 @@ function renderHistoryChart(data, numeroSerie = '', periodo = '', forceRedraw = 
                     pointRadius: 0,
                     pointHoverRadius: 5,
                     pointHitRadius: 10,
-                    tension: 0.2,
+                    tension: 0.25,
+                    borderCapStyle: 'round',
+                    borderJoinStyle: 'round',
                     spanGaps: true,
                     fill: false,
+                    normalized: true,
                     yAxisID: 'y'
                 },
                 {
@@ -400,9 +491,12 @@ function renderHistoryChart(data, numeroSerie = '', periodo = '', forceRedraw = 
                     pointRadius: 0,
                     pointHoverRadius: 5,
                     pointHitRadius: 10,
-                    tension: 0.2,
+                    tension: 0.25,
+                    borderCapStyle: 'round',
+                    borderJoinStyle: 'round',
                     spanGaps: true,
                     fill: false,
+                    normalized: true,
                     yAxisID: 'y'
                 },
                 {
@@ -415,10 +509,13 @@ function renderHistoryChart(data, numeroSerie = '', periodo = '', forceRedraw = 
                     pointRadius: 0,
                     pointHoverRadius: 5,
                     pointHitRadius: 10,
-                    tension: 0.2,
+                    tension: 0.25,
+                    borderCapStyle: 'round',
+                    borderJoinStyle: 'round',
                     spanGaps: true,
                     fill: false,
                     hidden: true,
+                    normalized: true,
                     yAxisID: 'y'
                 },
                 {
@@ -431,10 +528,13 @@ function renderHistoryChart(data, numeroSerie = '', periodo = '', forceRedraw = 
                     pointRadius: 0,
                     pointHoverRadius: 5,
                     pointHitRadius: 10,
-                    tension: 0.2,
+                    tension: 0.25,
+                    borderCapStyle: 'round',
+                    borderJoinStyle: 'round',
                     spanGaps: true,
                     fill: false,
                     hidden: true,
+                    normalized: true,
                     yAxisID: 'y'
                 }
             ]
@@ -443,13 +543,14 @@ function renderHistoryChart(data, numeroSerie = '', periodo = '', forceRedraw = 
             responsive: true,
             maintainAspectRatio: false,
             animation: {
-                duration: 400,
-                easing: 'linear'
+                duration: 120,
+                easing: 'easeOutCubic'
             },
             transitions: {
                 active: {
                     animation: {
-                        duration: 200
+                        duration: 80,
+                        easing: 'easeOutCubic'
                     }
                 }
             },
@@ -487,15 +588,16 @@ function renderHistoryChart(data, numeroSerie = '', periodo = '', forceRedraw = 
             },
             scales: {
                 x: {
-                    grid: { color: 'rgba(226, 232, 240, 0.6)', drawBorder: false },
-                    ticks: { color: '#64748b', maxTicksLimit: 10, font: { size: 10 } }
+                    grid: { display: false },
+                    ticks: { color: '#64748b', maxTicksLimit: 6, font: { size: 10 } }
                 },
                 y: {
                     type: 'linear',
                     display: true,
                     position: 'left',
-                    grid: { color: 'rgba(226, 232, 240, 0.6)', drawBorder: false },
-                    ticks: { color: '#64748b', font: { size: 10 } }
+                    grace: '10%',
+                    grid: { color: 'rgba(226, 232, 240, 0.5)', drawBorder: false },
+                    ticks: { color: '#64748b', maxTicksLimit: 7, font: { size: 10 } }
                 }
             }
         }

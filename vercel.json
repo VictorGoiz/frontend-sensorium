@@ -1,0 +1,11 @@
+{
+  "cleanUrls": true,
+  "rewrites": [
+    { "source": "/", "destination": "/pages/login/index.html" },
+    { "source": "/login", "destination": "/pages/login/index.html" },
+    { "source": "/reles", "destination": "/pages/reles/index.html" },
+    { "source": "/sensores", "destination": "/pages/sensores/index.html" },
+    { "source": "/admin", "destination": "/pages/admin/index.html" },
+    { "source": "/home", "destination": "/pages/home/index.html" }
+  ]
+}

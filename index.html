@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="refresh" content="0; url=pages/login/index.html">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sensimonitor - Redirecionando...</title>
+    <script>
+        window.location.replace("pages/login/index.html" + window.location.search + window.location.hash);
+    </script>
+    <style>
+        body {
+            font-family: 'Inter', system-ui, -apple-system, sans-serif;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+            background-color: #f8fafc;
+            color: #64748b;
+        }
+        .loading-container {
+            text-align: center;
+        }
+        .spinner {
+            width: 40px;
+            height: 40px;
+            border: 3px solid #e2e8f0;
+            border-top: 3px solid #0284c7;
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+            margin: 0 auto 16px;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body>
+    <div class="loading-container">
+        <div class="spinner"></div>
+        <p>Carregando Sensimonitor...</p>
+        <noscript>
+            <p>Se você não for redirecionado automaticamente, <a href="pages/login/index.html">clique aqui</a>.</p>
+        </noscript>
+    </div>
+</body>
+</html>

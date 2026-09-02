@@ -5,14 +5,14 @@ document.addEventListener('DOMContentLoaded', () => {
     const userStr = localStorage.getItem('sensorium_user');
     
     if (!token || !userStr) {
-        window.location.href = '../login/index.html';
+        window.location.href = '/pages/login/index.html';
         return;
     }
 
     const user = JSON.parse(userStr);
     if (user.perfil !== 'superadmin') {
         alert('Acesso negado. Apenas Super Admins podem acessar esta página.');
-        window.location.href = '../home/index.html';
+        window.location.href = '/pages/home/index.html';
         return;
     }
 

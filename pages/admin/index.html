@@ -5,10 +5,10 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Sensorium - Administração</title>
     <!-- Reaproveitamos o css da home para o layout base, e adicionamos um admin.css para os forms -->
-    <link rel="stylesheet" href="../home/home.css">
-    <link rel="stylesheet" href="admin.css">
+    <link rel="stylesheet" href="/pages/home/home.css">
+    <link rel="stylesheet" href="/pages/admin/admin.css">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap" rel="stylesheet">
-    <script src="../config.js"></script>
+    <script src="/pages/config.js"></script>
 </head>
 <body>
     <div class="app-layout">
@@ -18,11 +18,11 @@
                 <h2>Sensorium (Admin)</h2>
             </div>
             <nav>
-                <a href="index.html" class="nav-item active">Administração</a>
-                <a href="dispositivos.html" class="nav-item">Gerenciar Dispositivos</a>
+                <a href="/pages/admin/index.html" class="nav-item active">Administração</a>
+                <a href="/pages/admin/dispositivos.html" class="nav-item">Gerenciar Dispositivos</a>
             </nav>
             <div class="user-info">
-                <a href="../login/index.html" class="logout-btn" onclick="localStorage.removeItem('sensorium_user'); localStorage.removeItem('sensorium_token');">Sair</a>
+                <a href="/pages/login/index.html" class="logout-btn" onclick="localStorage.removeItem('sensorium_user'); localStorage.removeItem('sensorium_token');">Sair</a>
             </div>
         </aside>
 
@@ -85,7 +85,7 @@
         </main>
     </div>
 
-    <script src="admin.js"></script>
+    <script src="/pages/admin/admin.js"></script>
 </body>
 </html>
 

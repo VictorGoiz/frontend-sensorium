@@ -71,3 +71,10 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 });
 
+function toggleNavDropdown(btn) {
+    const dropdown = btn.closest('.nav-dropdown');
+    if (dropdown) {
+        dropdown.classList.toggle('open');
+    }
+}
+

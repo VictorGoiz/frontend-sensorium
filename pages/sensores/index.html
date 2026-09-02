@@ -4,16 +4,16 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Sensorium - Sensores</title>
-    <link rel="stylesheet" href="/pages/home/home.css">
-    <link rel="stylesheet" href="/pages/components/chat.css">
-    <link rel="stylesheet" href="/pages/sensores/sensores.css">
+    <link rel="stylesheet" href="../home/home.css">
+    <link rel="stylesheet" href="../components/chat.css">
+    <link rel="stylesheet" href="sensores.css">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <!-- Socket.IO Client -->
     <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
     <!-- Leaflet CSS for Maps -->
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-    <script src="/pages/config.js"></script>
+    <script src="../config.js"></script>
 </head>
 <body>
     <div class="app-layout">
@@ -23,12 +23,23 @@
                 <h2>Sensorium</h2>
             </div>
             <nav>
-                <a href="/pages/home/index.html" class="nav-item">Visão Geral</a>
-                <a href="/pages/sensores/index.html" class="nav-item active">Sensores</a>
-                <a href="/pages/reles/index.html" class="nav-item">Relés</a>
+                <a href="../home/index.html" class="nav-item">Visão Geral</a>
+                <a href="index.html" class="nav-item active">Sensores</a>
+                <a href="../reles/index.html" class="nav-item">Relés</a>
+                <div class="nav-dropdown">
+                    <button class="nav-dropdown-toggle" onclick="toggleNavDropdown(this)">
+                        <span>Apresentação</span>
+                        <svg class="chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <polyline points="6 9 12 15 18 9"></polyline>
+                        </svg>
+                    </button>
+                    <div class="nav-dropdown-menu">
+                        <a href="../chopeiras/index.html" class="nav-subitem">Chopeiras</a>
+                    </div>
+                </div>
             </nav>
             <div class="user-info">
-                <a href="/pages/login/index.html" class="logout-btn">Sair</a>
+                <a href="../login/index.html" class="logout-btn">Sair</a>
             </div>
         </aside>
 
@@ -215,9 +226,9 @@
 
     <!-- Leaflet JS -->
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-    <script src="/pages/components/chat.js"></script>
-    <script src="/pages/home/home.js"></script>
-    <script src="/pages/sensores/sensores.js"></script>
+    <script src="../components/chat.js"></script>
+    <script src="../home/home.js"></script>
+    <script src="sensores.js"></script>
 </body>
 </html>
 

@@ -547,3 +547,10 @@ document.addEventListener('click', function(e) {
     if (sensorModal && e.target === sensorModal) closeSensorModal();
     if (rangesModal && e.target === rangesModal) closeRangesModal();
 });
+
+function toggleNavDropdown(btn) {
+    const dropdown = btn.closest('.nav-dropdown');
+    if (dropdown) {
+        dropdown.classList.toggle('open');
+    }
+}

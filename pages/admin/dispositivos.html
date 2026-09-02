@@ -3,10 +3,11 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <link rel="stylesheet" href="/pages/home/home.css">
-    <link rel="stylesheet" href="/pages/admin/admin.css">
+    <title>Sensorium - Gerenciar Dispositivos</title>
+    <link rel="stylesheet" href="../home/home.css">
+    <link rel="stylesheet" href="admin.css">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap" rel="stylesheet">
-    <script src="/pages/config.js"></script>
+    <script src="../config.js"></script>
     <style>
         .devices-table {
             width: 100%;
@@ -46,11 +47,11 @@
                 <h2>Sensorium (Admin)</h2>
             </div>
             <nav>
-                <a href="/pages/admin/index.html" class="nav-item">Administração</a>
-                <a href="/pages/admin/dispositivos.html" class="nav-item active">Gerenciar Dispositivos</a>
+                <a href="index.html" class="nav-item">Administração</a>
+                <a href="dispositivos.html" class="nav-item active">Gerenciar Dispositivos</a>
             </nav>
             <div class="user-info">
-                <a href="/pages/login/index.html" class="logout-btn" onclick="localStorage.removeItem('sensorium_user'); localStorage.removeItem('sensorium_token');">Sair</a>
+                <a href="../login/index.html" class="logout-btn" onclick="localStorage.removeItem('sensorium_user'); localStorage.removeItem('sensorium_token');">Sair</a>
             </div>
         </aside>
 
@@ -80,7 +81,7 @@
         </main>
     </div>
 
-    <script src="/pages/admin/dispositivos.js"></script>
+    <script src="dispositivos.js"></script>
 </body>
 </html>
 

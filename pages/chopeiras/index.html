@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sensorium - Apresentação de Chopeiras</title>
+    <link rel="stylesheet" href="chopeiras.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+    <script src="../config.js"></script>
+</head>
+<body>
+    <div class="app-layout">
+        <!-- Sidebar Navigation -->
+        <aside class="sidebar">
+            <div class="logo-container">
+                <div class="logo-icon">S</div>
+                <h2>Sensorium</h2>
+            </div>
+            <nav>
+                <a href="../home/index.html" class="nav-item">Visão Geral</a>
+                <a href="../sensores/index.html" class="nav-item">Sensores</a>
+                <a href="../reles/index.html" class="nav-item">Relés</a>
+                
+                <!-- Dropdown Apresentação -->
+                <div class="nav-dropdown open">
+                    <button class="nav-dropdown-toggle active" onclick="toggleNavDropdown(this)">
+                        <span>Apresentação</span>
+                        <svg class="chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <polyline points="6 9 12 15 18 9"></polyline>
+                        </svg>
+                    </button>
+                    <div class="nav-dropdown-menu">
+                        <a href="index.html" class="nav-subitem active">Chopeiras</a>
+                    </div>
+                </div>
+            </nav>
+            <div class="user-info">
+                <a href="../login/index.html" class="logout-btn">Sair</a>
+            </div>
+        </aside>
+
+        <!-- Main Content Presentation -->
+        <main class="main-content">
+            <header class="presentation-header">
+                <div class="header-brand">
+                    <div class="header-title-row">
+                        <h1>Apresentação Executiva — Chopeiras</h1>
+                        <span class="badge-live-presentation">
+                            <span class="dot"></span>
+                            TRANSMISSÃO AO VIVO
+                        </span>
+                    </div>
+                    <p>Telemetria e controle contínuo de pressão e acionamento de relés em alta resolução</p>
+                </div>
+
+                <div class="header-actions">
+                    <select id="chopeiraSelect" class="select-presentation" onchange="onSelectChopeiraChange()">
+                        <option value="">Carregando chopeiras...</option>
+                    </select>
+
+                    <select id="chopeiraPeriodSelect" class="select-presentation" style="min-width: 130px;" onchange="loadChopeiraChart(null, true)">
+                        <option value="all">Ao Vivo</option>
+                        <option value="1h">1 hora</option>
+                        <option value="6h">6 horas</option>
+                        <option value="24h">24 horas</option>
+                    </select>
+
+                    <button class="btn-fullscreen" onclick="toggleFullscreen()" title="Alternar Modo Tela Cheia (TV / Painel)">
+                        <svg id="fullscreenIcon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"/>
+                        </svg>
+                        <span id="fullscreenText">Tela Cheia</span>
+                    </button>
+                </div>
+            </header>
+
+            <!-- 4 Executive Cards Row -->
+            <div class="executive-cards-grid">
+                <!-- Card 1: Pressão Atual -->
+                <div class="exec-card">
+                    <div class="exec-card-header">
+                        <h3>Pressão Atual (Sensor 1)</h3>
+                        <div class="exec-card-icon">⚡</div>
+                    </div>
+                    <div class="exec-main-value">
+                        <span id="execPressureVal" class="exec-number">--</span>
+                        <span class="exec-unit">bar / PSI</span>
+                    </div>
+                    <div class="exec-card-footer">
+                        <span class="exec-sublabel">Dispositivo Ativo:</span>
+                        <span id="execDeviceSerial" class="val-pill blue">--</span>
+                    </div>
+                </div>
+
+                <!-- Card 2: Relé 1 (Linha de Chopp) -->
+                <div class="exec-card">
+                    <div class="exec-card-header">
+                        <h3>Relé 1 (Linha Chopp)</h3>
+                        <div class="exec-card-icon">🎛️</div>
+                    </div>
+                    <div class="exec-main-value">
+                        <span id="execR1Status" class="exec-number" style="font-size: 24px;">--</span>
+                    </div>
+                    <div class="exec-card-footer">
+                        <span>ON: <strong id="execR1On" class="val-pill green">--</strong> | OFF: <strong id="execR1Off" class="val-pill red">--</strong></span>
+                        <span>Acionamentos: <strong id="execR1Ac">--</strong></span>
+                    </div>
+                </div>
+
+                <!-- Card 3: Relé 2 (Refrigeração) -->
+                <div class="exec-card">
+                    <div class="exec-card-header">
+                        <h3>Relé 2 (Refrigeração)</h3>
+                        <div class="exec-card-icon">❄️</div>
+                    </div>
+                    <div class="exec-main-value">
+                        <span id="execR2Status" class="exec-number" style="font-size: 24px;">--</span>
+                    </div>
+                    <div class="exec-card-footer">
+                        <span>ON: <strong id="execR2On" class="val-pill green">--</strong> | OFF: <strong id="execR2Off" class="val-pill red">--</strong></span>
+                        <span>Acionamentos: <strong id="execR2Ac">--</strong></span>
+                    </div>
+                </div>
+
+                <!-- Card 4: Status do Sistema & Unidades -->
+                <div class="exec-card">
+                    <div class="exec-card-header">
+                        <h3>Status Geral do Parque</h3>
+                        <div class="exec-card-icon">🍺</div>
+                    </div>
+                    <div class="exec-main-value">
+                        <span id="execTotalChopeiras" class="exec-number">0</span>
+                        <span class="exec-unit">unidades</span>
+                    </div>
+                    <div class="exec-card-footer">
+                        <span>Condição Operacional:</span>
+                        <span id="execSystemStatus" class="val-pill green">Normal</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Main Interactive Chart Presentation -->
+            <div class="presentation-chart-card">
+                <div class="chart-card-header">
+                    <h2>Curva de Pressão em Tempo Real & Setpoints</h2>
+                    <div class="chart-card-meta">
+                        <div class="legend-inline">
+                            <span class="legend-item"><span class="legend-line blue"></span> Pressão (Sensor 1)</span>
+                            <span class="legend-item"><span class="legend-line green"></span> Setpoint ON</span>
+                            <span class="legend-item"><span class="legend-line red"></span> Setpoint OFF</span>
+                        </div>
+                    </div>
+                </div>
+                <div class="chart-stage-wrapper">
+                    <canvas id="chopeirasChart"></canvas>
+                </div>
+            </div>
+
+            <!-- Grid de Todas as Chopeiras Monitoradas -->
+            <div class="chopeiras-section-title">
+                <span>Parque de Chopeiras Conectadas</span>
+                <span id="chopeirasListSummary" style="font-size: 12px; color: var(--text-muted); font-weight: 400;">Atualização contínua</span>
+            </div>
+            <div id="chopeirasGrid" class="chopeiras-devices-grid">
+                <div style="grid-column: 1/-1; padding: 20px; text-align: center; color: var(--text-muted); font-size: 13px;">Carregando chopeiras...</div>
+            </div>
+        </main>
+    </div>
+
+    <script src="chopeiras.js"></script>
+</body>
+</html>

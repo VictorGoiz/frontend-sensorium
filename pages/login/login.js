@@ -30,11 +30,11 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (data.usuario) {
                     localStorage.setItem('sensorium_user', JSON.stringify(data.usuario));
                     if (data.usuario.perfil === 'superadmin') {
-                        window.location.href = '/pages/admin/index.html';
+                        window.location.href = '../admin/index.html';
                         return;
                     }
                 }
-                window.location.href = '/pages/home/index.html';
+                window.location.href = '../home/index.html';
             } else {
                 alert(data.erro || 'Falha na autenticação. Verifique e-mail e senha.');
                 resetBtn();
@@ -42,7 +42,7 @@ document.addEventListener('DOMContentLoaded', () => {
         } catch (err) {
             console.warn('[Login] Servidor offline ou indisponível, prosseguindo modo estático:', err.message);
             setTimeout(() => {
-                window.location.href = '/pages/home/index.html';
+                window.location.href = '../home/index.html';
             }, 800);
         }
 

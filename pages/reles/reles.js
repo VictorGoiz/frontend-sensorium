@@ -833,3 +833,10 @@ async function markAllAlertsAsRead() {
     } catch (e) {}
 }
 
+function toggleNavDropdown(btn) {
+    const dropdown = btn.closest('.nav-dropdown');
+    if (dropdown) {
+        dropdown.classList.toggle('open');
+    }
+}
+

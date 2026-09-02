@@ -172,7 +172,7 @@ function updateActiveExecutiveCard(reading) {
     if (r1OffEl) r1OffEl.innerText = reading.rele1_off !== null && reading.rele1_off !== undefined ? Number(reading.rele1_off).toFixed(1) : '--';
     if (r1AcEl) r1AcEl.innerText = reading.rele1_acionamentos ?? '--';
     if (r1StatusEl) {
-        r1StatusEl.innerText = (reading.rele1_on !== null && reading.sensor1 >= reading.rele1_on) ? 'ATIVO (ON)' : 'STANDBY (OFF)';
+        r1StatusEl.innerText = (reading.rele1_on !== null && reading.sensor1 >= reading.rele1_on) ? 'ATIVO (ON)' : 'DESLIGADO (OFF)';
         r1StatusEl.style.color = (reading.rele1_on !== null && reading.sensor1 >= reading.rele1_on) ? '#10b981' : '#64748b';
     }
 
@@ -180,7 +180,7 @@ function updateActiveExecutiveCard(reading) {
     if (r2OffEl) r2OffEl.innerText = reading.rele2_off !== null && reading.rele2_off !== undefined ? Number(reading.rele2_off).toFixed(1) : '--';
     if (r2AcEl) r2AcEl.innerText = reading.rele2_acionamentos ?? '--';
     if (r2StatusEl) {
-        r2StatusEl.innerText = (reading.rele2_on !== null && reading.sensor1 >= reading.rele2_on) ? 'ATIVO (ON)' : 'STANDBY (OFF)';
+        r2StatusEl.innerText = (reading.rele2_on !== null && reading.sensor1 >= reading.rele2_on) ? 'ATIVO (ON)' : 'DESLIGADO (OFF)';
         r2StatusEl.style.color = (reading.rele2_on !== null && reading.sensor1 >= reading.rele2_on) ? '#10b981' : '#64748b';
     }
 }

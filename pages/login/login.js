@@ -33,6 +33,10 @@ document.addEventListener('DOMContentLoaded', () => {
                         window.location.href = '../admin/index.html';
                         return;
                     }
+                    if (data.usuario.perfil === 'apresentacao') {
+                        window.location.href = '../chopeiras/index.html';
+                        return;
+                    }
                 }
                 window.location.href = '../home/index.html';
             } else {

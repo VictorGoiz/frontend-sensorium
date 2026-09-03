@@ -1,4 +1,15 @@
 document.addEventListener('DOMContentLoaded', function() {
+    const userStr = localStorage.getItem('sensorium_user');
+    if (userStr) {
+        try {
+            const user = JSON.parse(userStr);
+            if (user.perfil === 'apresentacao') {
+                window.location.href = '../chopeiras/index.html';
+                return;
+            }
+        } catch (e) {}
+    }
+
     // Gráfico de Temperatura Global (Linha)
     const trafficEl = document.getElementById('trafficChart');
     if (trafficEl) {

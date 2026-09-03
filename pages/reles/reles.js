@@ -7,8 +7,37 @@ let socketInstance = null;
 let isUpdatingDashboard = false;
 let lastDevicesSignature = '';
 let lastChartSignature = '';
+let releBadgeWatchdog = null;
+
+/**
+ * Atualiza o estado da badge de transmissão ao vivo
+ */
+function setReleLiveBadgeState(isLive) {
+    const badge = document.getElementById('releLiveBadge');
+    if (!badge) return;
+    if (isLive) {
+        badge.classList.add('active');
+        if (releBadgeWatchdog) clearTimeout(releBadgeWatchdog);
+        releBadgeWatchdog = setTimeout(() => {
+            setReleLiveBadgeState(false);
+        }, 15000);
+    } else {
+        badge.classList.remove('active');
+    }
+}
 
 document.addEventListener('DOMContentLoaded', function() {
+    const userStr = localStorage.getItem('sensorium_user');
+    if (userStr) {
+        try {
+            const user = JSON.parse(userStr);
+            if (user.perfil === 'apresentacao') {
+                window.location.href = '../chopeiras/index.html';
+                return;
+            }
+        } catch (e) {}
+    }
+
     initRealtimeConnection();
     loadDashboardData();
 
@@ -79,9 +108,11 @@ function initRealtimeConnection() {
 
             socketInstance.on('disconnect', () => {
                 console.warn('[Socket.IO] Desconectado. Tentando reconectar...');
+                setReleLiveBadgeState(false);
             });
         } catch (err) {
             console.error('[Socket.IO] Erro ao inicializar conexão:', err);
+            setReleLiveBadgeState(false);
         }
     } else {
         console.warn('Socket.IO não disponível. Usando polling contínuo.');
@@ -95,6 +126,9 @@ function initRealtimeConnection() {
 function handleLiveReading(reading) {
     if (!reading || !reading.numeroSerie) return;
     const { numeroSerie, sensor1, rele1_on, rele1_off, rele1_acionamentos, rele2_on, rele2_off, rele2_acionamentos, timestamp } = reading;
+
+    // Ativa a badge para verde vivo
+    setReleLiveBadgeState(true);
 
     // 1. Atualiza o objeto no array de dispositivos
     let dev = currentDevices.find(d => d.numero_serie === numeroSerie);
@@ -201,6 +235,13 @@ async function fetchDevicesFromApi() {
             renderSensorCards(currentDevices);
             updateDashboardSummary(currentDevices);
             populateDeviceSelect(currentDevices);
+
+            const hasData = currentDevices.length > 0 && currentDevices.some(d => d.ultima_leitura && d.ultima_leitura.sensor1 !== null && d.ultima_leitura.sensor1 !== undefined);
+            if (hasData) {
+                setReleLiveBadgeState(true);
+            } else if (currentDevices.length === 0) {
+                setReleLiveBadgeState(false);
+            }
 
             // Atualiza o gráfico se houver dispositivo selecionado
             const select = document.getElementById('releDeviceSelect');

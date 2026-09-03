@@ -4,9 +4,44 @@ let socketInstance = null;
 let isUpdatingDashboard = false;
 let lastChartSignature = '';
 let lastDevicesSignature = '';
-let selectedDeviceSerial = '';
+let liveBadgeWatchdog = null;
+
+/**
+ * Atualiza o estado da badge de transmissão (Verde pulsante se ao vivo, Cinza se sem dados)
+ */
+function setLiveBadgeState(isLive) {
+    const badge = document.getElementById('livePresentationBadge');
+    const badgeText = document.getElementById('liveBadgeText');
+    if (!badge) return;
+
+    if (isLive) {
+        badge.classList.add('active');
+        if (badgeText) badgeText.innerText = 'TRANSMISSÃO AO VIVO';
+
+        // Reseta watchdog de 15 segundos para voltar a cinza se parar de receber dados
+        if (liveBadgeWatchdog) clearTimeout(liveBadgeWatchdog);
+        liveBadgeWatchdog = setTimeout(() => {
+            setLiveBadgeState(false);
+        }, 15000);
+    } else {
+        badge.classList.remove('active');
+        if (badgeText) badgeText.innerText = 'AGUARDANDO DADOS';
+    }
+}
 
 document.addEventListener('DOMContentLoaded', function() {
+    const userStr = localStorage.getItem('sensorium_user');
+    if (userStr) {
+        try {
+            const user = JSON.parse(userStr);
+            if (user.perfil === 'apresentacao') {
+                document.querySelectorAll('.sidebar nav > a.nav-item').forEach(el => {
+                    el.style.display = 'none';
+                });
+            }
+        } catch (e) {}
+    }
+
     initRealtimeConnection();
     loadChopeirasData();
 
@@ -53,9 +88,11 @@ function initRealtimeConnection() {
 
             socketInstance.on('disconnect', () => {
                 console.warn('[Chopeiras Socket] Desconectado.');
+                setLiveBadgeState(false);
             });
         } catch (err) {
             console.error('[Chopeiras Socket] Erro ao conectar:', err);
+            setLiveBadgeState(false);
         }
     }
 }
@@ -78,6 +115,14 @@ async function loadChopeirasData(silent = false) {
             renderChopeirasGrid(currentChopeiras);
             updateExecutiveSummary(currentChopeiras);
 
+            // Verifica se há dados recebidos para ativar a badge
+            const hasData = currentChopeiras.length > 0 && currentChopeiras.some(d => d.ultima_leitura && d.ultima_leitura.sensor1 !== null && d.ultima_leitura.sensor1 !== undefined);
+            if (hasData) {
+                setLiveBadgeState(true);
+            } else if (currentChopeiras.length === 0) {
+                setLiveBadgeState(false);
+            }
+
             // Atualiza o gráfico se houver dispositivo selecionado
             if (selectedDeviceSerial) {
                 loadChopeiraChart(selectedDeviceSerial, false);
@@ -85,6 +130,9 @@ async function loadChopeirasData(silent = false) {
         }
     } catch (err) {
         if (!silent) console.warn('[Chopeiras] Erro ao sincronizar:', err.message);
+        if (currentChopeiras.length === 0) {
+            setLiveBadgeState(false);
+        }
     } finally {
         isUpdatingDashboard = false;
     }
@@ -96,6 +144,9 @@ async function loadChopeirasData(silent = false) {
 function handleLiveChopeiraReading(reading) {
     if (!reading || !reading.numeroSerie) return;
     const { numeroSerie, sensor1, rele1_on, rele1_off, rele1_acionamentos, rele2_on, rele2_off, rele2_acionamentos, timestamp } = reading;
+
+    // Ativa a badge para verde ao vivo
+    setLiveBadgeState(true);
 
     // 1. Atualiza no cache de dispositivos
     let dev = currentChopeiras.find(d => d.numero_serie === numeroSerie);

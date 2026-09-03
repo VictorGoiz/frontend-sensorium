@@ -5,9 +5,39 @@ let activeAlertFilter = 'todos';
 let volumeChartInstance = null;
 let tempChartInstance = null;
 
+let sensorBadgeWatchdog = null;
+
+/**
+ * Atualiza o estado da badge de transmissão ao vivo em sensores
+ */
+function setSensorLiveBadgeState(isLive) {
+    const badge = document.getElementById('sensorLiveBadge');
+    if (!badge) return;
+    if (isLive) {
+        badge.classList.add('active');
+        if (sensorBadgeWatchdog) clearTimeout(sensorBadgeWatchdog);
+        sensorBadgeWatchdog = setTimeout(() => {
+            setSensorLiveBadgeState(false);
+        }, 15000);
+    } else {
+        badge.classList.remove('active');
+    }
+}
+
 // Usa window.API_BASE definido globalmente em config.js
 
 document.addEventListener('DOMContentLoaded', function() {
+    const userStr = localStorage.getItem('sensorium_user');
+    if (userStr) {
+        try {
+            const user = JSON.parse(userStr);
+            if (user.perfil === 'apresentacao') {
+                window.location.href = '../chopeiras/index.html';
+                return;
+            }
+        } catch (e) {}
+    }
+
     // 1. Carregar Sensores e Alertas da API
     loadDashboardData();
 
@@ -16,6 +46,7 @@ document.addEventListener('DOMContentLoaded', function() {
         const socket = io(API_BASE);
         socket.on('dashboard_update', (data) => {
             console.log('Recebido update via WebSocket:', data);
+            setSensorLiveBadgeState(true);
             loadDashboardData();
             
             // Se o modal do dispositivo atualizado estiver aberto, atualiza o histórico também
@@ -26,6 +57,10 @@ document.addEventListener('DOMContentLoaded', function() {
                     fetchDeviceHistory(data.numeroSerie);
                 }
             }
+        });
+
+        socket.on('disconnect', () => {
+            setSensorLiveBadgeState(false);
         });
     } else {
         console.warn('Socket.IO não carregado. Fazendo fallback para polling.');
@@ -64,6 +99,13 @@ async function fetchDevicesFromApi() {
             currentDevices = result.data;
             renderSensorCards(currentDevices);
             updateDashboardSummary(currentDevices);
+
+            const hasData = currentDevices.length > 0 && currentDevices.some(d => d.ultima_leitura && (d.ultima_leitura.volume !== null || d.ultima_leitura.temperatura !== null));
+            if (hasData) {
+                setSensorLiveBadgeState(true);
+            } else if (currentDevices.length === 0) {
+                setSensorLiveBadgeState(false);
+            }
             renderCharts(currentDevices);
         }
     } catch (err) {

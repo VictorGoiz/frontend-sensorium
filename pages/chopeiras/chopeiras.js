@@ -1,10 +1,18 @@
 let currentChopeiras = [];
+let selectedDeviceSerial = null;
 let chopeirasChartInstance = null;
 let socketInstance = null;
 let isUpdatingDashboard = false;
 let lastChartSignature = '';
 let lastDevicesSignature = '';
 let liveBadgeWatchdog = null;
+
+// Estados do Modal de Registros e Exportação
+let modalCurrentPage = 1;
+let modalPageLimit = 50;
+let modalTotalPages = 1;
+let isModalLoading = false;
+
 
 /**
  * Atualiza o estado da badge de transmissão (Verde pulsante se ao vivo, Cinza se sem dados)
@@ -612,3 +620,349 @@ function toggleNavDropdown(btn) {
         dropdown.classList.toggle('open');
     }
 }
+
+/* ==========================================================================
+   MODAL DE REGISTROS DAS LEITURAS DOS RELÉS & EXPORTAÇÃO CSV
+   ========================================================================== */
+
+/**
+ * Formata um objeto Date para o formato aceito por input type="datetime-local" (YYYY-MM-DDTHH:mm)
+ */
+function formatForDateTimeLocal(d) {
+    if (!d || !(d instanceof Date) || isNaN(d.getTime())) return '';
+    const pad = (n) => String(n).padStart(2, '0');
+    const year = d.getFullYear();
+    const month = pad(d.getMonth() + 1);
+    const day = pad(d.getDate());
+    const hours = pad(d.getHours());
+    const minutes = pad(d.getMinutes());
+    return `${year}-${month}-${day}T${hours}:${minutes}`;
+}
+
+/**
+ * Abre o Modal de Registros das Leituras dos Relés
+ */
+function openRelesRecordsModal() {
+    const modal = document.getElementById('relesRecordsModal');
+    if (!modal) return;
+
+    // Popula o select de chopeiras do modal
+    populateModalDeviceSelect();
+
+    // Seta preset inicial de 24h se as datas estiverem vazias
+    const startInput = document.getElementById('filterModalDateStart');
+    const endInput = document.getElementById('filterModalDateEnd');
+    if (!startInput.value || !endInput.value) {
+        setPresetDateRange('24h', false);
+    }
+
+    modal.style.display = 'flex';
+    document.body.style.overflow = 'hidden'; // Evita rolagem da página ao fundo
+
+    // Listener para tecla ESC fechar o modal
+    document.addEventListener('keydown', handleModalEscKey);
+
+    // Carrega a primeira página de registros
+    modalCurrentPage = 1;
+    carregarRegistrosModal(1);
+}
+
+/**
+ * Fecha o Modal de Registros
+ */
+function closeRelesRecordsModal() {
+    const modal = document.getElementById('relesRecordsModal');
+    if (!modal) return;
+
+    modal.style.display = 'none';
+    document.body.style.overflow = '';
+    document.removeEventListener('keydown', handleModalEscKey);
+}
+
+/**
+ * Fecha o modal se o clique ocorrer fora da caixa do diálogo (no backdrop)
+ */
+function handleModalBackdropClick(event) {
+    if (event.target && event.target.id === 'relesRecordsModal') {
+        closeRelesRecordsModal();
+    }
+}
+
+function handleModalEscKey(event) {
+    if (event.key === 'Escape' || event.key === 'Esc') {
+        closeRelesRecordsModal();
+    }
+}
+
+/**
+ * Preenche o select de dispositivos dentro do modal
+ */
+function populateModalDeviceSelect() {
+    const select = document.getElementById('filterModalDevice');
+    if (!select) return;
+
+    const currentVal = select.value;
+    select.innerHTML = '<option value="all">Todas as Chopeiras</option>';
+
+    if (Array.isArray(currentChopeiras)) {
+        currentChopeiras.forEach(d => {
+            const opt = document.createElement('option');
+            opt.value = d.numero_serie;
+            opt.textContent = `Chopeira #${d.numero_serie}`;
+            select.appendChild(opt);
+        });
+    }
+
+    // Se houver uma chopeira ativa selecionada na página e ela ainda não foi alterada no modal
+    if (selectedDeviceSerial && (!currentVal || currentVal === 'all')) {
+        select.value = selectedDeviceSerial;
+    } else if (currentVal) {
+        select.value = currentVal;
+    }
+}
+
+/**
+ * Aplica atalhos de data predefinidos
+ */
+function setPresetDateRange(preset, shouldFetch = true) {
+    const startInput = document.getElementById('filterModalDateStart');
+    const endInput = document.getElementById('filterModalDateEnd');
+    if (!startInput || !endInput) return;
+
+    const now = new Date();
+    let startDate = new Date();
+
+    // Atualiza botões de preset ativos
+    document.querySelectorAll('.btn-preset').forEach(btn => {
+        btn.classList.toggle('active', btn.getAttribute('data-preset') === preset);
+    });
+
+    if (preset === 'today') {
+        startDate = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0);
+        startInput.value = formatForDateTimeLocal(startDate);
+        endInput.value = formatForDateTimeLocal(now);
+    } else if (preset === '24h') {
+        startDate = new Date(now.getTime() - (24 * 60 * 60 * 1000));
+        startInput.value = formatForDateTimeLocal(startDate);
+        endInput.value = formatForDateTimeLocal(now);
+    } else if (preset === '7d') {
+        startDate = new Date(now.getTime() - (7 * 24 * 60 * 60 * 1000));
+        startInput.value = formatForDateTimeLocal(startDate);
+        endInput.value = formatForDateTimeLocal(now);
+    } else if (preset === '30d') {
+        startDate = new Date(now.getTime() - (30 * 24 * 60 * 60 * 1000));
+        startInput.value = formatForDateTimeLocal(startDate);
+        endInput.value = formatForDateTimeLocal(now);
+    } else if (preset === 'all') {
+        startInput.value = '';
+        endInput.value = '';
+    }
+
+    if (shouldFetch) {
+        modalCurrentPage = 1;
+        carregarRegistrosModal(1);
+    }
+}
+
+/**
+ * Disparado ao clicar no botão "Filtrar"
+ */
+function aplicarFiltrosModal() {
+    // Desmarca preset ativo se o usuário personalizou as datas
+    document.querySelectorAll('.btn-preset').forEach(btn => btn.classList.remove('active'));
+    modalCurrentPage = 1;
+    carregarRegistrosModal(1);
+}
+
+/**
+ * Consulta os registros paginados da API
+ */
+async function carregarRegistrosModal(page = 1) {
+    if (isModalLoading) return;
+    isModalLoading = true;
+
+    const tableBody = document.getElementById('relesRecordsTableBody');
+    const summaryEl = document.getElementById('recordsCountSummary');
+    const pageIndicator = document.getElementById('pageIndicator');
+    const btnPrev = document.getElementById('btnPrevPage');
+    const btnNext = document.getElementById('btnNextPage');
+
+    const deviceSelect = document.getElementById('filterModalDevice');
+    const startInput = document.getElementById('filterModalDateStart');
+    const endInput = document.getElementById('filterModalDateEnd');
+
+    const numeroSerie = deviceSelect ? deviceSelect.value : 'all';
+    const dataInicio = startInput?.value ? startInput.value.replace('T', ' ') + ':00' : '';
+    const dataFim = endInput?.value ? endInput.value.replace('T', ' ') + ':59' : '';
+
+    if (tableBody) {
+        tableBody.innerHTML = `<tr><td colspan="7" class="table-state-cell">Carregando registros...</td></tr>`;
+    }
+
+    try {
+        const queryParams = new URLSearchParams({
+            page: page,
+            limit: modalPageLimit
+        });
+
+        if (numeroSerie && numeroSerie !== 'all') {
+            queryParams.append('numeroSerie', numeroSerie);
+        }
+        if (dataInicio) {
+            queryParams.append('dataInicio', dataInicio);
+        }
+        if (dataFim) {
+            queryParams.append('dataFim', dataFim);
+        }
+
+        const res = await fetch(`${API_BASE}/api/reles/registros?${queryParams.toString()}`);
+        if (!res.ok) throw new Error('Falha ao consultar registros.');
+        const result = await res.json();
+
+        if (result.success && Array.isArray(result.data)) {
+            modalCurrentPage = result.pagination?.page || page;
+            modalTotalPages = result.pagination?.totalPages || 1;
+            const totalRecords = result.pagination?.total || 0;
+
+            if (result.data.length === 0) {
+                tableBody.innerHTML = `<tr><td colspan="7" class="table-state-cell">Nenhum registro encontrado para os filtros selecionados.</td></tr>`;
+            } else {
+                tableBody.innerHTML = result.data.map(item => {
+                    const timeStr = item.timestamp_leitura ? new Date(item.timestamp_leitura).toLocaleString('pt-BR') : '--';
+                    const press = item.sensor1 !== null && item.sensor1 !== undefined ? Number(item.sensor1).toFixed(2) : '--';
+                    const r1On = item.rele1_on !== null && item.rele1_on !== undefined ? Number(item.rele1_on).toFixed(1) : '--';
+                    const r1Off = item.rele1_off !== null && item.rele1_off !== undefined ? Number(item.rele1_off).toFixed(1) : '--';
+                    const r1Ac = item.rele1_acionamentos !== null && item.rele1_acionamentos !== undefined ? item.rele1_acionamentos : '--';
+
+                    const r2On = item.rele2_on !== null && item.rele2_on !== undefined ? Number(item.rele2_on).toFixed(1) : '--';
+                    const r2Off = item.rele2_off !== null && item.rele2_off !== undefined ? Number(item.rele2_off).toFixed(1) : '--';
+                    const r2Ac = item.rele2_acionamentos !== null && item.rele2_acionamentos !== undefined ? item.rele2_acionamentos : '--';
+
+                    return `
+                        <tr>
+                            <td style="font-weight: 500; font-family: monospace; font-size: 12px;">${timeStr}</td>
+                            <td><span class="val-pill blue">${item.dispositivo_numero_serie || '--'}</span></td>
+                            <td><strong style="color: var(--primary-blue); font-family: monospace; font-size: 13px;">${press}</strong> bar</td>
+                            <td>ON: <strong style="color: #059669;">${r1On}</strong> | OFF: <strong style="color: #dc2626;">${r1Off}</strong></td>
+                            <td style="font-family: monospace;">${r1Ac}</td>
+                            <td>ON: <strong style="color: #059669;">${r2On}</strong> | OFF: <strong style="color: #dc2626;">${r2Off}</strong></td>
+                            <td style="font-family: monospace;">${r2Ac}</td>
+                        </tr>
+                    `;
+                }).join('');
+            }
+
+            if (summaryEl) {
+                summaryEl.innerText = `${totalRecords} registro(s) encontrado(s)`;
+            }
+
+            if (pageIndicator) {
+                pageIndicator.innerText = `Página ${modalCurrentPage} de ${modalTotalPages}`;
+            }
+
+            if (btnPrev) btnPrev.disabled = modalCurrentPage <= 1;
+            if (btnNext) btnNext.disabled = modalCurrentPage >= modalTotalPages;
+        } else {
+            throw new Error(result.message || 'Erro ao carregar dados.');
+        }
+    } catch (err) {
+        console.error('[Modal Registros] Erro:', err);
+        if (tableBody) {
+            tableBody.innerHTML = `<tr><td colspan="7" class="table-state-cell" style="color: #ef4444;">Erro ao carregar registros: ${err.message}</td></tr>`;
+        }
+    } finally {
+        isModalLoading = false;
+    }
+}
+
+/**
+ * Navegação de páginas no modal
+ */
+function changeRecordsPage(delta) {
+    const targetPage = modalCurrentPage + delta;
+    if (targetPage >= 1 && targetPage <= modalTotalPages) {
+        modalCurrentPage = targetPage;
+        carregarRegistrosModal(targetPage);
+    }
+}
+
+/**
+ * Exporta os registros filtrados para arquivo CSV via endpoint backend
+ */
+async function exportarRegistrosCsv() {
+    const btn = document.getElementById('btnExportCsv');
+    const deviceSelect = document.getElementById('filterModalDevice');
+    const startInput = document.getElementById('filterModalDateStart');
+    const endInput = document.getElementById('filterModalDateEnd');
+
+    const numeroSerie = deviceSelect ? deviceSelect.value : 'all';
+    const dataInicio = startInput?.value ? startInput.value.replace('T', ' ') + ':00' : '';
+    const dataFim = endInput?.value ? endInput.value.replace('T', ' ') + ':59' : '';
+
+    const queryParams = new URLSearchParams();
+    if (numeroSerie && numeroSerie !== 'all') {
+        queryParams.append('numeroSerie', numeroSerie);
+    }
+    if (dataInicio) {
+        queryParams.append('dataInicio', dataInicio);
+    }
+    if (dataFim) {
+        queryParams.append('dataFim', dataFim);
+    }
+    queryParams.append('limit', '10000');
+
+    const originalHtml = btn ? btn.innerHTML : '';
+    if (btn) {
+        btn.classList.add('loading');
+        btn.innerHTML = `
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="spin">
+                <line x1="12" y1="2" x2="12" y2="6"></line>
+                <line x1="12" y1="18" x2="12" y2="22"></line>
+                <line x1="4.93" y1="4.93" x2="7.76" y2="7.76"></line>
+                <line x1="16.24" y1="16.24" x2="19.07" y2="19.07"></line>
+                <line x1="2" y1="12" x2="6" y2="12"></line>
+                <line x1="18" y1="12" x2="22" y2="12"></line>
+                <line x1="4.93" y1="19.07" x2="7.76" y2="16.24"></line>
+                <line x1="16.24" y1="7.76" x2="19.07" y2="4.93"></line>
+            </svg>
+            <span>Exportando...</span>
+        `;
+    }
+
+    try {
+        const exportUrl = `${API_BASE}/api/export/reles/csv?${queryParams.toString()}`;
+        const response = await fetch(exportUrl);
+
+        if (!response.ok) {
+            const errData = await response.json().catch(() => ({}));
+            throw new Error(errData.message || 'Erro ao gerar o arquivo de exportação.');
+        }
+
+        const blob = await response.blob();
+        const disposition = response.headers.get('Content-Disposition');
+        let filename = 'leituras_reles.csv';
+        if (disposition && disposition.includes('filename=')) {
+            const match = disposition.match(/filename="?([^";]+)"?/);
+            if (match && match[1]) filename = match[1];
+        }
+
+        const downloadUrl = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.style.display = 'none';
+        a.href = downloadUrl;
+        a.download = filename;
+        document.body.appendChild(a);
+        a.click();
+        window.URL.revokeObjectURL(downloadUrl);
+        a.remove();
+    } catch (err) {
+        console.error('[Exportação CSV] Erro:', err);
+        alert('Erro ao realizar a exportação em CSV: ' + err.message);
+    } finally {
+        if (btn) {
+            btn.classList.remove('loading');
+            btn.innerHTML = originalHtml;
+        }
+    }
+}
+

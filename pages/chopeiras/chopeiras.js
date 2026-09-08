@@ -1,10 +1,18 @@
 let currentChopeiras = [];
+let selectedDeviceSerial = '';
 let chopeirasChartInstance = null;
 let socketInstance = null;
 let isUpdatingDashboard = false;
 let lastChartSignature = '';
 let lastDevicesSignature = '';
 let liveBadgeWatchdog = null;
+
+// Estado do Modal de Registros
+let registrosCurrentPage = 1;
+let registrosTotalPages = 1;
+const registrosPageLimit = 20;
+let isFetchingRegistros = false;
+
 
 /**
  * Atualiza o estado da badge de transmissão (Verde pulsante se ao vivo, Cinza se sem dados)
@@ -612,3 +620,362 @@ function toggleNavDropdown(btn) {
         dropdown.classList.toggle('open');
     }
 }
+
+/* ==========================================================================
+   MODAL DE REGISTROS DE LEITURAS DOS RELÉS & EXPORTAÇÃO / EXCLUSÃO
+   ========================================================================== */
+
+/**
+ * Abre o modal de registros de leituras
+ */
+function openRegistrosModal() {
+    const modal = document.getElementById('registrosModal');
+    if (!modal) return;
+
+    // Popula select de dispositivos do modal
+    const filterDevSelect = document.getElementById('filterModalDispositivo');
+    if (filterDevSelect) {
+        filterDevSelect.innerHTML = '<option value="todos">Todos os Dispositivos</option>';
+        currentChopeiras.forEach(d => {
+            const opt = document.createElement('option');
+            opt.value = d.numero_serie;
+            opt.textContent = `Chopeira #${d.numero_serie}`;
+            filterDevSelect.appendChild(opt);
+        });
+
+        // Se houver dispositivo ativo selecionado na página, pré-seleciona ele
+        if (selectedDeviceSerial) {
+            filterDevSelect.value = selectedDeviceSerial;
+        }
+    }
+
+    limparFeedbackModal();
+    modal.classList.add('active');
+    document.addEventListener('keydown', handleRegistrosEscKey);
+
+    // Carrega primeira página de registros
+    carregarRegistrosModal(1);
+}
+
+/**
+ * Fecha o modal de registros
+ */
+function closeRegistrosModal() {
+    const modal = document.getElementById('registrosModal');
+    if (modal) {
+        modal.classList.remove('active');
+    }
+    fecharConfirmacaoExclusao();
+    document.removeEventListener('keydown', handleRegistrosEscKey);
+}
+
+function handleRegistrosModalBackdrop(event) {
+    if (event.target && event.target.id === 'registrosModal') {
+        closeRegistrosModal();
+    }
+}
+
+function handleRegistrosEscKey(e) {
+    if (e.key === 'Escape') {
+        const confirmModal = document.getElementById('confirmDeleteModal');
+        if (confirmModal && confirmModal.classList.contains('active')) {
+            fecharConfirmacaoExclusao();
+        } else {
+            closeRegistrosModal();
+        }
+    }
+}
+
+/**
+ * Carrega registros da API com filtros e paginação
+ */
+async function carregarRegistrosModal(page = 1) {
+    if (isFetchingRegistros) return;
+    isFetchingRegistros = true;
+
+    registrosCurrentPage = page;
+    const tableBody = document.getElementById('registrosTableBody');
+    const totalCountEl = document.getElementById('registrosTotalCount');
+    const pageIndicator = document.getElementById('registrosPageIndicator');
+    const btnPrev = document.getElementById('btnPrevPage');
+    const btnNext = document.getElementById('btnNextPage');
+
+    if (tableBody) {
+        tableBody.innerHTML = '<tr><td colspan="9" class="table-state-message">Consultando registros no servidor...</td></tr>';
+    }
+
+    const filterDev = document.getElementById('filterModalDispositivo')?.value || 'todos';
+    const dataInicio = document.getElementById('filterModalDataInicio')?.value || '';
+    const dataFim = document.getElementById('filterModalDataFim')?.value || '';
+
+    const params = new URLSearchParams({
+        page: registrosCurrentPage,
+        limit: registrosPageLimit,
+        numeroSerie: filterDev,
+        dataInicio: dataInicio,
+        dataFim: dataFim
+    });
+
+    try {
+        const res = await fetch(`${API_BASE}/api/reles/registros?${params.toString()}`);
+        if (!res.ok) throw new Error('Falha ao consultar registros de relés.');
+        const result = await res.json();
+
+        if (result.success) {
+            registrosTotalPages = result.totalPages || 1;
+            const rows = result.data || [];
+            const total = result.total || 0;
+
+            if (totalCountEl) totalCountEl.innerText = `${total} registro(s) encontrado(s)`;
+            if (pageIndicator) pageIndicator.innerText = `Página ${result.page} de ${registrosTotalPages}`;
+            if (btnPrev) btnPrev.disabled = result.page <= 1;
+            if (btnNext) btnNext.disabled = result.page >= registrosTotalPages;
+
+            renderTabelaRegistros(rows);
+        } else {
+            throw new Error(result.message || 'Erro ao carregar registros.');
+        }
+    } catch (err) {
+        console.error('[Registros Modal] Erro:', err);
+        if (tableBody) {
+            tableBody.innerHTML = `<tr><td colspan="9" class="table-state-message" style="color: var(--status-red);">Erro ao carregar registros: ${err.message}</td></tr>`;
+        }
+    } finally {
+        isFetchingRegistros = false;
+    }
+}
+
+/**
+ * Renderiza as linhas da tabela de registros
+ */
+function renderTabelaRegistros(rows) {
+    const tableBody = document.getElementById('registrosTableBody');
+    if (!tableBody) return;
+
+    if (!rows || rows.length === 0) {
+        tableBody.innerHTML = '<tr><td colspan="9" class="table-state-message">Nenhum registro encontrado para os filtros selecionados.</td></tr>';
+        return;
+    }
+
+    tableBody.innerHTML = rows.map(r => {
+        const timeVal = r.timestamp_leitura || r.created_at;
+        const formattedDate = timeVal ? new Date(timeVal).toLocaleString('pt-BR') : '--';
+        const pressaoVal = (r.sensor1 !== null && r.sensor1 !== undefined) ? `${Number(r.sensor1).toFixed(2)} bar` : '--';
+        const r1OnVal = (r.rele1_on !== null && r.rele1_on !== undefined) ? `${Number(r.rele1_on).toFixed(1)} bar` : '--';
+        const r1OffVal = (r.rele1_off !== null && r.rele1_off !== undefined) ? `${Number(r.rele1_off).toFixed(1)} bar` : '--';
+        const r1AcVal = r.rele1_acionamentos ?? '--';
+
+        const r2OnVal = (r.rele2_on !== null && r.rele2_on !== undefined) ? `${Number(r.rele2_on).toFixed(1)} bar` : '--';
+        const r2OffVal = (r.rele2_off !== null && r.rele2_off !== undefined) ? `${Number(r.rele2_off).toFixed(1)} bar` : '--';
+        const r2AcVal = r.rele2_acionamentos ?? '--';
+
+        return `
+            <tr>
+                <td><span class="pill-cell blue">#${r.dispositivo_numero_serie}</span></td>
+                <td><strong>${formattedDate}</strong></td>
+                <td><strong style="color: var(--primary-blue);">${pressaoVal}</strong></td>
+                <td><span class="pill-cell green">${r1OnVal}</span></td>
+                <td><span class="pill-cell red">${r1OffVal}</span></td>
+                <td><span class="pill-cell gray">${r1AcVal}</span></td>
+                <td><span class="pill-cell green">${r2OnVal}</span></td>
+                <td><span class="pill-cell red">${r2OffVal}</span></td>
+                <td><span class="pill-cell gray">${r2AcVal}</span></td>
+            </tr>
+        `;
+    }).join('');
+}
+
+/**
+ * Ações de filtro e navegação
+ */
+function filtrarRegistrosModal() {
+    limparFeedbackModal();
+    carregarRegistrosModal(1);
+}
+
+function limparFiltrosRegistrosModal() {
+    const filterDevSelect = document.getElementById('filterModalDispositivo');
+    const dataInicioInput = document.getElementById('filterModalDataInicio');
+    const dataFimInput = document.getElementById('filterModalDataFim');
+
+    if (filterDevSelect) filterDevSelect.value = 'todos';
+    if (dataInicioInput) dataInicioInput.value = '';
+    if (dataFimInput) dataFimInput.value = '';
+
+    limparFeedbackModal();
+    carregarRegistrosModal(1);
+}
+
+function mudarPaginaRegistros(delta) {
+    const novaPagina = registrosCurrentPage + delta;
+    if (novaPagina >= 1 && novaPagina <= registrosTotalPages) {
+        carregarRegistrosModal(novaPagina);
+    }
+}
+
+/**
+ * Exporta os registros em CSV chamando a rota /api/arquivos/exportar
+ */
+async function exportarRegistrosCSV() {
+    const filterDev = document.getElementById('filterModalDispositivo')?.value || 'todos';
+    const dataInicio = document.getElementById('filterModalDataInicio')?.value || '';
+    const dataFim = document.getElementById('filterModalDataFim')?.value || '';
+
+    const params = new URLSearchParams({
+        tipo: 'reles',
+        formato: 'csv',
+        numeroSerie: filterDev,
+        dataInicio: dataInicio,
+        dataFim: dataFim
+    });
+
+    exibirFeedbackModal('Gerando arquivo CSV para download...', 'info');
+
+    try {
+        const downloadUrl = `${API_BASE}/api/arquivos/exportar?${params.toString()}`;
+        
+        // Efetua o download via fetch para tratar eventuais erros de forma elegante
+        const res = await fetch(downloadUrl);
+        if (!res.ok) {
+            const errJson = await res.json().catch(() => ({}));
+            throw new Error(errJson.message || 'Falha ao gerar arquivo de exportação.');
+        }
+
+        const blob = await res.blob();
+        let filename = `relatorio_reles_${new Date().toISOString().slice(0, 10)}.csv`;
+
+        // Tenta extrair filename do header se disponível
+        const disposition = res.headers.get('Content-Disposition');
+        if (disposition && disposition.includes('filename=')) {
+            const matches = disposition.match(/filename="?([^"]+)"?/);
+            if (matches && matches[1]) {
+                filename = matches[1];
+            }
+        }
+
+        // Dispara o download no navegador
+        const link = document.createElement('a');
+        const objectUrl = URL.createObjectURL(blob);
+        link.href = objectUrl;
+        link.download = filename;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        URL.revokeObjectURL(objectUrl);
+
+        exibirFeedbackModal(`Arquivo CSV "${filename}" baixado com sucesso!`, 'success');
+    } catch (err) {
+        console.error('[Exportar CSV] Erro:', err);
+        exibirFeedbackModal(`Erro ao exportar CSV: ${err.message}`, 'error');
+    }
+}
+
+/**
+ * Gerenciamento do Submodal de Confirmação de Exclusão
+ */
+function abrirConfirmacaoExclusao() {
+    const filterDev = document.getElementById('filterModalDispositivo')?.value || 'todos';
+    const dataInicio = document.getElementById('filterModalDataInicio')?.value || '';
+    const dataFim = document.getElementById('filterModalDataFim')?.value || '';
+
+    if (!dataInicio && !dataFim) {
+        exibirFeedbackModal('Para apagar registros por data, defina ao menos a Data Inicial ou Data Final nos filtros.', 'error');
+        return;
+    }
+
+    const dispLabel = document.getElementById('confirmDeleteDispositivo');
+    const dtInicioLabel = document.getElementById('confirmDeleteDataInicio');
+    const dtFimLabel = document.getElementById('confirmDeleteDataFim');
+
+    if (dispLabel) dispLabel.innerText = filterDev === 'todos' ? 'Todos os Dispositivos' : `#${filterDev}`;
+    if (dtInicioLabel) dtInicioLabel.innerText = dataInicio ? new Date(dataInicio).toLocaleString('pt-BR') : 'Desde o início';
+    if (dtFimLabel) dtFimLabel.innerText = dataFim ? new Date(dataFim).toLocaleString('pt-BR') : 'Até o momento atual';
+
+    const confirmModal = document.getElementById('confirmDeleteModal');
+    if (confirmModal) confirmModal.classList.add('active');
+}
+
+function fecharConfirmacaoExclusao() {
+    const confirmModal = document.getElementById('confirmDeleteModal');
+    if (confirmModal) confirmModal.classList.remove('active');
+}
+
+/**
+ * Executa a exclusão de registros por período
+ */
+async function executarExclusaoRegistros() {
+    const filterDev = document.getElementById('filterModalDispositivo')?.value || 'todos';
+    const dataInicio = document.getElementById('filterModalDataInicio')?.value || '';
+    const dataFim = document.getElementById('filterModalDataFim')?.value || '';
+    const btnConfirm = document.getElementById('btnConfirmDeleteAction');
+
+    if (btnConfirm) {
+        btnConfirm.disabled = true;
+        btnConfirm.innerText = 'Apagando...';
+    }
+
+    try {
+        const res = await fetch(`${API_BASE}/api/reles/leituras`, {
+            method: 'DELETE',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                numeroSerie: filterDev,
+                dataInicio: dataInicio,
+                dataFim: dataFim
+            })
+        });
+
+        const result = await res.json();
+        if (!res.ok || !result.success) {
+            throw new Error(result.message || 'Erro ao apagar registros.');
+        }
+
+        fecharConfirmacaoExclusao();
+        exibirFeedbackModal(result.message || 'Registros apagados com sucesso.', 'success');
+
+        // Recarrega registros no modal e dados do painel
+        carregarRegistrosModal(1);
+        loadChopeirasData(true);
+        if (selectedDeviceSerial) {
+            loadChopeiraChart(selectedDeviceSerial, true);
+        }
+    } catch (err) {
+        console.error('[Excluir Registros] Erro:', err);
+        fecharConfirmacaoExclusao();
+        exibirFeedbackModal(`Erro ao apagar registros: ${err.message}`, 'error');
+    } finally {
+        if (btnConfirm) {
+            btnConfirm.disabled = false;
+            btnConfirm.innerText = 'Sim, Apagar Registros';
+        }
+    }
+}
+
+/**
+ * Exibe mensagem de feedback visual no modal
+ */
+function exibirFeedbackModal(mensagem, tipo = 'info') {
+    const box = document.getElementById('modalRegistrosFeedback');
+    if (!box) return;
+
+    box.className = `modal-feedback-box ${tipo}`;
+    box.innerText = mensagem;
+    box.style.display = 'block';
+
+    if (tipo === 'success') {
+        setTimeout(() => {
+            if (box.innerText === mensagem) {
+                limparFeedbackModal();
+            }
+        }, 6000);
+    }
+}
+
+function limparFeedbackModal() {
+    const box = document.getElementById('modalRegistrosFeedback');
+    if (box) {
+        box.style.display = 'none';
+        box.innerText = '';
+    }
+}
+

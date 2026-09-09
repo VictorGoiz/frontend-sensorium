@@ -5,6 +5,7 @@ let socketInstance = null;
 let isUpdatingDashboard = false;
 let lastChartSignature = '';
 let lastDevicesSignature = '';
+let lastProcessedReadingSignature = '';
 let liveBadgeWatchdog = null;
 
 // Estado do Modal de Registros
@@ -53,10 +54,10 @@ document.addEventListener('DOMContentLoaded', function() {
     initRealtimeConnection();
     loadChopeirasData();
 
-    // Polling contínuo ultrarrápido (150ms) para sincronia com milissegundos
+    // Polling ultrarrápido a cada 160ms para captura contínua e fluida de dados atualizados a cada 300ms
     setInterval(() => {
         loadChopeirasData(true);
-    }, 150);
+    }, 160);
 
     // Monitora mudanças de tela cheia para atualizar botão
     document.addEventListener('fullscreenchange', handleFullscreenChange);
@@ -90,7 +91,7 @@ function initRealtimeConnection() {
                 if (data?.data && data.type === 'reles_data') {
                     handleLiveChopeiraReading(data.data);
                 } else {
-                    loadChopeirasData(false);
+                    loadChopeirasData(true);
                 }
             });
 
@@ -106,7 +107,7 @@ function initRealtimeConnection() {
 }
 
 /**
- * Carrega todos os dados das chopeiras via API
+ * Carrega todos os dados das chopeiras via API com resposta imediata
  */
 async function loadChopeirasData(silent = false) {
     if (isUpdatingDashboard) return;
@@ -131,9 +132,23 @@ async function loadChopeirasData(silent = false) {
                 setLiveBadgeState(false);
             }
 
-            // Atualiza o gráfico se houver dispositivo selecionado
-            if (selectedDeviceSerial) {
+            // Inicializa o gráfico na primeira carga se ainda não existir
+            if (selectedDeviceSerial && !chopeirasChartInstance) {
                 loadChopeiraChart(selectedDeviceSerial, false);
+            } else if (selectedDeviceSerial) {
+                // Atualização ultrarrápida do card executivo e streaming do gráfico a partir do banco
+                const dev = currentChopeiras.find(d => d.numero_serie === selectedDeviceSerial);
+                if (dev && dev.ultima_leitura) {
+                    const u = dev.ultima_leitura;
+                    const curSig = `${selectedDeviceSerial}_${u.timestamp}_${u.sensor1}_${u.rele1_on}_${u.rele1_off}`;
+                    if (lastProcessedReadingSignature !== curSig) {
+                        lastProcessedReadingSignature = curSig;
+                        handleLiveChopeiraReading({
+                            numeroSerie: dev.numero_serie,
+                            ...dev.ultima_leitura
+                        });
+                    }
+                }
             }
         }
     } catch (err) {
@@ -153,6 +168,9 @@ function handleLiveChopeiraReading(reading) {
     if (!reading || !reading.numeroSerie) return;
     const { numeroSerie, sensor1, rele1_on, rele1_off, rele1_acionamentos, rele2_on, rele2_off, rele2_acionamentos, timestamp } = reading;
 
+    // Atualiza assinatura para não duplicar leitura se socket e polling chegarem juntos
+    lastProcessedReadingSignature = `${numeroSerie}_${timestamp}_${sensor1}_${rele1_on}_${rele1_off}`;
+
     // Ativa a badge para verde ao vivo
     setLiveBadgeState(true);
 
@@ -171,7 +189,7 @@ function handleLiveChopeiraReading(reading) {
         };
     }
 
-    // 2. Se for a chopeira ativa na apresentação, atualiza os cards executivos
+    // 2. Se for a chopeira ativa na apresentação, atualiza os cards executivos instantaneamente
     if (selectedDeviceSerial === numeroSerie) {
         updateActiveExecutiveCard(reading);
     }
@@ -215,14 +233,15 @@ function handleLiveChopeiraReading(reading) {
         chopeirasChartInstance.data.datasets[1].data = chopeirasChartInstance.data.labels.map(() => curSetpointOn);
         chopeirasChartInstance.data.datasets[2].data = chopeirasChartInstance.data.labels.map(() => curSetpointOff);
 
-        if (chopeirasChartInstance.data.labels.length > 20) {
+        if (chopeirasChartInstance.data.labels.length > 30) {
             chopeirasChartInstance.data.labels.shift();
             chopeirasChartInstance.data.datasets[0].data.shift();
             chopeirasChartInstance.data.datasets[1].data.shift();
             chopeirasChartInstance.data.datasets[2].data.shift();
         }
 
-        chopeirasChartInstance.update();
+        // Atualização instantânea em 60fps sem engasgos
+        chopeirasChartInstance.update('none');
     }
 }
 
@@ -242,28 +261,33 @@ function updateActiveExecutiveCard(reading) {
     const r2AcEl = document.getElementById('execR2Ac');
     const r2StatusEl = document.getElementById('execR2Status');
 
-    if (serialEl) serialEl.innerText = reading.numeroSerie || '--';
+    if (serialEl && reading.numeroSerie) serialEl.innerText = reading.numeroSerie;
 
     if (pressEl && reading.sensor1 !== null && reading.sensor1 !== undefined) {
-        pressEl.innerText = Number(reading.sensor1).toFixed(2);
-        pressEl.classList.add('pulse');
-        setTimeout(() => pressEl.classList.remove('pulse'), 150);
+        const formatted = Number(reading.sensor1).toFixed(2);
+        if (pressEl.innerText !== formatted) {
+            pressEl.innerText = formatted;
+            pressEl.classList.add('pulse');
+            setTimeout(() => pressEl.classList.remove('pulse'), 120);
+        }
     }
 
     if (r1OnEl) r1OnEl.innerText = reading.rele1_on !== null && reading.rele1_on !== undefined ? Number(reading.rele1_on).toFixed(1) : '--';
     if (r1OffEl) r1OffEl.innerText = reading.rele1_off !== null && reading.rele1_off !== undefined ? Number(reading.rele1_off).toFixed(1) : '--';
     if (r1AcEl) r1AcEl.innerText = reading.rele1_acionamentos ?? '--';
     if (r1StatusEl) {
-        r1StatusEl.innerText = (reading.rele1_on !== null && reading.sensor1 >= reading.rele1_on) ? 'ATIVO (ON)' : 'DESLIGADO (OFF)';
-        r1StatusEl.style.color = (reading.rele1_on !== null && reading.sensor1 >= reading.rele1_on) ? '#10b981' : '#64748b';
+        const isActive = (reading.rele1_on !== null && reading.sensor1 !== null && reading.sensor1 >= reading.rele1_on);
+        r1StatusEl.innerText = isActive ? 'ATIVO (ON)' : 'DESLIGADO (OFF)';
+        r1StatusEl.style.color = isActive ? '#10b981' : '#64748b';
     }
 
     if (r2OnEl) r2OnEl.innerText = reading.rele2_on !== null && reading.rele2_on !== undefined ? Number(reading.rele2_on).toFixed(1) : '--';
     if (r2OffEl) r2OffEl.innerText = reading.rele2_off !== null && reading.rele2_off !== undefined ? Number(reading.rele2_off).toFixed(1) : '--';
     if (r2AcEl) r2AcEl.innerText = reading.rele2_acionamentos ?? '--';
     if (r2StatusEl) {
-        r2StatusEl.innerText = (reading.rele2_on !== null && reading.sensor1 >= reading.rele2_on) ? 'ATIVO (ON)' : 'DESLIGADO (OFF)';
-        r2StatusEl.style.color = (reading.rele2_on !== null && reading.sensor1 >= reading.rele2_on) ? '#10b981' : '#64748b';
+        const isActive = (reading.rele2_on !== null && reading.sensor1 !== null && reading.sensor1 >= reading.rele2_on);
+        r2StatusEl.innerText = isActive ? 'ATIVO (ON)' : 'DESLIGADO (OFF)';
+        r2StatusEl.style.color = isActive ? '#10b981' : '#64748b';
     }
 }
 
@@ -366,7 +390,7 @@ function selectChopeira(serial) {
 }
 
 /**
- * Renderiza o Grid de Chopeiras
+ * Renderiza o Grid de Chopeiras com atualização in-place
  */
 function renderChopeirasGrid(devices) {
     const grid = document.getElementById('chopeirasGrid');
@@ -374,45 +398,64 @@ function renderChopeirasGrid(devices) {
 
     if (devices.length === 0) {
         grid.innerHTML = '<div style="grid-column: 1/-1; padding: 20px; text-align: center; color: var(--text-muted);">Nenhuma chopeira conectada.</div>';
+        lastDevicesSignature = '';
         return;
     }
 
-    const sig = JSON.stringify(devices.map(d => ({
-        s: d.numero_serie,
-        st: d.status,
-        ts: d.ultima_leitura?.timestamp,
-        s1: d.ultima_leitura?.sensor1
-    })));
+    const structureSig = devices.map(d => d.numero_serie).join(',');
+    const hasStructureChanged = lastDevicesSignature !== structureSig || grid.children.length !== devices.length;
 
-    if (lastDevicesSignature === sig) return;
-    lastDevicesSignature = sig;
+    if (hasStructureChanged) {
+        lastDevicesSignature = structureSig;
+        grid.innerHTML = devices.map(d => {
+            const l = d.ultima_leitura || {};
+            const press = l.sensor1 !== null && l.sensor1 !== undefined ? Number(l.sensor1).toFixed(2) : '--';
+            const isSel = d.numero_serie === selectedDeviceSerial;
+            const dotClass = d.status === 'Crítico' ? 'red' : (d.status === 'Atenção' ? 'yellow' : 'green');
+            const timeStr = l.timestamp ? new Date(l.timestamp).toLocaleTimeString('pt-BR') : 'Sem leitura';
 
-    grid.innerHTML = devices.map(d => {
-        const l = d.ultima_leitura || {};
-        const press = l.sensor1 !== null && l.sensor1 !== undefined ? Number(l.sensor1).toFixed(2) : '--';
-        const isSel = d.numero_serie === selectedDeviceSerial;
-        const dotClass = d.status === 'Crítico' ? 'red' : (d.status === 'Atenção' ? 'yellow' : 'green');
-        const timeStr = l.timestamp ? new Date(l.timestamp).toLocaleTimeString('pt-BR') : 'Sem leitura';
-
-        return `
-            <div class="chopeira-card ${isSel ? 'selected' : ''}" data-serie="${d.numero_serie}" onclick="selectChopeira('${d.numero_serie}')">
-                <div class="chopeira-card-header">
-                    <span class="chopeira-card-title">Chopeira #${d.numero_serie}</span>
-                    <span class="status-dot-fine ${dotClass}" title="${d.status || 'Operacional'}"></span>
-                </div>
-                <div class="chopeira-card-body">
-                    <div class="chopeira-row">
-                        <span>Pressão Atual:</span>
-                        <strong class="chopeira-live-val chopeira-pressure-val" style="color: var(--primary-blue); font-size: 14px;">${press} bar</strong>
+            return `
+                <div class="chopeira-card ${isSel ? 'selected' : ''}" data-serie="${d.numero_serie}" onclick="selectChopeira('${d.numero_serie}')">
+                    <div class="chopeira-card-header">
+                        <span class="chopeira-card-title">Chopeira #${d.numero_serie}</span>
+                        <span class="status-dot-fine ${dotClass}" title="${d.status || 'Operacional'}"></span>
                     </div>
-                    <div class="chopeira-row">
-                        <span>Última Transmissão:</span>
-                        <span>${timeStr}</span>
+                    <div class="chopeira-card-body">
+                        <div class="chopeira-row">
+                            <span>Pressão Atual:</span>
+                            <strong class="chopeira-live-val chopeira-pressure-val" style="color: var(--primary-blue); font-size: 14px;">${press} bar</strong>
+                        </div>
+                        <div class="chopeira-row">
+                            <span>Última Transmissão:</span>
+                            <span class="chopeira-time-val">${timeStr}</span>
+                        </div>
                     </div>
                 </div>
-            </div>
-        `;
-    }).join('');
+            `;
+        }).join('');
+    } else {
+        // Atualiza apenas os valores no DOM existente sem reflow ou perda de estado
+        devices.forEach(d => {
+            const card = grid.querySelector(`.chopeira-card[data-serie="${d.numero_serie}"]`);
+            if (!card) return;
+            const l = d.ultima_leitura || {};
+            const press = l.sensor1 !== null && l.sensor1 !== undefined ? Number(l.sensor1).toFixed(2) : '--';
+            const pressEl = card.querySelector('.chopeira-pressure-val');
+            if (pressEl && pressEl.innerText !== `${press} bar`) {
+                pressEl.innerText = `${press} bar`;
+            }
+            const timeEl = card.querySelector('.chopeira-time-val');
+            if (timeEl && l.timestamp) {
+                const timeStr = new Date(l.timestamp).toLocaleTimeString('pt-BR');
+                if (timeEl.innerText !== timeStr) timeEl.innerText = timeStr;
+            }
+            const dot = card.querySelector('.status-dot-fine');
+            if (dot) {
+                const dotClass = d.status === 'Crítico' ? 'red' : (d.status === 'Atenção' ? 'yellow' : 'green');
+                dot.className = `status-dot-fine ${dotClass}`;
+            }
+        });
+    }
 }
 
 /**
@@ -433,8 +476,8 @@ async function loadChopeiraChart(forcedSerial = null, forceRedraw = false) {
         if (result.success && Array.isArray(result.data)) {
             let chronologicalData = result.data.slice().reverse();
 
-            if (periodo === 'all' && chronologicalData.length > 20) {
-                chronologicalData = chronologicalData.slice(-20);
+            if (periodo === 'all' && chronologicalData.length > 30) {
+                chronologicalData = chronologicalData.slice(-30);
             }
 
             renderChopeirasChart(chronologicalData, serial, periodo, forceRedraw);
@@ -506,11 +549,17 @@ function renderChopeirasChart(data, serial = '', periodo = '', forceRedraw = fal
         chopeirasChartInstance.data.datasets[1].data = r1On;
         chopeirasChartInstance.data.datasets[2].data = r1Off;
 
-        chopeirasChartInstance.update();
+        chopeirasChartInstance.update('none');
         return;
     }
 
-    chopeirasChartInstance = new Chart(ctx.getContext('2d'), {
+    const ctx2d = ctx.getContext('2d');
+    let gradient = ctx2d.createLinearGradient(0, 0, 0, 320);
+    gradient.addColorStop(0, 'rgba(30, 96, 172, 0.22)');
+    gradient.addColorStop(0.6, 'rgba(30, 96, 172, 0.05)');
+    gradient.addColorStop(1, 'rgba(30, 96, 172, 0.0)');
+
+    chopeirasChartInstance = new Chart(ctx2d, {
         type: 'line',
         data: {
             labels,
@@ -519,13 +568,19 @@ function renderChopeirasChart(data, serial = '', periodo = '', forceRedraw = fal
                     label: 'Pressão da Chopeira (Sensor 1)',
                     data: sensor1,
                     borderColor: '#1e60ac', // Azul Principal Sensorium
-                    backgroundColor: 'rgba(30, 96, 172, 0.08)',
-                    borderWidth: 2.2, // Linha fina e nítida
+                    backgroundColor: gradient,
+                    borderWidth: 2.6, // Linha de pressão destacada e nítida
                     borderDash: [],
-                    pointRadius: 0,
-                    pointHoverRadius: 5,
-                    pointHitRadius: 8,
-                    tension: 0.45,
+                    pointRadius: (context) => {
+                        const len = context.chart.data.datasets[0]?.data?.length || 0;
+                        return context.dataIndex === len - 1 ? 5 : 0;
+                    },
+                    pointBackgroundColor: '#1e60ac',
+                    pointBorderColor: '#ffffff',
+                    pointBorderWidth: 2.5,
+                    pointHoverRadius: 6,
+                    pointHitRadius: 10,
+                    tension: 0.38, // Curvatura orgânica e fluida
                     borderCapStyle: 'round',
                     borderJoinStyle: 'round',
                     cubicInterpolationMode: 'monotone',
@@ -543,7 +598,7 @@ function renderChopeirasChart(data, serial = '', periodo = '', forceRedraw = fal
                     borderDash: [6, 6],
                     pointRadius: 0,
                     pointHoverRadius: 4,
-                    tension: 0, // Linha reta fixa
+                    tension: 0, // Linha reta horizontal fixa
                     borderCapStyle: 'round',
                     borderJoinStyle: 'round',
                     spanGaps: true,
@@ -560,7 +615,7 @@ function renderChopeirasChart(data, serial = '', periodo = '', forceRedraw = fal
                     borderDash: [6, 6],
                     pointRadius: 0,
                     pointHoverRadius: 4,
-                    tension: 0, // Linha reta fixa
+                    tension: 0, // Linha reta horizontal fixa
                     borderCapStyle: 'round',
                     borderJoinStyle: 'round',
                     spanGaps: true,
@@ -573,15 +628,11 @@ function renderChopeirasChart(data, serial = '', periodo = '', forceRedraw = fal
         options: {
             responsive: true,
             maintainAspectRatio: false,
-            animation: {
-                duration: 150,
-                easing: 'easeOutCubic'
-            },
+            animation: false, // Fluidez em tempo real de 60fps sem soluços
             transitions: {
                 active: {
                     animation: {
-                        duration: 80,
-                        easing: 'easeOutCubic'
+                        duration: 0
                     }
                 }
             },

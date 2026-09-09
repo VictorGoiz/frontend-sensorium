@@ -189,14 +189,37 @@ function handleLiveChopeiraReading(reading) {
     if (selectedDeviceSerial === numeroSerie && chopeirasChartInstance) {
         const nowLabel = new Date(timestamp || Date.now()).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
 
+        // Identifica os valores fixos de setpoint
+        let curSetpointOn = rele1_on !== null && rele1_on !== undefined ? Number(rele1_on) : null;
+        let curSetpointOff = rele1_off !== null && rele1_off !== undefined ? Number(rele1_off) : null;
+
+        if (curSetpointOn === null && dev?.ultima_leitura?.rele1_on !== null && dev?.ultima_leitura?.rele1_on !== undefined) {
+            curSetpointOn = Number(dev.ultima_leitura.rele1_on);
+        }
+        if (curSetpointOff === null && dev?.ultima_leitura?.rele1_off !== null && dev?.ultima_leitura?.rele1_off !== undefined) {
+            curSetpointOff = Number(dev.ultima_leitura.rele1_off);
+        }
+
+        if (curSetpointOn === null && chopeirasChartInstance.data.datasets[1]?.data?.length > 0) {
+            curSetpointOn = chopeirasChartInstance.data.datasets[1].data.find(v => v !== null && v !== undefined) ?? null;
+        }
+        if (curSetpointOff === null && chopeirasChartInstance.data.datasets[2]?.data?.length > 0) {
+            curSetpointOff = chopeirasChartInstance.data.datasets[2].data.find(v => v !== null && v !== undefined) ?? null;
+        }
+
         chopeirasChartInstance.data.labels.push(nowLabel);
+        // Apenas a pressão varia conforme as leituras recebidas do banco/sensor
         chopeirasChartInstance.data.datasets[0].data.push(sensor1 !== null && sensor1 !== undefined ? Number(sensor1) : null);
-        chopeirasChartInstance.data.datasets[1].data.push(rele1_on !== null && rele1_on !== undefined ? Number(rele1_on) : null);
-        chopeirasChartInstance.data.datasets[2].data.push(rele1_off !== null && rele1_off !== undefined ? Number(rele1_off) : null);
+
+        // Linhas de setpoint fixas e constantes em todos os pontos
+        chopeirasChartInstance.data.datasets[1].data = chopeirasChartInstance.data.labels.map(() => curSetpointOn);
+        chopeirasChartInstance.data.datasets[2].data = chopeirasChartInstance.data.labels.map(() => curSetpointOff);
 
         if (chopeirasChartInstance.data.labels.length > 20) {
             chopeirasChartInstance.data.labels.shift();
-            chopeirasChartInstance.data.datasets.forEach(ds => ds.data.shift());
+            chopeirasChartInstance.data.datasets[0].data.shift();
+            chopeirasChartInstance.data.datasets[1].data.shift();
+            chopeirasChartInstance.data.datasets[2].data.shift();
         }
 
         chopeirasChartInstance.update();
@@ -441,8 +464,41 @@ function renderChopeirasChart(data, serial = '', periodo = '', forceRedraw = fal
     });
 
     const sensor1 = data.map(d => d.sensor1 !== null ? Number(d.sensor1) : null);
-    const r1On = data.map(d => d.rele1_on !== null ? Number(d.rele1_on) : null);
-    const r1Off = data.map(d => d.rele1_off !== null ? Number(d.rele1_off) : null);
+
+    // Identifica os valores fixos de Setpoint ON e OFF para o dispositivo
+    let setpointOn = null;
+    let setpointOff = null;
+
+    const dev = currentChopeiras.find(d => d.numero_serie === serial);
+    if (dev && dev.ultima_leitura) {
+        if (dev.ultima_leitura.rele1_on !== null && dev.ultima_leitura.rele1_on !== undefined) {
+            setpointOn = Number(dev.ultima_leitura.rele1_on);
+        }
+        if (dev.ultima_leitura.rele1_off !== null && dev.ultima_leitura.rele1_off !== undefined) {
+            setpointOff = Number(dev.ultima_leitura.rele1_off);
+        }
+    }
+
+    if (setpointOn === null) {
+        for (let i = data.length - 1; i >= 0; i--) {
+            if (data[i].rele1_on !== null && data[i].rele1_on !== undefined) {
+                setpointOn = Number(data[i].rele1_on);
+                break;
+            }
+        }
+    }
+    if (setpointOff === null) {
+        for (let i = data.length - 1; i >= 0; i--) {
+            if (data[i].rele1_off !== null && data[i].rele1_off !== undefined) {
+                setpointOff = Number(data[i].rele1_off);
+                break;
+            }
+        }
+    }
+
+    // Linhas de setpoint fixas constantes para todos os pontos no gráfico
+    const r1On = labels.map(() => setpointOn);
+    const r1Off = labels.map(() => setpointOff);
 
     if (chopeirasChartInstance) {
         chopeirasChartInstance.data.labels = labels;
@@ -483,11 +539,11 @@ function renderChopeirasChart(data, serial = '', periodo = '', forceRedraw = fal
                     data: r1On,
                     borderColor: '#10b981', // Verde Esmeralda fino
                     backgroundColor: 'transparent',
-                    borderWidth: 1.6,
-                    borderDash: [],
+                    borderWidth: 1.8,
+                    borderDash: [6, 6],
                     pointRadius: 0,
                     pointHoverRadius: 4,
-                    tension: 0.25,
+                    tension: 0, // Linha reta fixa
                     borderCapStyle: 'round',
                     borderJoinStyle: 'round',
                     spanGaps: true,
@@ -500,11 +556,11 @@ function renderChopeirasChart(data, serial = '', periodo = '', forceRedraw = fal
                     data: r1Off,
                     borderColor: '#ef4444', // Vermelho fino
                     backgroundColor: 'transparent',
-                    borderWidth: 1.6,
-                    borderDash: [],
+                    borderWidth: 1.8,
+                    borderDash: [6, 6],
                     pointRadius: 0,
                     pointHoverRadius: 4,
-                    tension: 0.25,
+                    tension: 0, // Linha reta fixa
                     borderCapStyle: 'round',
                     borderJoinStyle: 'round',
                     spanGaps: true,
@@ -518,7 +574,7 @@ function renderChopeirasChart(data, serial = '', periodo = '', forceRedraw = fal
             responsive: true,
             maintainAspectRatio: false,
             animation: {
-                duration: 120,
+                duration: 150,
                 easing: 'easeOutCubic'
             },
             transitions: {
@@ -535,7 +591,7 @@ function renderChopeirasChart(data, serial = '', periodo = '', forceRedraw = fal
             },
             plugins: {
                 legend: {
-                    display: false // Usamos a legenda inline personalizada com linhas finas
+                    display: false // Legenda inline personalizada
                 },
                 tooltip: {
                     backgroundColor: 'rgba(15, 23, 42, 0.92)',
@@ -560,9 +616,17 @@ function renderChopeirasChart(data, serial = '', periodo = '', forceRedraw = fal
                     type: 'linear',
                     display: true,
                     position: 'left',
-                    grace: '10%',
+                    min: 0,
+                    max: 100,
                     grid: { color: 'rgba(226, 232, 240, 0.6)', drawBorder: false },
-                    ticks: { color: '#64748b', maxTicksLimit: 7, font: { size: 11, family: 'Inter' } }
+                    ticks: {
+                        color: '#64748b',
+                        stepSize: 20,
+                        font: { size: 11, family: 'Inter' },
+                        callback: function(value) {
+                            return value + ' bar';
+                        }
+                    }
                 }
             }
         }
@@ -746,6 +810,34 @@ async function carregarRegistrosModal(page = 1) {
 }
 
 /**
+ * Formata data e hora de leituras com exatidão máxima de segundos e sem distorção de fuso horário
+ */
+function formatarDataHoraLeitura(row) {
+    if (!row) return '--';
+    const str = row.timestamp_formatado || row.timestamp_leitura || row.created_at;
+    if (!str) return '--';
+
+    const s = String(str).trim();
+    // Se vier no formato SQL exato "YYYY-MM-DD HH:mm:ss" ou "YYYY-MM-DDTHH:mm:ss"
+    if (/^\d{4}-\d{2}-\d{2}[ T]\d{2}:\d{2}:\d{2}/.test(s)) {
+        const [datePart, timePart] = s.replace('T', ' ').split(' ');
+        const [yyyy, mm, dd] = datePart.split('-');
+        return `${dd}/${mm}/${yyyy} ${timePart.slice(0, 8)}`;
+    }
+
+    const d = new Date(str);
+    if (isNaN(d.getTime())) return String(str);
+    return d.toLocaleString('pt-BR', {
+        day: '2-digit',
+        month: '2-digit',
+        year: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit'
+    });
+}
+
+/**
  * Renderiza as linhas da tabela de registros
  */
 function renderTabelaRegistros(rows) {
@@ -758,8 +850,7 @@ function renderTabelaRegistros(rows) {
     }
 
     tableBody.innerHTML = rows.map(r => {
-        const timeVal = r.timestamp_leitura || r.created_at;
-        const formattedDate = timeVal ? new Date(timeVal).toLocaleString('pt-BR') : '--';
+        const formattedDate = formatarDataHoraLeitura(r);
         const pressaoVal = (r.sensor1 !== null && r.sensor1 !== undefined) ? `${Number(r.sensor1).toFixed(2)} bar` : '--';
         const r1OnVal = (r.rele1_on !== null && r.rele1_on !== undefined) ? `${Number(r.rele1_on).toFixed(1)} bar` : '--';
         const r1OffVal = (r.rele1_off !== null && r.rele1_off !== undefined) ? `${Number(r.rele1_off).toFixed(1)} bar` : '--';

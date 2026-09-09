@@ -133,7 +133,7 @@ async function loadChopeirasData(silent = false) {
             }
 
             // Inicializa o gráfico na primeira carga se ainda não existir
-            if (selectedDeviceSerial && !chopeirasChartInstance) {
+            if (selectedDeviceSerial && !fluidTelemetry) {
                 loadChopeiraChart(selectedDeviceSerial, false);
             } else if (selectedDeviceSerial) {
                 // Atualização ultrarrápida do card executivo e streaming do gráfico a partir do banco
@@ -203,45 +203,12 @@ function handleLiveChopeiraReading(reading) {
         }
     }
 
-    // 4. Se o gráfico estiver exibindo esta chopeira, faz streaming instantâneo
-    if (selectedDeviceSerial === numeroSerie && chopeirasChartInstance) {
-        const nowLabel = new Date(timestamp || Date.now()).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
-
-        // Identifica os valores fixos de setpoint
-        let curSetpointOn = rele1_on !== null && rele1_on !== undefined ? Number(rele1_on) : null;
-        let curSetpointOff = rele1_off !== null && rele1_off !== undefined ? Number(rele1_off) : null;
-
-        if (curSetpointOn === null && dev?.ultima_leitura?.rele1_on !== null && dev?.ultima_leitura?.rele1_on !== undefined) {
-            curSetpointOn = Number(dev.ultima_leitura.rele1_on);
+    // 4. Se o gráfico estiver exibindo esta chopeira, alimenta o motor de telemetria ultra-fluida
+    if (selectedDeviceSerial === numeroSerie) {
+        const engine = getFluidTelemetryEngine();
+        if (engine) {
+            engine.pushReading(sensor1, rele1_on, rele1_off, timestamp);
         }
-        if (curSetpointOff === null && dev?.ultima_leitura?.rele1_off !== null && dev?.ultima_leitura?.rele1_off !== undefined) {
-            curSetpointOff = Number(dev.ultima_leitura.rele1_off);
-        }
-
-        if (curSetpointOn === null && chopeirasChartInstance.data.datasets[1]?.data?.length > 0) {
-            curSetpointOn = chopeirasChartInstance.data.datasets[1].data.find(v => v !== null && v !== undefined) ?? null;
-        }
-        if (curSetpointOff === null && chopeirasChartInstance.data.datasets[2]?.data?.length > 0) {
-            curSetpointOff = chopeirasChartInstance.data.datasets[2].data.find(v => v !== null && v !== undefined) ?? null;
-        }
-
-        chopeirasChartInstance.data.labels.push(nowLabel);
-        // Apenas a pressão varia conforme as leituras recebidas do banco/sensor
-        chopeirasChartInstance.data.datasets[0].data.push(sensor1 !== null && sensor1 !== undefined ? Number(sensor1) : null);
-
-        // Linhas de setpoint fixas e constantes em todos os pontos
-        chopeirasChartInstance.data.datasets[1].data = chopeirasChartInstance.data.labels.map(() => curSetpointOn);
-        chopeirasChartInstance.data.datasets[2].data = chopeirasChartInstance.data.labels.map(() => curSetpointOff);
-
-        if (chopeirasChartInstance.data.labels.length > 30) {
-            chopeirasChartInstance.data.labels.shift();
-            chopeirasChartInstance.data.datasets[0].data.shift();
-            chopeirasChartInstance.data.datasets[1].data.shift();
-            chopeirasChartInstance.data.datasets[2].data.shift();
-        }
-
-        // Atualização instantânea em 60fps sem engasgos
-        chopeirasChartInstance.update('none');
     }
 }
 
@@ -423,7 +390,7 @@ function renderChopeirasGrid(devices) {
                     <div class="chopeira-card-body">
                         <div class="chopeira-row">
                             <span>Pressão Atual:</span>
-                            <strong class="chopeira-live-val chopeira-pressure-val" style="color: var(--primary-blue); font-size: 14px;">${press} bar</strong>
+                            <strong class="chopeira-live-val chopeira-pressure-val" style="color: var(--primary-blue); font-size: 14px;">${press} psi</strong>
                         </div>
                         <div class="chopeira-row">
                             <span>Última Transmissão:</span>
@@ -458,6 +425,448 @@ function renderChopeirasGrid(devices) {
     }
 }
 
+/* ==========================================================================
+   MOTOR DE TELEMETRIA CONTÍNUA ULTRA-FLUIDA (60/120 FPS PERMANENTE)
+   ========================================================================== */
+
+class FluidTelemetryEngine {
+    constructor(canvasId) {
+        this.canvas = document.getElementById(canvasId);
+        if (!this.canvas) return;
+        this.ctx = this.canvas.getContext('2d');
+        
+        this.numPoints = 60; // 60 amostras cobrindo 100% da largura do canvas
+        this.points = new Array(this.numPoints).fill(0);
+        
+        this.targetPressure = 0;
+        this.currentPressure = 0;
+        this.setpointOn = null;
+        this.setpointOff = null;
+        
+        this.minVal = 0;
+        this.maxVal = 100;
+        
+        this.isRunning = false;
+        this.animFrameId = null;
+        this.lastFrameTime = performance.now();
+        this.pulsePhase = 0;
+        this.sampleTimer = 0;
+        this.sampleIntervalMs = 150; // Amostragem contínua fluida a cada 150ms
+        
+        this.mouseX = -1;
+        this.mouseY = -1;
+        this.isHovering = false;
+        
+        this.setupCanvas();
+        this.setupEvents();
+        this.start();
+    }
+    
+    setupCanvas() {
+        if (!this.canvas) return;
+        const rect = this.canvas.getBoundingClientRect();
+        const dpr = window.devicePixelRatio || 1;
+        this.width = rect.width || 800;
+        this.height = rect.height || 340;
+        this.canvas.width = this.width * dpr;
+        this.canvas.height = this.height * dpr;
+        this.ctx.scale(dpr, dpr);
+    }
+    
+    setupEvents() {
+        if (!this.canvas) return;
+        
+        window.addEventListener('resize', () => {
+            this.setupCanvas();
+        });
+        
+        this.canvas.addEventListener('mousemove', (e) => {
+            const rect = this.canvas.getBoundingClientRect();
+            this.mouseX = e.clientX - rect.left;
+            this.mouseY = e.clientY - rect.top;
+            this.isHovering = true;
+        });
+        
+        this.canvas.addEventListener('mouseleave', () => {
+            this.isHovering = false;
+        });
+    }
+    
+    start() {
+        if (this.isRunning) return;
+        this.isRunning = true;
+        this.lastFrameTime = performance.now();
+        const loop = (now) => {
+            if (!this.isRunning) return;
+            const dt = Math.min(100, now - this.lastFrameTime);
+            this.lastFrameTime = now;
+            
+            this.update(dt);
+            this.render(now);
+            
+            this.animFrameId = requestAnimationFrame(loop);
+        };
+        this.animFrameId = requestAnimationFrame(loop);
+    }
+    
+    stop() {
+        this.isRunning = false;
+        if (this.animFrameId) {
+            cancelAnimationFrame(this.animFrameId);
+            this.animFrameId = null;
+        }
+    }
+    
+    pushReading(sensor1, rele1_on, rele1_off, timestamp = null) {
+        const val = sensor1 !== null && sensor1 !== undefined ? Number(sensor1) : null;
+        if (val !== null && !isNaN(val)) {
+            this.targetPressure = val;
+        }
+        
+        if (rele1_on !== null && rele1_on !== undefined) this.setpointOn = Number(rele1_on);
+        if (rele1_off !== null && rele1_off !== undefined) this.setpointOff = Number(rele1_off);
+    }
+    
+    loadHistory(data, serial) {
+        // Identifica setpoints
+        let spOn = null;
+        let spOff = null;
+        for (let i = data.length - 1; i >= 0; i--) {
+            if (spOn === null && data[i].rele1_on !== null && data[i].rele1_on !== undefined) spOn = Number(data[i].rele1_on);
+            if (spOff === null && data[i].rele1_off !== null && data[i].rele1_off !== undefined) spOff = Number(data[i].rele1_off);
+        }
+        if (spOn !== null) this.setpointOn = spOn;
+        if (spOff !== null) this.setpointOff = spOff;
+        
+        const validValues = data.map(d => (d.sensor1 !== null && d.sensor1 !== undefined ? Number(d.sensor1) : null)).filter(v => v !== null && !isNaN(v));
+        
+        if (validValues.length > 0) {
+            const lastVal = validValues[validValues.length - 1];
+            this.targetPressure = lastVal;
+            this.currentPressure = lastVal;
+            
+            // Popula todo o buffer de 60 pontos
+            this.points = [];
+            for (let i = 0; i < this.numPoints; i++) {
+                const ratio = i / (this.numPoints - 1);
+                const dataIdx = Math.floor(ratio * (validValues.length - 1));
+                this.points.push(validValues[dataIdx] !== undefined ? validValues[dataIdx] : lastVal);
+            }
+        }
+    }
+    
+    update(dt) {
+        // Interpolação suave e orgânica de fluido (60-120 FPS)
+        const lerpSpeed = 0.20;
+        this.currentPressure += (this.targetPressure - this.currentPressure) * lerpSpeed;
+        this.pulsePhase += dt * 0.005;
+        
+        // Auto-alimentação contínua da esteira de dados
+        this.sampleTimer += dt;
+        if (this.sampleTimer >= this.sampleIntervalMs) {
+            this.sampleTimer = 0;
+            this.points.push(this.currentPressure);
+            if (this.points.length > this.numPoints) {
+                this.points.shift();
+            }
+        }
+    }
+    
+    getY(val, padTop, plotHeight) {
+        const clamped = Math.max(this.minVal, Math.min(this.maxVal, val));
+        const ratio = (clamped - this.minVal) / (this.maxVal - this.minVal);
+        return padTop + plotHeight * (1 - ratio);
+    }
+    
+    render(now) {
+        const ctx = this.ctx;
+        const w = this.width;
+        const h = this.height;
+        if (!ctx || w <= 0 || h <= 0) return;
+        
+        ctx.clearRect(0, 0, w, h);
+        
+        const padTop = 22;
+        const padBottom = 32;
+        const padLeft = 60;
+        const padRight = 85;
+        const plotWidth = w - padLeft - padRight;
+        const plotHeight = h - padTop - padBottom;
+        
+        // 1. Grid e Escala 0 a 100 bar
+        ctx.lineWidth = 1;
+        ctx.textAlign = 'right';
+        ctx.textBaseline = 'middle';
+        ctx.font = '500 11px Inter, sans-serif';
+        
+        const steps = [0, 20, 40, 60, 80, 100];
+        steps.forEach(step => {
+            const y = this.getY(step, padTop, plotHeight);
+            
+            // Linha de grade sutil
+            ctx.beginPath();
+            ctx.strokeStyle = step === 0 ? 'rgba(203, 213, 225, 0.8)' : 'rgba(226, 232, 240, 0.6)';
+            ctx.setLineDash([]);
+            ctx.moveTo(padLeft, y);
+            ctx.lineTo(w - padRight, y);
+            ctx.stroke();
+            
+            // Marcador numérico do eixo Y
+            ctx.fillStyle = '#64748b';
+            ctx.fillText(`${step} bar`, padLeft - 10, y);
+        });
+        
+        // 2. Linha Fixa de Setpoint ON (Verde Esmeralda)
+        if (this.setpointOn !== null && !isNaN(this.setpointOn)) {
+            const yOn = this.getY(this.setpointOn, padTop, plotHeight);
+            ctx.save();
+            ctx.beginPath();
+            ctx.strokeStyle = '#10b981';
+            ctx.lineWidth = 1.8;
+            ctx.setLineDash([5, 5]);
+            ctx.moveTo(padLeft, yOn);
+            ctx.lineTo(w - padRight, yOn);
+            ctx.stroke();
+            
+            // Badge / Pill de Setpoint ON
+            ctx.setLineDash([]);
+            ctx.fillStyle = '#ecfdf5';
+            ctx.strokeStyle = '#10b981';
+            ctx.lineWidth = 1;
+            const badgeW = 72;
+            const badgeH = 20;
+            const badgeX = w - padRight + 6;
+            const badgeY = yOn - badgeH / 2;
+            ctx.beginPath();
+            ctx.roundRect(badgeX, badgeY, badgeW, badgeH, 4);
+            ctx.fill();
+            ctx.stroke();
+            
+            ctx.fillStyle = '#059669';
+            ctx.font = '600 10.5px Inter, sans-serif';
+            ctx.textAlign = 'center';
+            ctx.fillText(`ON: ${this.setpointOn.toFixed(1)}`, badgeX + badgeW / 2, yOn);
+            ctx.restore();
+        }
+        
+        // 3. Linha Fixa de Setpoint OFF (Vermelho Coral)
+        if (this.setpointOff !== null && !isNaN(this.setpointOff)) {
+            const yOff = this.getY(this.setpointOff, padTop, plotHeight);
+            ctx.save();
+            ctx.beginPath();
+            ctx.strokeStyle = '#ef4444';
+            ctx.lineWidth = 1.8;
+            ctx.setLineDash([5, 5]);
+            ctx.moveTo(padLeft, yOff);
+            ctx.lineTo(w - padRight, yOff);
+            ctx.stroke();
+            
+            // Badge / Pill de Setpoint OFF
+            ctx.setLineDash([]);
+            ctx.fillStyle = '#fef2f2';
+            ctx.strokeStyle = '#ef4444';
+            ctx.lineWidth = 1;
+            const badgeW = 72;
+            const badgeH = 20;
+            const badgeX = w - padRight + 6;
+            const badgeY = yOff - badgeH / 2;
+            ctx.beginPath();
+            ctx.roundRect(badgeX, badgeY, badgeW, badgeH, 4);
+            ctx.fill();
+            ctx.stroke();
+            
+            ctx.fillStyle = '#dc2626';
+            ctx.font = '600 10.5px Inter, sans-serif';
+            ctx.textAlign = 'center';
+            ctx.fillText(`OFF: ${this.setpointOff.toFixed(1)}`, badgeX + badgeW / 2, yOff);
+            ctx.restore();
+        }
+        
+        // 4. Curva de Pressão Contínua (60 pontos distribuídos em 100% do gráfico)
+        const renderPoints = [];
+        const count = this.points.length;
+        
+        for (let i = 0; i < count; i++) {
+            const x = padLeft + (plotWidth / Math.max(1, count - 1)) * i;
+            // Para o último ponto, usa a pressão suavizada em tempo real
+            const val = (i === count - 1) ? this.currentPressure : this.points[i];
+            const y = this.getY(val, padTop, plotHeight);
+            renderPoints.push({ x, y, val });
+        }
+        
+        const leadX = renderPoints[count - 1].x;
+        const leadY = renderPoints[count - 1].y;
+        
+        if (renderPoints.length >= 2) {
+            ctx.save();
+            
+            // Recorte da área de desenho
+            ctx.beginPath();
+            ctx.rect(padLeft, padTop - 5, plotWidth + 2, plotHeight + 10);
+            ctx.clip();
+            
+            // Constrói Spline Suave (Catmull-Rom / Bezier)
+            ctx.beginPath();
+            ctx.moveTo(renderPoints[0].x, renderPoints[0].y);
+            
+            for (let i = 0; i < renderPoints.length - 1; i++) {
+                const p0 = renderPoints[Math.max(0, i - 1)];
+                const p1 = renderPoints[i];
+                const p2 = renderPoints[i + 1];
+                const p3 = renderPoints[Math.min(renderPoints.length - 1, i + 2)];
+                
+                const cp1x = p1.x + (p2.x - p0.x) / 6;
+                const cp1y = p1.y + (p2.y - p0.y) / 6;
+                const cp2x = p2.x - (p3.x - p1.x) / 6;
+                const cp2y = p2.y - (p3.y - p1.y) / 6;
+                
+                ctx.bezierCurveTo(cp1x, cp1y, cp2x, cp2y, p2.x, p2.y);
+            }
+            
+            // Preenchimento de gradiente translúcido
+            const grad = ctx.createLinearGradient(0, padTop, 0, padTop + plotHeight);
+            grad.addColorStop(0, 'rgba(30, 96, 172, 0.28)');
+            grad.addColorStop(0.7, 'rgba(30, 96, 172, 0.05)');
+            grad.addColorStop(1, 'rgba(30, 96, 172, 0.0)');
+            
+            ctx.lineTo(leadX, padTop + plotHeight);
+            ctx.lineTo(renderPoints[0].x, padTop + plotHeight);
+            ctx.closePath();
+            ctx.fillStyle = grad;
+            ctx.fill();
+            
+            // Traçado da Linha
+            ctx.beginPath();
+            ctx.moveTo(renderPoints[0].x, renderPoints[0].y);
+            for (let i = 0; i < renderPoints.length - 1; i++) {
+                const p0 = renderPoints[Math.max(0, i - 1)];
+                const p1 = renderPoints[i];
+                const p2 = renderPoints[i + 1];
+                const p3 = renderPoints[Math.min(renderPoints.length - 1, i + 2)];
+                
+                const cp1x = p1.x + (p2.x - p0.x) / 6;
+                const cp1y = p1.y + (p2.y - p0.y) / 6;
+                const cp2x = p2.x - (p3.x - p1.x) / 6;
+                const cp2y = p2.y - (p3.y - p1.y) / 6;
+                
+                ctx.bezierCurveTo(cp1x, cp1y, cp2x, cp2y, p2.x, p2.y);
+            }
+            
+            ctx.shadowColor = 'rgba(30, 96, 172, 0.35)';
+            ctx.shadowBlur = 6;
+            ctx.strokeStyle = '#1e60ac';
+            ctx.lineWidth = 2.8;
+            ctx.lineCap = 'round';
+            ctx.lineJoin = 'round';
+            ctx.stroke();
+            
+            ctx.restore();
+        }
+        
+        // 5. Farol Luminoso na Ponta Ativa em Tempo Real (Live Pulse Beacon)
+        ctx.save();
+        const waveRadius = 7 + (this.pulsePhase * 8) % 14;
+        const waveAlpha = Math.max(0, 1 - waveRadius / 21);
+        
+        // Onda expansiva
+        ctx.beginPath();
+        ctx.arc(leadX, leadY, waveRadius, 0, Math.PI * 2);
+        ctx.strokeStyle = `rgba(30, 96, 172, ${waveAlpha * 0.7})`;
+        ctx.lineWidth = 1.5;
+        ctx.stroke();
+        
+        // Ponto central
+        ctx.beginPath();
+        ctx.arc(leadX, leadY, 4.5, 0, Math.PI * 2);
+        ctx.fillStyle = '#1e60ac';
+        ctx.fill();
+        ctx.lineWidth = 2;
+        ctx.strokeStyle = '#ffffff';
+        ctx.stroke();
+        ctx.restore();
+        
+        // 6. Eixo X de Tempo
+        ctx.fillStyle = '#94a3b8';
+        ctx.font = '500 10.5px Inter, sans-serif';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'top';
+        const timeSteps = 4;
+        const totalDurationSec = Math.round((this.numPoints * this.sampleIntervalMs) / 1000);
+        for (let i = 0; i <= timeSteps; i++) {
+            const x = padLeft + (plotWidth / timeSteps) * i;
+            const pastSec = Math.round(((timeSteps - i) / timeSteps) * totalDurationSec);
+            const label = pastSec === 0 ? 'Agora' : `-${pastSec}s`;
+            ctx.fillText(label, x, padTop + plotHeight + 8);
+        }
+        
+        // 7. Cursor Interativo e Tooltip ao passar o mouse
+        if (this.isHovering && this.mouseX >= padLeft && this.mouseX <= w - padRight) {
+            ctx.save();
+            ctx.beginPath();
+            ctx.strokeStyle = '#cbd5e1';
+            ctx.lineWidth = 1;
+            ctx.setLineDash([3, 3]);
+            ctx.moveTo(this.mouseX, padTop);
+            ctx.lineTo(this.mouseX, padTop + plotHeight);
+            ctx.stroke();
+            
+            // Encontra o ponto mais próximo
+            let closest = null;
+            let minDist = Infinity;
+            renderPoints.forEach(p => {
+                const dist = Math.abs(p.x - this.mouseX);
+                if (dist < minDist) {
+                    minDist = dist;
+                    closest = p;
+                }
+            });
+            
+            if (closest) {
+                ctx.setLineDash([]);
+                ctx.beginPath();
+                ctx.arc(closest.x, closest.y, 5, 0, Math.PI * 2);
+                ctx.fillStyle = '#1e60ac';
+                ctx.fill();
+                ctx.lineWidth = 2;
+                ctx.strokeStyle = '#ffffff';
+                ctx.stroke();
+                
+                const ttText = `${Number(closest.val).toFixed(2)} bar`;
+                ctx.font = '600 11px Inter, sans-serif';
+                const textWidth = ctx.measureText(ttText).width;
+                const ttBoxW = textWidth + 18;
+                const ttBoxH = 24;
+                let ttX = closest.x - ttBoxW / 2;
+                let ttY = closest.y - ttBoxH - 8;
+                if (ttY < padTop) ttY = closest.y + 10;
+                if (ttX < padLeft) ttX = padLeft;
+                if (ttX + ttBoxW > w - padRight) ttX = w - padRight - ttBoxW;
+                
+                ctx.fillStyle = 'rgba(15, 23, 42, 0.9)';
+                ctx.beginPath();
+                ctx.roundRect(ttX, ttY, ttBoxW, ttBoxH, 4);
+                ctx.fill();
+                
+                ctx.fillStyle = '#ffffff';
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                ctx.fillText(ttText, ttX + ttBoxW / 2, ttY + ttBoxH / 2);
+            }
+            ctx.restore();
+        }
+    }
+}
+
+// Instância única do Motor de Telemetria Fluida
+let fluidTelemetry = null;
+
+function getFluidTelemetryEngine() {
+    if (!fluidTelemetry) {
+        fluidTelemetry = new FluidTelemetryEngine('chopeirasChart');
+    }
+    return fluidTelemetry;
+}
+
 /**
  * Carrega e renderiza o gráfico de chopeiras em alta resolução
  */
@@ -488,200 +897,13 @@ async function loadChopeiraChart(forcedSerial = null, forceRedraw = false) {
 }
 
 /**
- * Cria ou atualiza o gráfico Chart.js com linhas finas e tema #1e60ac
+ * Renderiza o gráfico alimentando o motor de telemetria contínua
  */
 function renderChopeirasChart(data, serial = '', periodo = '', forceRedraw = false) {
-    const ctx = document.getElementById('chopeirasChart');
-    if (!ctx) return;
+    const engine = getFluidTelemetryEngine();
+    if (!engine) return;
 
-    const sig = `${serial}_${periodo}_` + data.map(d => `${d.id || ''}_${d.sensor1}_${d.rele1_on}_${d.rele1_off}_${d.timestamp_leitura || d.created_at}`).join('|');
-
-    if (!forceRedraw && lastChartSignature === sig && chopeirasChartInstance) {
-        return;
-    }
-    lastChartSignature = sig;
-
-    const labels = data.map(d => {
-        const t = d.timestamp_leitura || d.created_at;
-        return t ? new Date(t).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', second: '2-digit' }) : '';
-    });
-
-    const sensor1 = data.map(d => d.sensor1 !== null ? Number(d.sensor1) : null);
-
-    // Identifica os valores fixos de Setpoint ON e OFF para o dispositivo
-    let setpointOn = null;
-    let setpointOff = null;
-
-    const dev = currentChopeiras.find(d => d.numero_serie === serial);
-    if (dev && dev.ultima_leitura) {
-        if (dev.ultima_leitura.rele1_on !== null && dev.ultima_leitura.rele1_on !== undefined) {
-            setpointOn = Number(dev.ultima_leitura.rele1_on);
-        }
-        if (dev.ultima_leitura.rele1_off !== null && dev.ultima_leitura.rele1_off !== undefined) {
-            setpointOff = Number(dev.ultima_leitura.rele1_off);
-        }
-    }
-
-    if (setpointOn === null) {
-        for (let i = data.length - 1; i >= 0; i--) {
-            if (data[i].rele1_on !== null && data[i].rele1_on !== undefined) {
-                setpointOn = Number(data[i].rele1_on);
-                break;
-            }
-        }
-    }
-    if (setpointOff === null) {
-        for (let i = data.length - 1; i >= 0; i--) {
-            if (data[i].rele1_off !== null && data[i].rele1_off !== undefined) {
-                setpointOff = Number(data[i].rele1_off);
-                break;
-            }
-        }
-    }
-
-    // Linhas de setpoint fixas constantes para todos os pontos no gráfico
-    const r1On = labels.map(() => setpointOn);
-    const r1Off = labels.map(() => setpointOff);
-
-    if (chopeirasChartInstance) {
-        chopeirasChartInstance.data.labels = labels;
-        chopeirasChartInstance.data.datasets[0].data = sensor1;
-        chopeirasChartInstance.data.datasets[1].data = r1On;
-        chopeirasChartInstance.data.datasets[2].data = r1Off;
-
-        chopeirasChartInstance.update('none');
-        return;
-    }
-
-    const ctx2d = ctx.getContext('2d');
-    let gradient = ctx2d.createLinearGradient(0, 0, 0, 320);
-    gradient.addColorStop(0, 'rgba(30, 96, 172, 0.22)');
-    gradient.addColorStop(0.6, 'rgba(30, 96, 172, 0.05)');
-    gradient.addColorStop(1, 'rgba(30, 96, 172, 0.0)');
-
-    chopeirasChartInstance = new Chart(ctx2d, {
-        type: 'line',
-        data: {
-            labels,
-            datasets: [
-                {
-                    label: 'Pressão da Chopeira (Sensor 1)',
-                    data: sensor1,
-                    borderColor: '#1e60ac', // Azul Principal Sensorium
-                    backgroundColor: gradient,
-                    borderWidth: 2.6, // Linha de pressão destacada e nítida
-                    borderDash: [],
-                    pointRadius: (context) => {
-                        const len = context.chart.data.datasets[0]?.data?.length || 0;
-                        return context.dataIndex === len - 1 ? 5 : 0;
-                    },
-                    pointBackgroundColor: '#1e60ac',
-                    pointBorderColor: '#ffffff',
-                    pointBorderWidth: 2.5,
-                    pointHoverRadius: 6,
-                    pointHitRadius: 10,
-                    tension: 0.38, // Curvatura orgânica e fluida
-                    borderCapStyle: 'round',
-                    borderJoinStyle: 'round',
-                    cubicInterpolationMode: 'monotone',
-                    spanGaps: true,
-                    fill: true,
-                    normalized: true,
-                    yAxisID: 'y'
-                },
-                {
-                    label: 'Setpoint ON',
-                    data: r1On,
-                    borderColor: '#10b981', // Verde Esmeralda fino
-                    backgroundColor: 'transparent',
-                    borderWidth: 1.8,
-                    borderDash: [6, 6],
-                    pointRadius: 0,
-                    pointHoverRadius: 4,
-                    tension: 0, // Linha reta horizontal fixa
-                    borderCapStyle: 'round',
-                    borderJoinStyle: 'round',
-                    spanGaps: true,
-                    fill: false,
-                    normalized: true,
-                    yAxisID: 'y'
-                },
-                {
-                    label: 'Setpoint OFF',
-                    data: r1Off,
-                    borderColor: '#ef4444', // Vermelho fino
-                    backgroundColor: 'transparent',
-                    borderWidth: 1.8,
-                    borderDash: [6, 6],
-                    pointRadius: 0,
-                    pointHoverRadius: 4,
-                    tension: 0, // Linha reta horizontal fixa
-                    borderCapStyle: 'round',
-                    borderJoinStyle: 'round',
-                    spanGaps: true,
-                    fill: false,
-                    normalized: true,
-                    yAxisID: 'y'
-                }
-            ]
-        },
-        options: {
-            responsive: true,
-            maintainAspectRatio: false,
-            animation: false, // Fluidez em tempo real de 60fps sem soluços
-            transitions: {
-                active: {
-                    animation: {
-                        duration: 0
-                    }
-                }
-            },
-            interaction: {
-                mode: 'index',
-                intersect: false,
-            },
-            plugins: {
-                legend: {
-                    display: false // Legenda inline personalizada
-                },
-                tooltip: {
-                    backgroundColor: 'rgba(15, 23, 42, 0.92)',
-                    titleColor: '#f8fafc',
-                    bodyColor: '#cbd5e1',
-                    borderColor: '#e2e8f0',
-                    borderWidth: 1,
-                    padding: 10,
-                    callbacks: {
-                        label: function(context) {
-                            return `${context.dataset.label}: ${context.parsed.y !== null ? context.parsed.y : '--'} bar`;
-                        }
-                    }
-                }
-            },
-            scales: {
-                x: {
-                    grid: { display: false },
-                    ticks: { color: '#64748b', maxTicksLimit: 6, font: { size: 11, family: 'Inter' } }
-                },
-                y: {
-                    type: 'linear',
-                    display: true,
-                    position: 'left',
-                    min: 0,
-                    max: 100,
-                    grid: { color: 'rgba(226, 232, 240, 0.6)', drawBorder: false },
-                    ticks: {
-                        color: '#64748b',
-                        stepSize: 20,
-                        font: { size: 11, family: 'Inter' },
-                        callback: function(value) {
-                            return value + ' bar';
-                        }
-                    }
-                }
-            }
-        }
-    });
+    engine.loadHistory(data, serial);
 }
 
 /**
@@ -721,8 +943,8 @@ function handleFullscreenChange() {
         }
     }
 
-    if (chopeirasChartInstance) {
-        setTimeout(() => chopeirasChartInstance.resize(), 100);
+    if (fluidTelemetry) {
+        setTimeout(() => fluidTelemetry.setupCanvas(), 100);
     }
 }
 

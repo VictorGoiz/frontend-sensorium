@@ -220,8 +220,15 @@
                     </div>
                 </div>
 
+                <div class="quick-date-presets">
+                    <span class="preset-label">Atalhos rápidos:</span>
+                    <button type="button" class="btn-preset-chip" onclick="aplicarAtalhoData('hoje')">Hoje</button>
+                    <button type="button" class="btn-preset-chip" onclick="aplicarAtalhoData('7dias')">Últimos 7 dias</button>
+                    <button type="button" class="btn-preset-chip" onclick="aplicarAtalhoData('30dias')">Últimos 30 dias</button>
+                </div>
+
                 <div class="action-group">
-                    <button class="btn-action-export" onclick="exportarRegistrosCSV()" title="Exportar dados filtrados para planilha CSV">
+                    <button class="btn-action-export" id="btnExportarCSV" onclick="exportarRegistrosCSV()" title="Exportar dados filtrados para planilha CSV">
                         <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                             <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
                             <polyline points="7 10 12 15 17 10"></polyline>
@@ -241,7 +248,7 @@
                 </div>
             </div>
 
-            <!-- Feedback Alert (opcional) -->
+            <!-- Feedback Alert -->
             <div id="modalRegistrosFeedback" class="modal-feedback-box" style="display: none;"></div>
 
             <!-- Tabela de Registros -->
@@ -250,6 +257,7 @@
                     <thead>
                         <tr>
                             <th>Dispositivo</th>
+                            <th>Empresa</th>
                             <th>Data & Hora</th>
                             <th>Pressão Sensor 1</th>
                             <th>Relé 1 ON</th>
@@ -262,7 +270,7 @@
                     </thead>
                     <tbody id="registrosTableBody">
                         <tr>
-                            <td colspan="9" class="table-state-message">Carregando leituras do banco de dados...</td>
+                            <td colspan="10" class="table-state-message">Carregando leituras do banco de dados...</td>
                         </tr>
                     </tbody>
                 </table>

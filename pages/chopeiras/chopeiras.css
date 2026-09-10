@@ -1206,3 +1206,44 @@ body.fullscreen-active .exec-number {
     background: #dc2626;
 }
 
+/* Atalhos Rápidos de Data no Modal */
+.quick-date-presets {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 4px 0 8px 0;
+    flex-wrap: wrap;
+}
+
+.preset-label {
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.btn-preset-chip {
+    padding: 4px 10px;
+    border-radius: 20px;
+    border: 1px solid var(--border-fine);
+    background: #f8fafc;
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--text-muted);
+    cursor: pointer;
+    transition: all 0.15s ease;
+}
+
+.btn-preset-chip:hover {
+    background: #e2e8f0;
+    color: var(--primary-blue);
+    border-color: var(--primary-blue);
+}
+
+.btn-preset-chip.active {
+    background: var(--primary-blue);
+    color: #ffffff;
+    border-color: var(--primary-blue);
+}
+

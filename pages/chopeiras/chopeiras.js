@@ -968,7 +968,7 @@ function toggleNavDropdown(btn) {
 }
 
 /* ==========================================================================
-   MODAL DE REGISTROS DE LEITURAS DOS RELÉS & EXPORTAÇÃO / EXCLUSÃO
+   MODAL DE REGISTROS DE LEITURAS DOS RELÉS & EXPORTAÇÃO CSV / EXCLUSÃO
    ========================================================================== */
 
 /**
@@ -978,31 +978,37 @@ function openRegistrosModal() {
     const modal = document.getElementById('registrosModal');
     if (!modal) return;
 
-    // Popula select de dispositivos do modal
+    // Popula select de dispositivos do modal dinamicamente a partir dos relés carregados
     const filterDevSelect = document.getElementById('filterModalDispositivo');
     if (filterDevSelect) {
         filterDevSelect.innerHTML = '<option value="todos">Todos os Dispositivos</option>';
-        currentChopeiras.forEach(d => {
-            const opt = document.createElement('option');
-            opt.value = d.numero_serie;
-            opt.textContent = `Chopeira #${d.numero_serie}`;
-            filterDevSelect.appendChild(opt);
-        });
+        if (Array.isArray(currentChopeiras) && currentChopeiras.length > 0) {
+            currentChopeiras.forEach(d => {
+                const opt = document.createElement('option');
+                opt.value = d.numero_serie;
+                opt.textContent = `Chopeira #${d.numero_serie}`;
+                filterDevSelect.appendChild(opt);
+            });
+        }
 
-        // Por padrão, abre o modal mostrando Todos os Dispositivos
-        filterDevSelect.value = 'todos';
+        // Se uma chopeira já estiver ativa no dashboard, pré-seleciona ela no modal
+        if (selectedDeviceSerial && currentChopeiras.some(d => d.numero_serie === selectedDeviceSerial)) {
+            filterDevSelect.value = selectedDeviceSerial;
+        } else {
+            filterDevSelect.value = 'todos';
+        }
     }
 
     limparFeedbackModal();
     modal.classList.add('active');
     document.addEventListener('keydown', handleRegistrosEscKey);
 
-    // Carrega primeira página de registros
+    // Carrega a primeira página de registros do banco
     carregarRegistrosModal(1);
 }
 
 /**
- * Fecha o modal de registros
+ * Fecha o modal de registros de leituras
  */
 function closeRegistrosModal() {
     const modal = document.getElementById('registrosModal');
@@ -1013,12 +1019,18 @@ function closeRegistrosModal() {
     document.removeEventListener('keydown', handleRegistrosEscKey);
 }
 
+/**
+ * Fecha modal ao clicar no fundo escuro (backdrop)
+ */
 function handleRegistrosModalBackdrop(event) {
     if (event.target && event.target.id === 'registrosModal') {
         closeRegistrosModal();
     }
 }
 
+/**
+ * Fecha modais ao pressionar a tecla ESC
+ */
 function handleRegistrosEscKey(e) {
     if (e.key === 'Escape') {
         const confirmModal = document.getElementById('confirmDeleteModal');
@@ -1031,7 +1043,7 @@ function handleRegistrosEscKey(e) {
 }
 
 /**
- * Carrega registros da API com filtros e paginação
+ * Carrega registros de leituras de relés da API considerando relações e filtros de datas
  */
 async function carregarRegistrosModal(page = 1) {
     if (isFetchingRegistros) return;
@@ -1045,7 +1057,7 @@ async function carregarRegistrosModal(page = 1) {
     const btnNext = document.getElementById('btnNextPage');
 
     if (tableBody) {
-        tableBody.innerHTML = '<tr><td colspan="9" class="table-state-message">Consultando registros no servidor...</td></tr>';
+        tableBody.innerHTML = '<tr><td colspan="10" class="table-state-message">Consultando leituras no banco de dados...</td></tr>';
     }
 
     const filterDev = document.getElementById('filterModalDispositivo')?.value || 'todos';
@@ -1071,9 +1083,14 @@ async function carregarRegistrosModal(page = 1) {
         const res = await fetch(`${API_BASE}/api/reles/registros?${params.toString()}`, {
             headers: getAuthHeaders()
         });
-        if (!res.ok) throw new Error('Falha ao consultar registros de relés.');
+
+        if (!res.ok) {
+            const errJson = await res.json().catch(() => ({}));
+            throw new Error(errJson.message || 'Falha ao consultar registros de relés.');
+        }
+
         const result = await res.json();
-        console.log('[carregarRegistrosModal] Resposta da API:', result);
+        console.log('[carregarRegistrosModal] Registros recebidos:', result);
 
         if (result.success) {
             registrosTotalPages = result.totalPages || 1;
@@ -1087,12 +1104,12 @@ async function carregarRegistrosModal(page = 1) {
 
             renderTabelaRegistros(rows);
         } else {
-            throw new Error(result.message || 'Erro ao carregar registros.');
+            throw new Error(result.message || 'Erro ao processar registros.');
         }
     } catch (err) {
-        console.error('[Registros Modal] Erro:', err);
+        console.error('[Registros Modal] Erro na consulta:', err);
         if (tableBody) {
-            tableBody.innerHTML = `<tr><td colspan="9" class="table-state-message" style="color: var(--status-red);">Erro ao carregar registros: ${err.message}</td></tr>`;
+            tableBody.innerHTML = `<tr><td colspan="10" class="table-state-message" style="color: var(--status-red);">Erro ao carregar registros: ${err.message}</td></tr>`;
         }
     } finally {
         isFetchingRegistros = false;
@@ -1100,7 +1117,7 @@ async function carregarRegistrosModal(page = 1) {
 }
 
 /**
- * Formata data e hora de leituras com exatidão máxima de segundos e sem distorção de fuso horário
+ * Formata data e hora de leituras com exatidão máxima de segundos e sem distorção de fuso
  */
 function formatarDataHoraLeitura(row) {
     if (!row) return '--';
@@ -1128,14 +1145,14 @@ function formatarDataHoraLeitura(row) {
 }
 
 /**
- * Renderiza as linhas da tabela de registros
+ * Renderiza as linhas da tabela de registros com badges e informações das relações
  */
 function renderTabelaRegistros(rows) {
     const tableBody = document.getElementById('registrosTableBody');
     if (!tableBody) return;
 
     if (!rows || rows.length === 0) {
-        tableBody.innerHTML = '<tr><td colspan="9" class="table-state-message">Nenhum registro encontrado para os filtros selecionados.</td></tr>';
+        tableBody.innerHTML = '<tr><td colspan="10" class="table-state-message">Nenhum registro encontrado para os filtros selecionados.</td></tr>';
         return;
     }
 
@@ -1150,9 +1167,12 @@ function renderTabelaRegistros(rows) {
         const r2OffVal = (r.rele2_off !== null && r.rele2_off !== undefined) ? `${Number(r.rele2_off).toFixed(1)} bar` : '--';
         const r2AcVal = r.rele2_acionamentos ?? '--';
 
+        const empresaNome = r.empresa_nome || 'Sensorium HQ';
+
         return `
             <tr>
                 <td><span class="pill-cell blue">#${r.dispositivo_numero_serie}</span></td>
+                <td><span class="pill-cell gray">${empresaNome}</span></td>
                 <td><strong>${formattedDate}</strong></td>
                 <td><strong style="color: var(--primary-blue);">${pressaoVal}</strong></td>
                 <td><span class="pill-cell green">${r1OnVal}</span></td>
@@ -1167,13 +1187,16 @@ function renderTabelaRegistros(rows) {
 }
 
 /**
- * Ações de filtro e navegação
+ * Aplica os filtros atuais e recarrega na primeira página
  */
 function filtrarRegistrosModal() {
     limparFeedbackModal();
     carregarRegistrosModal(1);
 }
 
+/**
+ * Limpa todos os filtros de data e dispositivo
+ */
 function limparFiltrosRegistrosModal() {
     const filterDevSelect = document.getElementById('filterModalDispositivo');
     const dataInicioInput = document.getElementById('filterModalDataInicio');
@@ -1183,10 +1206,63 @@ function limparFiltrosRegistrosModal() {
     if (dataInicioInput) dataInicioInput.value = '';
     if (dataFimInput) dataFimInput.value = '';
 
+    // Remove destaque dos chips de atalho
+    document.querySelectorAll('.btn-preset-chip').forEach(btn => btn.classList.remove('active'));
+
     limparFeedbackModal();
     carregarRegistrosModal(1);
 }
 
+/**
+ * Formata um objeto Date para string aceita por input datetime-local (YYYY-MM-DDTHH:mm)
+ */
+function formatDatetimeLocalInput(d) {
+    const yyyy = d.getFullYear();
+    const mm = String(d.getMonth() + 1).padStart(2, '0');
+    const dd = String(d.getDate()).padStart(2, '0');
+    const hh = String(d.getHours()).padStart(2, '0');
+    const min = String(d.getMinutes()).padStart(2, '0');
+    return `${yyyy}-${mm}-${dd}T${hh}:${min}`;
+}
+
+/**
+ * Atalhos rápidos para preencher filtros de data (Hoje, Últimos 7 dias, Últimos 30 dias)
+ */
+function aplicarAtalhoData(tipo) {
+    const inputInicio = document.getElementById('filterModalDataInicio');
+    const inputFim = document.getElementById('filterModalDataFim');
+    if (!inputInicio || !inputFim) return;
+
+    // Destaca o botão selecionado
+    document.querySelectorAll('.btn-preset-chip').forEach(btn => btn.classList.remove('active'));
+    if (event && event.currentTarget) {
+        event.currentTarget.classList.add('active');
+    }
+
+    const agora = new Date();
+    const fim = new Date(agora.getFullYear(), agora.getMonth(), agora.getDate(), 23, 59, 59);
+    let inicio;
+
+    if (tipo === 'hoje') {
+        inicio = new Date(agora.getFullYear(), agora.getMonth(), agora.getDate(), 0, 0, 0);
+    } else if (tipo === '7dias') {
+        inicio = new Date(agora.getTime() - (7 * 24 * 60 * 60 * 1000));
+        inicio.setHours(0, 0, 0, 0);
+    } else if (tipo === '30dias') {
+        inicio = new Date(agora.getTime() - (30 * 24 * 60 * 60 * 1000));
+        inicio.setHours(0, 0, 0, 0);
+    }
+
+    if (inicio) {
+        inputInicio.value = formatDatetimeLocalInput(inicio);
+        inputFim.value = formatDatetimeLocalInput(fim);
+        filtrarRegistrosModal();
+    }
+}
+
+/**
+ * Navegação de páginas na tabela
+ */
 function mudarPaginaRegistros(delta) {
     const novaPagina = registrosCurrentPage + delta;
     if (novaPagina >= 1 && novaPagina <= registrosTotalPages) {
@@ -1195,39 +1271,52 @@ function mudarPaginaRegistros(delta) {
 }
 
 /**
- * Exporta os registros em CSV chamando a rota /api/arquivos/exportar
+ * Exporta registros em CSV com codificação UTF-8 e formatação para Excel
  */
 async function exportarRegistrosCSV() {
     const filterDev = document.getElementById('filterModalDispositivo')?.value || 'todos';
     const dataInicio = document.getElementById('filterModalDataInicio')?.value || '';
     const dataFim = document.getElementById('filterModalDataFim')?.value || '';
+    const btnExport = document.getElementById('btnExportarCSV');
 
     const params = new URLSearchParams({
-        tipo: 'reles',
-        formato: 'csv',
         numeroSerie: filterDev,
         dataInicio: dataInicio,
-        dataFim: dataFim
+        dataFim: dataFim,
+        limit: 50000
     });
 
-    exibirFeedbackModal('Gerando arquivo CSV para download...', 'info');
+    if (btnExport) {
+        btnExport.disabled = true;
+        btnExport.style.opacity = '0.7';
+    }
+
+    exibirFeedbackModal('Gerando arquivo CSV estruturado a partir do banco de dados...', 'info');
 
     try {
-        const downloadUrl = `${API_BASE}/api/arquivos/exportar?${params.toString()}`;
-        
-        // Efetua o download via fetch para tratar eventuais erros de forma elegante
-        const res = await fetch(downloadUrl, {
+        // Tenta a rota direta de exportação de relés ou a rota geral de arquivos como fallback
+        let downloadUrl = `${API_BASE}/api/reles/exportar-csv?${params.toString()}`;
+        let res = await fetch(downloadUrl, {
             headers: getAuthHeaders()
         });
+
+        if (!res.ok) {
+            // Fallback para rota de arquivos com tipo=reles
+            downloadUrl = `${API_BASE}/api/arquivos/exportar?tipo=reles&formato=csv&${params.toString()}`;
+            res = await fetch(downloadUrl, {
+                headers: getAuthHeaders()
+            });
+        }
+
         if (!res.ok) {
             const errJson = await res.json().catch(() => ({}));
-            throw new Error(errJson.message || 'Falha ao gerar arquivo de exportação.');
+            throw new Error(errJson.message || 'Falha ao gerar arquivo CSV de exportação.');
         }
 
         const blob = await res.blob();
-        let filename = `relatorio_reles_${new Date().toISOString().slice(0, 10)}.csv`;
+        let filename = `relatorio_leituras_reles_${new Date().toISOString().slice(0, 10)}.csv`;
 
-        // Tenta extrair filename do header se disponível
+        // Extrai nome sugerido pelo cabeçalho Content-Disposition se disponível
         const disposition = res.headers.get('Content-Disposition');
         if (disposition && disposition.includes('filename=')) {
             const matches = disposition.match(/filename="?([^"]+)"?/);
@@ -1236,7 +1325,7 @@ async function exportarRegistrosCSV() {
             }
         }
 
-        // Dispara o download no navegador
+        // Dispara o download automático do arquivo no navegador do usuário
         const link = document.createElement('a');
         const objectUrl = URL.createObjectURL(blob);
         link.href = objectUrl;
@@ -1246,10 +1335,15 @@ async function exportarRegistrosCSV() {
         document.body.removeChild(link);
         URL.revokeObjectURL(objectUrl);
 
-        exibirFeedbackModal(`Arquivo CSV "${filename}" baixado com sucesso!`, 'success');
+        exibirFeedbackModal(`Arquivo CSV "${filename}" gerado e baixado com sucesso!`, 'success');
     } catch (err) {
         console.error('[Exportar CSV] Erro:', err);
         exibirFeedbackModal(`Erro ao exportar CSV: ${err.message}`, 'error');
+    } finally {
+        if (btnExport) {
+            btnExport.disabled = false;
+            btnExport.style.opacity = '1';
+        }
     }
 }
 
@@ -1284,7 +1378,7 @@ function fecharConfirmacaoExclusao() {
 }
 
 /**
- * Executa a exclusão de registros por período
+ * Executa a exclusão de registros por período selecionado
  */
 async function executarExclusaoRegistros() {
     const filterDev = document.getElementById('filterModalDispositivo')?.value || 'todos';
@@ -1364,4 +1458,5 @@ function limparFeedbackModal() {
         box.innerText = '';
     }
 }
+
 

@@ -86,12 +86,19 @@ async function loadDashboardData() {
     ]);
 }
 
+function getAuthHeaders() {
+    const token = localStorage.getItem('sensorium_token');
+    return token ? { 'Authorization': `Bearer ${token}` } : {};
+}
+
 // ----------------------------------------------------
 // 1. DISPOSITIVOS E LEITURAS DA API (banco.sql)
 // ----------------------------------------------------
 async function fetchDevicesFromApi() {
     try {
-        const res = await fetch(`${API_BASE}/api/sensores`);
+        const res = await fetch(`${API_BASE}/api/sensores`, {
+            headers: getAuthHeaders()
+        });
         if (!res.ok) throw new Error('Falha ao conectar com a API de sensores.');
         const result = await res.json();
 
@@ -190,7 +197,9 @@ function updateDashboardSummary(devices) {
 // ----------------------------------------------------
 async function fetchAlertsFromApi() {
     try {
-        const res = await fetch(`${API_BASE}/api/alertas?unreadOnly=true`);
+        const res = await fetch(`${API_BASE}/api/alertas?unreadOnly=true`, {
+            headers: getAuthHeaders()
+        });
         if (!res.ok) throw new Error('Falha ao buscar alertas.');
         const result = await res.json();
 
@@ -360,7 +369,9 @@ async function fetchDeviceHistory(numeroSerie) {
     historyContainer.innerHTML = `<div style="color: #94a3b8;">Carregando histórico do banco de dados...</div>`;
 
     try {
-        const res = await fetch(`${API_BASE}/api/sensores/${numeroSerie}/leituras`);
+        const res = await fetch(`${API_BASE}/api/sensores/${numeroSerie}/leituras`, {
+            headers: getAuthHeaders()
+        });
         if (!res.ok) throw new Error('Erro ao buscar histórico de leituras.');
         const result = await res.json();
 

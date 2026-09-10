@@ -36,10 +36,53 @@
         }
         .status-operacional { background-color: #d1fae5; color: #065f46; }
         .status-atencao { background-color: #fef3c7; color: #92400e; }
-        .status-critico { background-color: #fee2e2; color: #991b1b; }
+        .select-empresa {
+            padding: 6px 10px;
+            border-radius: 6px;
+            border: 1px solid #cbd5e1;
+            background-color: #fff;
+            font-size: 13px;
+            color: #1e293b;
+            width: 100%;
+            max-width: 220px;
+        }
+        .btn-salvar-vinculo {
+            background-color: #0284c7;
+            color: white;
+            border: none;
+            padding: 6px 12px;
+            border-radius: 6px;
+            font-size: 12px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: background-color 0.2s;
+        }
+        .btn-salvar-vinculo:hover {
+            background-color: #0369a1;
+        }
+        .btn-salvar-vinculo:disabled {
+            background-color: #94a3b8;
+            cursor: not-allowed;
+        }
+        .toast-feedback {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            padding: 12px 20px;
+            border-radius: 8px;
+            color: white;
+            font-size: 14px;
+            font-weight: 500;
+            display: none;
+            z-index: 1000;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+        }
+        .toast-success { background-color: #10b981; }
+        .toast-error { background-color: #ef4444; }
     </style>
 </head>
 <body>
+    <div id="toast" class="toast-feedback"></div>
     <div class="app-layout">
         <aside class="sidebar">
             <div class="logo-container">
@@ -47,7 +90,7 @@
                 <span class="admin-badge">Admin</span>
             </div>
             <nav>
-                <a href="index.html" class="nav-item">Administração</a>
+                <a href="index.html" class="nav-item">Cadastrar</a>
                 <a href="dispositivos.html" class="nav-item active">Gerenciar Dispositivos</a>
             </nav>
             <div class="user-info">
@@ -58,22 +101,55 @@
         <main class="main-content">
             <header>
                 <h1>Gerenciar Dispositivos</h1>
-                <p>Lista de dispositivos cadastrados no sistema e suas respectivas empresas</p>
+                <p>Vincule dispositivos a empresas específicas para controle de acesso e visualização</p>
             </header>
+
+            <!-- 4 Cards de Métricas -->
+            <div class="dashboard-cards">
+                <div class="card">
+                    <h3>Empresas Cadastradas</h3>
+                    <div class="card-value" id="kpiEmpresas">--</div>
+                    <div class="card-indicator neutral">
+                        Empresas ativas no sistema
+                    </div>
+                </div>
+                <div class="card">
+                    <h3>Dispositivos Detectados</h3>
+                    <div class="card-value" id="kpiTotalDispositivos">--</div>
+                    <div class="card-indicator neutral">
+                        Total registrado no sistema
+                    </div>
+                </div>
+                <div class="card">
+                    <h3>Dispositivos Sem Vínculo</h3>
+                    <div class="card-value warning" id="kpiSemVinculo">--</div>
+                    <div class="card-indicator" id="kpiSemVinculoSub" style="color: #f59e0b;">
+                        Requerem vinculação
+                    </div>
+                </div>
+                <div class="card">
+                    <h3>Dispositivos Online</h3>
+                    <div class="card-value positive" id="kpiOnline">--</div>
+                    <div class="card-indicator positive">
+                        Operando normalmente
+                    </div>
+                </div>
+            </div>
 
             <div class="card" style="padding: 20px;">
                 <table class="devices-table">
                     <thead>
                         <tr>
                             <th>Nº de Série</th>
-                            <th>Empresa</th>
+                            <th>Empresa Vinculada</th>
                             <th>Status</th>
                             <th>Data de Cadastro</th>
+                            <th style="text-align: center; width: 100px;">Ações</th>
                         </tr>
                     </thead>
                     <tbody id="devicesTableBody">
                         <tr>
-                            <td colspan="4" style="text-align: center;">Carregando dispositivos...</td>
+                            <td colspan="5" style="text-align: center;">Carregando dispositivos...</td>
                         </tr>
                     </tbody>
                 </table>

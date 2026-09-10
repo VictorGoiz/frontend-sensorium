@@ -221,12 +221,19 @@ async function loadDashboardData(silent = false) {
     }
 }
 
+function getAuthHeaders() {
+    const token = localStorage.getItem('sensorium_token');
+    return token ? { 'Authorization': `Bearer ${token}` } : {};
+}
+
 /**
  * Busca a lista de relés e suas últimas leituras
  */
 async function fetchDevicesFromApi() {
     try {
-        const res = await fetch(`${API_BASE}/api/reles`);
+        const res = await fetch(`${API_BASE}/api/reles`, {
+            headers: getAuthHeaders()
+        });
         if (!res.ok) throw new Error('Falha ao conectar com a API de relés.');
         const result = await res.json();
 
@@ -421,7 +428,9 @@ async function loadAndRenderHistoryChart(forcedNumeroSerie = null, forceRedraw =
     const periodo = periodSelect ? periodSelect.value : 'all';
     
     try {
-        const res = await fetch(`${API_BASE}/api/reles/${numeroSerie}/leituras?periodo=${periodo}`);
+        const res = await fetch(`${API_BASE}/api/reles/${numeroSerie}/leituras?periodo=${periodo}`, {
+            headers: getAuthHeaders()
+        });
         if (!res.ok) throw new Error('Erro ao buscar dados do gráfico.');
         const result = await res.json();
         
@@ -722,7 +731,9 @@ async function fetchDeviceHistory(numeroSerie, periodo = 'all') {
     if (!historyContainer) return;
 
     try {
-        const res = await fetch(`${API_BASE}/api/reles/${numeroSerie}/leituras?periodo=${periodo}`);
+        const res = await fetch(`${API_BASE}/api/reles/${numeroSerie}/leituras?periodo=${periodo}`, {
+            headers: getAuthHeaders()
+        });
         if (!res.ok) throw new Error('Erro ao buscar histórico de leituras.');
         const result = await res.json();
 
@@ -779,7 +790,9 @@ function closeSensorModal() {
  */
 async function fetchAlertsFromApi() {
     try {
-        const res = await fetch(`${API_BASE}/api/alertas?unreadOnly=true`);
+        const res = await fetch(`${API_BASE}/api/alertas?unreadOnly=true`, {
+            headers: getAuthHeaders()
+        });
         if (!res.ok) throw new Error('Falha ao buscar alertas.');
         const result = await res.json();
 

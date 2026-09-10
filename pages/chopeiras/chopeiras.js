@@ -106,6 +106,11 @@ function initRealtimeConnection() {
     }
 }
 
+function getAuthHeaders() {
+    const token = localStorage.getItem('sensorium_token');
+    return token ? { 'Authorization': `Bearer ${token}` } : {};
+}
+
 /**
  * Carrega todos os dados das chopeiras via API com resposta imediata
  */
@@ -114,7 +119,9 @@ async function loadChopeirasData(silent = false) {
     isUpdatingDashboard = true;
 
     try {
-        const res = await fetch(`${API_BASE}/api/reles`);
+        const res = await fetch(`${API_BASE}/api/reles`, {
+            headers: getAuthHeaders()
+        });
         if (!res.ok) throw new Error('Falha ao obter lista de chopeiras.');
         const result = await res.json();
 
@@ -878,7 +885,9 @@ async function loadChopeiraChart(forcedSerial = null, forceRedraw = false) {
     const periodo = periodSelect ? periodSelect.value : 'all';
 
     try {
-        const res = await fetch(`${API_BASE}/api/reles/${serial}/leituras?periodo=${periodo}`);
+        const res = await fetch(`${API_BASE}/api/reles/${serial}/leituras?periodo=${periodo}`, {
+            headers: getAuthHeaders()
+        });
         if (!res.ok) throw new Error('Erro ao carregar telemetria');
         const result = await res.json();
 
@@ -980,10 +989,8 @@ function openRegistrosModal() {
             filterDevSelect.appendChild(opt);
         });
 
-        // Se houver dispositivo ativo selecionado na página, pré-seleciona ele
-        if (selectedDeviceSerial) {
-            filterDevSelect.value = selectedDeviceSerial;
-        }
+        // Por padrão, abre o modal mostrando Todos os Dispositivos
+        filterDevSelect.value = 'todos';
     }
 
     limparFeedbackModal();
@@ -1045,6 +1052,13 @@ async function carregarRegistrosModal(page = 1) {
     const dataInicio = document.getElementById('filterModalDataInicio')?.value || '';
     const dataFim = document.getElementById('filterModalDataFim')?.value || '';
 
+    console.log('[carregarRegistrosModal] Buscando registros:', {
+        dispositivo: filterDev,
+        dataInicio: dataInicio,
+        dataFim: dataFim,
+        pagina: registrosCurrentPage
+    });
+
     const params = new URLSearchParams({
         page: registrosCurrentPage,
         limit: registrosPageLimit,
@@ -1054,9 +1068,12 @@ async function carregarRegistrosModal(page = 1) {
     });
 
     try {
-        const res = await fetch(`${API_BASE}/api/reles/registros?${params.toString()}`);
+        const res = await fetch(`${API_BASE}/api/reles/registros?${params.toString()}`, {
+            headers: getAuthHeaders()
+        });
         if (!res.ok) throw new Error('Falha ao consultar registros de relés.');
         const result = await res.json();
+        console.log('[carregarRegistrosModal] Resposta da API:', result);
 
         if (result.success) {
             registrosTotalPages = result.totalPages || 1;
@@ -1199,7 +1216,9 @@ async function exportarRegistrosCSV() {
         const downloadUrl = `${API_BASE}/api/arquivos/exportar?${params.toString()}`;
         
         // Efetua o download via fetch para tratar eventuais erros de forma elegante
-        const res = await fetch(downloadUrl);
+        const res = await fetch(downloadUrl, {
+            headers: getAuthHeaders()
+        });
         if (!res.ok) {
             const errJson = await res.json().catch(() => ({}));
             throw new Error(errJson.message || 'Falha ao gerar arquivo de exportação.');
@@ -1281,7 +1300,10 @@ async function executarExclusaoRegistros() {
     try {
         const res = await fetch(`${API_BASE}/api/reles/leituras`, {
             method: 'DELETE',
-            headers: { 'Content-Type': 'application/json' },
+            headers: { 
+                'Content-Type': 'application/json',
+                ...getAuthHeaders()
+            },
             body: JSON.stringify({
                 numeroSerie: filterDev,
                 dataInicio: dataInicio,

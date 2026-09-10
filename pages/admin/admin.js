@@ -20,12 +20,19 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const formEmpresa = document.getElementById('formEmpresa');
     const formUsuario = document.getElementById('formUsuario');
+    const btnEmpresa = document.getElementById('btnSubmitEmpresa');
+    const btnUsuario = document.getElementById('btnSubmitUsuario');
 
     formEmpresa.addEventListener('submit', async (e) => {
         e.preventDefault();
         
-        const nome = document.getElementById('nomeEmpresa').value;
-        const cnpj = document.getElementById('cnpjEmpresa').value;
+        const nome = document.getElementById('nomeEmpresa').value.trim();
+        const cnpj = document.getElementById('cnpjEmpresa').value.trim();
+
+        if (btnEmpresa) {
+            btnEmpresa.disabled = true;
+            btnEmpresa.innerHTML = '<span>Cadastrando...</span>';
+        }
 
         try {
             const res = await fetch(`${API_BASE}/api/admin/empresas`, {
@@ -38,16 +45,21 @@ document.addEventListener('DOMContentLoaded', () => {
             });
             const data = await res.json();
 
-            if (data.success) {
-                alert('Empresa criada com sucesso!');
+            if (res.ok && data.success) {
+                showToast(data.message || 'Empresa cadastrada com sucesso!', 'success');
                 formEmpresa.reset();
-                loadEmpresas(); // Recarrega lista do select
+                await loadEmpresas(); // Recarrega lista do select
             } else {
-                alert(data.message || 'Erro ao criar empresa.');
+                showToast(data.message || 'Erro ao cadastrar empresa.', 'error');
             }
         } catch (error) {
-            console.error('Erro:', error);
-            alert('Erro de conexão ao criar empresa.');
+            console.error('Erro ao cadastrar empresa:', error);
+            showToast('Erro de conexão ao cadastrar empresa.', 'error');
+        } finally {
+            if (btnEmpresa) {
+                btnEmpresa.disabled = false;
+                btnEmpresa.innerHTML = '<span>Cadastrar Empresa</span>';
+            }
         }
     });
 
@@ -55,10 +67,20 @@ document.addEventListener('DOMContentLoaded', () => {
         e.preventDefault();
         
         const empresa_id = document.getElementById('selectEmpresa').value;
-        const nome = document.getElementById('nomeUsuario').value;
-        const email = document.getElementById('emailUsuario').value;
+        const nome = document.getElementById('nomeUsuario').value.trim();
+        const email = document.getElementById('emailUsuario').value.trim();
         const senha = document.getElementById('senhaUsuario').value;
         const perfil = document.getElementById('perfilUsuario').value;
+
+        if (!empresa_id) {
+            showToast('Por favor, selecione uma empresa vinculada.', 'error');
+            return;
+        }
+
+        if (btnUsuario) {
+            btnUsuario.disabled = true;
+            btnUsuario.innerHTML = '<span>Cadastrando...</span>';
+        }
 
         try {
             const res = await fetch(`${API_BASE}/api/admin/usuarios`, {
@@ -71,19 +93,25 @@ document.addEventListener('DOMContentLoaded', () => {
             });
             const data = await res.json();
 
-            if (data.success) {
-                alert('Usuário criado com sucesso!');
+            if (res.ok && data.success) {
+                showToast(data.message || 'Usuário criado com sucesso!', 'success');
                 formUsuario.reset();
             } else {
-                alert(data.message || 'Erro ao criar usuário.');
+                showToast(data.message || 'Erro ao criar usuário.', 'error');
             }
         } catch (error) {
-            console.error('Erro:', error);
-            alert('Erro de conexão ao criar usuário.');
+            console.error('Erro ao criar usuário:', error);
+            showToast('Erro de conexão ao criar usuário.', 'error');
+        } finally {
+            if (btnUsuario) {
+                btnUsuario.disabled = false;
+                btnUsuario.innerHTML = '<span>Cadastrar Usuário</span>';
+            }
         }
     });
 
     async function loadEmpresas() {
+        const select = document.getElementById('selectEmpresa');
         try {
             const res = await fetch(`${API_BASE}/api/admin/empresas`, {
                 headers: {
@@ -92,21 +120,37 @@ document.addEventListener('DOMContentLoaded', () => {
             });
             const data = await res.json();
 
-            const select = document.getElementById('selectEmpresa');
-            select.innerHTML = '<option value="">Selecione uma empresa...</option>';
+            if (select) {
+                select.innerHTML = '<option value="">Selecione uma empresa...</option>';
 
-            if (data.success && data.data) {
-                data.data.forEach(empresa => {
-                    const option = document.createElement('option');
-                    option.value = empresa.id;
-                    option.textContent = empresa.nome;
-                    select.appendChild(option);
-                });
+                if (data.success && data.data && data.data.length > 0) {
+                    data.data.forEach(empresa => {
+                        const option = document.createElement('option');
+                        option.value = empresa.id;
+                        option.textContent = empresa.nome + (empresa.cnpj ? ` (${empresa.cnpj})` : '');
+                        select.appendChild(option);
+                    });
+                } else {
+                    select.innerHTML = '<option value="">Nenhuma empresa encontrada (cadastre uma primeiro)</option>';
+                }
             }
         } catch (error) {
             console.error('Erro ao carregar empresas:', error);
-            const select = document.getElementById('selectEmpresa');
-            select.innerHTML = '<option value="">Erro ao carregar</option>';
+            if (select) select.innerHTML = '<option value="">Erro ao carregar lista de empresas</option>';
         }
     }
+
+    function showToast(message, type = 'success') {
+        const toast = document.getElementById('toast');
+        if (!toast) return;
+
+        toast.className = `toast-feedback ${type === 'success' ? 'toast-success' : 'toast-error'}`;
+        toast.innerText = message;
+        toast.style.display = 'block';
+
+        setTimeout(() => {
+            toast.style.display = 'none';
+        }, 3500);
+    }
 });
+

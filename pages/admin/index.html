@@ -12,6 +12,7 @@
     <script src="../config.js"></script>
 </head>
 <body>
+    <div id="toast" class="toast-feedback"></div>
     <div class="app-layout">
         <aside class="sidebar">
             <div class="logo-container">
@@ -19,7 +20,7 @@
                 <span class="admin-badge">Admin</span>
             </div>
             <nav>
-                <a href="index.html" class="nav-item active">Administração</a>
+                <a href="index.html" class="nav-item active">Cadastrar</a>
                 <a href="dispositivos.html" class="nav-item">Gerenciar Dispositivos</a>
             </nav>
             <div class="user-info">
@@ -29,58 +30,86 @@
 
         <main class="main-content">
             <header>
-                <h1>Painel de Administração</h1>
-                <p>Gerenciamento de Empresas e Usuários (Super Admin)</p>
+                <h1>Cadastrar Empresas e Acessos</h1>
+                <p>Gerencie o cadastro de empresas e configure credenciais de acesso de usuários ao sistema</p>
             </header>
 
             <div class="admin-container">
-                <!-- Seção de Criar Empresa -->
-                <div class="admin-section card">
-                    <h2>Cadastrar Nova Empresa</h2>
+                <!-- Seção 1: Criar Empresa -->
+                <div class="admin-section">
+                    <div class="section-header">
+                        <div class="section-title-group">
+                            <h2>Cadastro de Empresa</h2>
+                            <p>Registre novas empresas para controle e alocação de dispositivos</p>
+                        </div>
+                    </div>
                     <form id="formEmpresa">
                         <div class="form-group">
                             <label for="nomeEmpresa">Nome da Empresa</label>
-                            <input type="text" id="nomeEmpresa" required placeholder="Ex: Cliente X">
+                            <input type="text" id="nomeEmpresa" required placeholder="Razão Social ou Nome Fantasia">
+                            <span class="form-hint">Identificação principal da empresa no sistema</span>
                         </div>
                         <div class="form-group">
-                            <label for="cnpjEmpresa">CNPJ (Opcional)</label>
+                            <label for="cnpjEmpresa">CNPJ</label>
                             <input type="text" id="cnpjEmpresa" placeholder="00.000.000/0001-00">
+                            <span class="form-hint">Opcional para fins de registro</span>
                         </div>
-                        <button type="submit" class="btn-primary">Criar Empresa</button>
+                        <button type="submit" id="btnSubmitEmpresa" class="btn-primary">
+                            <span>Cadastrar Empresa</span>
+                        </button>
                     </form>
                 </div>
 
-                <!-- Seção de Criar Usuário -->
-                <div class="admin-section card">
-                    <h2>Cadastrar Novo Usuário</h2>
+                <!-- Seção 2: Criar Usuário -->
+                <div class="admin-section">
+                    <div class="section-header">
+                        <div class="section-title-group">
+                            <h2>Cadastro de Usuário</h2>
+                            <p>Defina as credenciais de autenticação e nível de permissão</p>
+                        </div>
+                    </div>
                     <form id="formUsuario">
                         <div class="form-group">
                             <label for="selectEmpresa">Empresa Vinculada</label>
                             <select id="selectEmpresa" required>
-                                <option value="">Carregando empresas...</option>
+                                <option value="">Carregando empresas cadastradas...</option>
                             </select>
+                            <span class="form-hint">O usuário terá acesso exclusivo aos dispositivos desta empresa</span>
                         </div>
-                        <div class="form-group">
-                            <label for="nomeUsuario">Nome do Usuário</label>
-                            <input type="text" id="nomeUsuario" required placeholder="Ex: João Silva">
+
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label for="nomeUsuario">Nome do Usuário</label>
+                                <input type="text" id="nomeUsuario" required placeholder="Nome completo">
+                            </div>
+                            <div class="form-group">
+                                <label for="emailUsuario">E-mail</label>
+                                <input type="email" id="emailUsuario" required placeholder="usuario@empresa.com">
+                            </div>
                         </div>
-                        <div class="form-group">
-                            <label for="emailUsuario">E-mail</label>
-                            <input type="email" id="emailUsuario" required placeholder="joao@empresa.com">
+
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label for="senhaUsuario">Senha Inicial</label>
+                                <input type="password" id="senhaUsuario" required placeholder="Digite a senha de acesso">
+                            </div>
+                            <div class="form-group">
+                                <label for="perfilUsuario">Nível de Acesso</label>
+                                <select id="perfilUsuario">
+                                    <option value="user">Usuário Comum</option>
+                                    <option value="admin">Administrador da Empresa</option>
+                                    <option value="apresentacao">Apresentação (Chopeiras)</option>
+                                </select>
+                            </div>
                         </div>
-                        <div class="form-group">
-                            <label for="senhaUsuario">Senha</label>
-                            <input type="password" id="senhaUsuario" required placeholder="******">
+
+                        <div class="profile-info-box">
+                            <strong>Níveis de Permissão:</strong> Usuário Comum e Administrador acessam o monitoramento completo da empresa; Apresentação possui acesso restrito ao painel de telemetria de chopeiras.
                         </div>
-                        <div class="form-group">
-                            <label for="perfilUsuario">Perfil</label>
-                            <select id="perfilUsuario">
-                                <option value="user">Usuário Comum</option>
-                                <option value="admin">Administrador da Empresa</option>
-                                <option value="apresentacao">Apresentação (Apenas Chopeiras)</option>
-                            </select>
-                        </div>
-                        <button type="submit" class="btn-primary">Criar Usuário</button>
+
+                        <button type="submit" id="btnSubmitUsuario" class="btn-primary">
+                            <span>Cadastrar Usuário</span>
+                        </button>
                     </form>
                 </div>
             </div>

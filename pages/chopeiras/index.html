@@ -196,17 +196,17 @@
                 <div class="filter-group">
                     <div class="filter-item">
                         <label for="filterModalDispositivo">Chopeira / Dispositivo</label>
-                        <select id="filterModalDispositivo" class="input-filter">
+                        <select id="filterModalDispositivo" class="input-filter" onchange="filtrarRegistrosModal()">
                             <option value="todos">Todos os Dispositivos</option>
                         </select>
                     </div>
                     <div class="filter-item">
-                        <label for="filterModalDataInicio">Data / Hora Inicial</label>
-                        <input type="datetime-local" id="filterModalDataInicio" class="input-filter">
+                        <label for="filterModalDataInicio">Data e Horário Inicial</label>
+                        <input type="datetime-local" id="filterModalDataInicio" class="input-filter" onkeydown="if(event.key==='Enter') filtrarRegistrosModal()">
                     </div>
                     <div class="filter-item">
-                        <label for="filterModalDataFim">Data / Hora Final</label>
-                        <input type="datetime-local" id="filterModalDataFim" class="input-filter">
+                        <label for="filterModalDataFim">Data e Horário Final</label>
+                        <input type="datetime-local" id="filterModalDataFim" class="input-filter" onkeydown="if(event.key==='Enter') filtrarRegistrosModal()">
                     </div>
                     <div class="filter-actions-buttons">
                         <button class="btn-filter-primary" onclick="filtrarRegistrosModal()">

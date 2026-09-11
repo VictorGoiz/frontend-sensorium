@@ -2,9 +2,6 @@ let mapInstance = null;
 let currentDevices = [];
 let currentAlerts = [];
 let activeAlertFilter = 'todos';
-let volumeChartInstance = null;
-let tempChartInstance = null;
-
 let sensorBadgeWatchdog = null;
 
 /**
@@ -113,7 +110,6 @@ async function fetchDevicesFromApi() {
             } else if (currentDevices.length === 0) {
                 setSensorLiveBadgeState(false);
             }
-            renderCharts(currentDevices);
         }
     } catch (err) {
         console.warn('[LFG60] Erro ao carregar sensores:', err.message);
@@ -520,75 +516,6 @@ async function savePrescribedRanges() {
     } catch (e) {
         console.error('Erro ao salvar limites:', e);
         alert('Erro ao conectar com a API.');
-    }
-}
-
-// ----------------------------------------------------
-// 5. RENDER DE GRÁFICOS (Chart.js)
-// ----------------------------------------------------
-function renderCharts(devices) {
-    const labels = devices.map(d => d.numero_serie);
-    const temps = devices.map(d => d.ultima_leitura?.temperatura ?? 0);
-    const umids = devices.map(d => d.ultima_leitura?.umidade ?? 0);
-    const co2s = devices.map(d => (d.ultima_leitura?.co2 ?? 0) / 10);
-
-    // 1. Gráfico de Média de Valores (Bar)
-    const ctxVol = document.getElementById('volumeChart');
-    if (ctxVol) {
-        if (volumeChartInstance) volumeChartInstance.destroy();
-        volumeChartInstance = new Chart(ctxVol.getContext('2d'), {
-            type: 'bar',
-            data: {
-                labels,
-                datasets: [
-                    { label: 'Temperatura (°C)', data: temps, backgroundColor: '#10b981' },
-                    { label: 'Umidade (%)', data: umids, backgroundColor: '#3b82f6' },
-                    { label: 'CO2 (div 10)', data: co2s, backgroundColor: '#f59e0b' }
-                ]
-            },
-            options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                plugins: { legend: { position: 'top' } },
-                scales: { y: { suggestedMin: 0 } }
-            }
-        });
-    }
-
-    // 2. Gráfico de Variação com Limite Máximo Prescrito (26°C)
-    const ctxTemp = document.getElementById('tempChart');
-    if (ctxTemp) {
-        if (tempChartInstance) tempChartInstance.destroy();
-        tempChartInstance = new Chart(ctxTemp.getContext('2d'), {
-            type: 'line',
-            data: {
-                labels,
-                datasets: [
-                    {
-                        label: 'Temperatura Lida (°C)',
-                        data: temps,
-                        borderColor: '#111827',
-                        borderWidth: 2,
-                        tension: 0.2,
-                        pointBackgroundColor: temps.map(t => t > 26 ? '#dc2626' : '#10b981')
-                    },
-                    {
-                        label: 'Limite Prescrito Máximo (26°C)',
-                        data: labels.map(() => 26.0),
-                        borderColor: '#dc2626',
-                        borderDash: [5, 5],
-                        borderWidth: 2,
-                        fill: false
-                    }
-                ]
-            },
-            options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                plugins: { legend: { position: 'top' } },
-                scales: { y: { suggestedMin: 10, suggestedMax: 35 } }
-            }
-        });
     }
 }
 

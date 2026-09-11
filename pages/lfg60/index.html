@@ -10,7 +10,6 @@
     <link rel="stylesheet" href="../sensores/sensores.css">
     <link rel="stylesheet" href="lfg60.css">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <!-- Socket.IO Client -->
     <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
     <!-- Leaflet CSS for Maps -->
@@ -116,20 +115,6 @@
                 <div style="grid-column: 1/-1; padding: 20px; text-align: center; color: #888;">Carregando dispositivos do banco de dados...</div>
             </div>
 
-            <div class="charts-container" style="margin-top: 25px;">
-                <div class="chart-box">
-                    <h2>Média dos Parâmetros Ambientais (Leituras Recentes)</h2>
-                    <div class="chart-wrapper">
-                        <canvas id="volumeChart"></canvas>
-                    </div>
-                </div>
-                <div class="chart-box">
-                    <h2>Variação de Temperatura e Limite Máximo Prescrito (26°C)</h2>
-                    <div class="chart-wrapper">
-                        <canvas id="tempChart"></canvas>
-                    </div>
-                </div>
-            </div>
         </main>
     </div>
 

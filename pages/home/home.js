@@ -1,6 +1,7 @@
 document.addEventListener('DOMContentLoaded', function() {
+    const isHome = window.location.pathname.includes('/home/');
     const userStr = localStorage.getItem('sensorium_user');
-    if (userStr) {
+    if (isHome && userStr) {
         try {
             const user = JSON.parse(userStr);
             if (user.perfil === 'apresentacao') {

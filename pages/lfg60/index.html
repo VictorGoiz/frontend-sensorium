@@ -3,12 +3,13 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Sensimonitor - Sensores</title>
+    <title>Sensimonitor - Apresentação LFG60</title>
     <link rel="icon" type="image/png" href="../img/logo_head.png">
     <link rel="stylesheet" href="../home/home.css">
     <link rel="stylesheet" href="../components/chat.css">
-    <link rel="stylesheet" href="sensores.css">
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="../sensores/sensores.css">
+    <link rel="stylesheet" href="lfg60.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <!-- Socket.IO Client -->
     <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
@@ -24,10 +25,12 @@
             </div>
             <nav>
                 <a href="../home/index.html" class="nav-item">Visão Geral</a>
-                <a href="index.html" class="nav-item active">Sensores</a>
+                <a href="../sensores/index.html" class="nav-item">Sensores</a>
                 <a href="../reles/index.html" class="nav-item">Relés</a>
-                <div class="nav-dropdown">
-                    <button class="nav-dropdown-toggle" onclick="toggleNavDropdown(this)">
+                
+                <!-- Dropdown Dispositivos (Área de Apresentação) -->
+                <div class="nav-dropdown open">
+                    <button class="nav-dropdown-toggle active" onclick="toggleNavDropdown(this)">
                         <span>Dispositivos</span>
                         <svg class="chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                             <polyline points="6 9 12 15 18 9"></polyline>
@@ -35,7 +38,7 @@
                     </button>
                     <div class="nav-dropdown-menu">
                         <a href="../chopeiras/index.html" class="nav-subitem">Chopeiras</a>
-                        <a href="../lfg60/index.html" class="nav-subitem">LFG60</a>
+                        <a href="index.html" class="nav-subitem active">LFG60</a>
                     </div>
                 </div>
             </nav>
@@ -48,7 +51,7 @@
             <header class="page-header">
                 <div class="header-left">
                     <div class="header-title">
-                        <h1>Monitoramento de Sensores</h1>
+                        <h1>Monitoramento LFG60</h1>
                         <span class="badge live" id="sensorLiveBadge">● AO VIVO</span>
                     </div>
                     <p>Monitoramento em tempo real dos transmissores LEFOO LFG60 com base no banco de dados</p>
@@ -105,7 +108,7 @@
             <div class="section-title" style="display: flex; justify-content: space-between; align-items: center; margin-top: 25px;">
                 <h2>Dispositivos Conectados (Transmissores LEFOO LFG60)</h2>
                 <button class="btn-config-main" onclick="openPrescribedRangesModal()">
-                    Tabela de Limits & Ranges Prescritos
+                    Tabela de Limites & Ranges Prescritos
                 </button>
             </div>
 
@@ -160,7 +163,7 @@
                     <!-- Preenchido via JavaScript -->
                 </div>
 
-                <h3 style="margin-top: 20px; font-size: 15px;">Histórico Recente de Leituras (banco.sql)</h3>
+                <h3 style="margin-top: 20px; font-size: 15px;">Histórico Recente de Leituras</h3>
                 <div id="modalHistoryContainer" style="max-height: 160px; overflow-y: auto; background: #0f172a; padding: 12px; border-radius: 8px; border: 1px solid #1e293b; color: #cbd5e1; font-size: 12px; margin-top: 8px;">
                     <div>Carregando histórico...</div>
                 </div>
@@ -228,8 +231,6 @@
     <!-- Leaflet JS -->
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script src="../components/chat.js"></script>
-    <script src="../home/home.js"></script>
-    <script src="sensores.js"></script>
+    <script src="lfg60.js"></script>
 </body>
 </html>
-

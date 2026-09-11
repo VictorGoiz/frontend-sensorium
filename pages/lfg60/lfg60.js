@@ -116,9 +116,79 @@ async function fetchDevicesFromApi() {
     }
 }
 
+// ----------------------------------------------------
+// MANÔMETROS CHART.JS NOS CARDS DE DISPOSITIVOS
+// ----------------------------------------------------
+const activeManometros = {};
+
+function getTemperatureGaugeColor(tempVal) {
+    if (tempVal === null || tempVal === undefined || isNaN(tempVal)) return '#94a3b8';
+    if (tempVal >= 18 && tempVal <= 26) return '#10b981'; // Ideal Verde
+    if ((tempVal >= 15 && tempVal < 18) || (tempVal > 26 && tempVal <= 30)) return '#f59e0b'; // Aviso Amarelo
+    return '#ef4444'; // Crítico Vermelho
+}
+
+function getHumidityGaugeColor(umidVal) {
+    if (umidVal === null || umidVal === undefined || isNaN(umidVal)) return '#94a3b8';
+    if (umidVal >= 30 && umidVal <= 60) return '#0284c7'; // Ideal Azul Oceano
+    if ((umidVal >= 20 && umidVal < 30) || (umidVal > 60 && umidVal <= 75)) return '#f59e0b'; // Aviso Amarelo
+    return '#ef4444'; // Crítico Vermelho
+}
+
+function initManometroGauge(canvasId, value, min, max, fillColor) {
+    const canvas = document.getElementById(canvasId);
+    if (!canvas || typeof Chart === 'undefined') return;
+
+    // Destrói instância prévia do mesmo canvas se existir
+    if (activeManometros[canvasId]) {
+        activeManometros[canvasId].destroy();
+        delete activeManometros[canvasId];
+    }
+
+    const ctx = canvas.getContext('2d');
+    const val = value !== null && value !== undefined && !isNaN(value) ? Number(value) : min;
+    const clamped = Math.max(min, Math.min(max, val));
+    const progress = clamped - min;
+    const remaining = max - clamped;
+
+    activeManometros[canvasId] = new Chart(ctx, {
+        type: 'doughnut',
+        data: {
+            datasets: [{
+                data: [progress, remaining],
+                backgroundColor: [fillColor, '#e2e8f0'],
+                borderWidth: 0,
+                circumference: 180,
+                rotation: 270,
+                borderRadius: [4, 4]
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            cutout: '74%',
+            animation: {
+                duration: 500
+            },
+            plugins: {
+                tooltip: { enabled: false },
+                legend: { display: false }
+            }
+        }
+    });
+}
+
 function renderSensorCards(devices) {
     const container = document.getElementById('sensorListContainer');
     if (!container) return;
+
+    // Destrói gráficos ativos anteriores para evitar memory leaks
+    Object.keys(activeManometros).forEach(key => {
+        if (activeManometros[key]) {
+            activeManometros[key].destroy();
+            delete activeManometros[key];
+        }
+    });
 
     if (devices.length === 0) {
         container.innerHTML = `<div style="grid-column: 1/-1; padding: 20px; text-align: center; color: #888;">Nenhum dispositivo cadastrado no banco de dados.</div>`;
@@ -128,32 +198,92 @@ function renderSensorCards(devices) {
     container.innerHTML = devices.map(dev => {
         const l = dev.ultima_leitura || {};
         const led = dev.led || 'Verde';
-        const isAlert = led === 'Amarelo' || led === 'Vermelho' || dev.status !== 'Operacional';
+        const statusText = dev.status || 'Operacional';
+        const isAlert = led === 'Amarelo' || led === 'Vermelho' || statusText !== 'Operacional';
         
-        const tempText = l.temperatura !== null && l.temperatura !== undefined ? `${l.temperatura}°C` : '--';
-        const umidText = l.umidade !== null && l.umidade !== undefined ? `${l.umidade}%` : '--';
+        const tempVal = l.temperatura !== null && l.temperatura !== undefined ? Number(l.temperatura) : null;
+        const umidVal = l.umidade !== null && l.umidade !== undefined ? Number(l.umidade) : null;
         const co2Text = l.co2 !== null && l.co2 !== undefined ? `${l.co2} ppm` : '--';
 
+        const tempDisplay = tempVal !== null ? `${tempVal.toFixed(1)}°C` : '--';
+        const umidDisplay = umidVal !== null ? `${umidVal.toFixed(1)}%` : '--';
+
+        const tempColor = getTemperatureGaugeColor(tempVal);
+        const umidColor = getHumidityGaugeColor(umidVal);
+
+        const statusClass = statusText === 'Crítico' ? 'critico' : (statusText === 'Atenção' ? 'atencao' : 'operacional');
         const dotClass = led === 'Vermelho' ? 'red' : (led === 'Amarelo' ? 'yellow' : 'green');
-        const statusText = dev.status || 'Operacional';
 
         return `
             <div class="sensor-card ${isAlert ? 'alert' : ''}" onclick="openDeviceDetailModal('${dev.numero_serie}')">
                 <div class="sensor-header">
                     <h4>Transmissor ${dev.numero_serie}</h4>
-                    <div style="display:flex; align-items:center; gap:8px;">
+                    <div class="header-status-badge ${statusClass}">
                         <span class="status-dot ${dotClass}" title="LED: ${led}"></span>
+                        <span>${statusText}</span>
                     </div>
                 </div>
-                <div class="sensor-body">
-                    <p><strong>Status:</strong> ${statusText}</p>
-                    <p><strong>Temp:</strong> <span class="val-display">${tempText}</span> | <strong>Umid:</strong> ${umidText}</p>
-                    <p><strong>CO2:</strong> ${co2Text}</p>
-                    <p class="tolerance-badge">Ideal Temp: 18°C a 26°C</p>
+
+                <div class="sensor-gauges-row">
+                    <!-- Manômetro de Temperatura -->
+                    <div class="manometro-box">
+                        <div class="manometro-canvas-wrapper">
+                            <canvas id="gauge-temp-${dev.numero_serie}"></canvas>
+                            <div class="manometro-center-info">
+                                <span class="manometro-val" style="color: ${tempColor};">${tempDisplay}</span>
+                                <span class="manometro-label">Temperatura</span>
+                            </div>
+                        </div>
+                        <div class="manometro-scale">
+                            <span>0°C</span>
+                            <span>50°C</span>
+                        </div>
+                        <div class="manometro-ideal-badge">Ideal: 18°C a 26°C</div>
+                    </div>
+
+                    <!-- Manômetro de Umidade -->
+                    <div class="manometro-box">
+                        <div class="manometro-canvas-wrapper">
+                            <canvas id="gauge-umid-${dev.numero_serie}"></canvas>
+                            <div class="manometro-center-info">
+                                <span class="manometro-val" style="color: ${umidColor};">${umidDisplay}</span>
+                                <span class="manometro-label">Umidade</span>
+                            </div>
+                        </div>
+                        <div class="manometro-scale">
+                            <span>0%</span>
+                            <span>100%</span>
+                        </div>
+                        <div class="manometro-ideal-badge">Ideal: 30% a 60%</div>
+                    </div>
+                </div>
+
+                <div class="sensor-card-footer">
+                    <div class="sensor-extra-pill">
+                        <span>CO2:</span>
+                        <strong>${co2Text}</strong>
+                    </div>
+                    <div class="sensor-details-hint">
+                        <span>Ver detalhes</span>
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="9 18 15 12 9 6"></polyline></svg>
+                    </div>
                 </div>
             </div>
         `;
     }).join('');
+
+    // Inicializa os manômetros para cada dispositivo após inserção no DOM
+    devices.forEach(dev => {
+        const l = dev.ultima_leitura || {};
+        const tempVal = l.temperatura !== null && l.temperatura !== undefined ? Number(l.temperatura) : null;
+        const umidVal = l.umidade !== null && l.umidade !== undefined ? Number(l.umidade) : null;
+
+        const tempColor = getTemperatureGaugeColor(tempVal);
+        const umidColor = getHumidityGaugeColor(umidVal);
+
+        initManometroGauge(`gauge-temp-${dev.numero_serie}`, tempVal, 0, 50, tempColor);
+        initManometroGauge(`gauge-umid-${dev.numero_serie}`, umidVal, 0, 100, umidColor);
+    });
 }
 
 function updateDashboardSummary(devices) {

@@ -46,19 +46,19 @@ document.addEventListener('DOMContentLoaded', () => {
             const data = await res.json();
 
             if (res.ok && data.success) {
-                showToast(data.message || 'Empresa cadastrada com sucesso!', 'success');
+                showToast(data.message || 'Cliente cadastrado com sucesso!', 'success');
                 formEmpresa.reset();
                 await loadEmpresas(); // Recarrega lista do select
             } else {
-                showToast(data.message || 'Erro ao cadastrar empresa.', 'error');
+                showToast(data.message || 'Erro ao cadastrar cliente.', 'error');
             }
         } catch (error) {
-            console.error('Erro ao cadastrar empresa:', error);
-            showToast('Erro de conexão ao cadastrar empresa.', 'error');
+            console.error('Erro ao cadastrar cliente:', error);
+            showToast('Erro de conexão ao cadastrar cliente.', 'error');
         } finally {
             if (btnEmpresa) {
                 btnEmpresa.disabled = false;
-                btnEmpresa.innerHTML = '<span>Cadastrar Empresa</span>';
+                btnEmpresa.innerHTML = '<span>Cadastrar Cliente</span>';
             }
         }
     });
@@ -73,7 +73,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const perfil = document.getElementById('perfilUsuario').value;
 
         if (!empresa_id) {
-            showToast('Por favor, selecione uma empresa vinculada.', 'error');
+            showToast('Por favor, selecione um cliente vinculado.', 'error');
             return;
         }
 
@@ -121,7 +121,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const data = await res.json();
 
             if (select) {
-                select.innerHTML = '<option value="">Selecione uma empresa...</option>';
+                select.innerHTML = '<option value="">Selecione um cliente...</option>';
 
                 if (data.success && data.data && data.data.length > 0) {
                     data.data.forEach(empresa => {
@@ -131,12 +131,12 @@ document.addEventListener('DOMContentLoaded', () => {
                         select.appendChild(option);
                     });
                 } else {
-                    select.innerHTML = '<option value="">Nenhuma empresa encontrada (cadastre uma primeiro)</option>';
+                    select.innerHTML = '<option value="">Nenhum cliente encontrado (cadastre um primeiro)</option>';
                 }
             }
         } catch (error) {
-            console.error('Erro ao carregar empresas:', error);
-            if (select) select.innerHTML = '<option value="">Erro ao carregar lista de empresas</option>';
+            console.error('Erro ao carregar clientes:', error);
+            if (select) select.innerHTML = '<option value="">Erro ao carregar lista de clientes</option>';
         }
     }
 

@@ -18,6 +18,15 @@ document.addEventListener('DOMContentLoaded', () => {
 
     let listaEmpresas = [];
     let listaDispositivos = [];
+    let searchQuery = '';
+
+    const searchInput = document.getElementById('searchDispositivoInput');
+    if (searchInput) {
+        searchInput.addEventListener('input', (e) => {
+            searchQuery = e.target.value.toLowerCase().trim();
+            renderDevicesTable();
+        });
+    }
 
     init();
 
@@ -43,7 +52,6 @@ document.addEventListener('DOMContentLoaded', () => {
             console.warn('Fallback para cálculo local de estatísticas:', error);
         }
 
-        // Fallback para cálculo local
         calcularKPIsLocais();
     }
 
@@ -57,11 +65,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (elTotal) elTotal.innerText = totalDispositivos ?? 0;
         if (elSemVinculo) {
             elSemVinculo.innerText = dispositivosSemVinculo ?? 0;
-            if (dispositivosSemVinculo > 0) {
-                elSemVinculo.className = 'card-value warning';
-            } else {
-                elSemVinculo.className = 'card-value positive';
-            }
+            elSemVinculo.className = (dispositivosSemVinculo > 0) ? 'card-value warning' : 'card-value positive';
         }
         if (elOnline) elOnline.innerText = dispositivosOnline ?? 0;
     }
@@ -111,58 +115,246 @@ document.addEventListener('DOMContentLoaded', () => {
 
             if (data.success && data.data) {
                 listaDispositivos = data.data;
-                tbody.innerHTML = '';
-                
-                if (data.data.length === 0) {
-                    tbody.innerHTML = '<tr><td colspan="5" style="text-align: center;">Nenhum dispositivo encontrado.</td></tr>';
-                    calcularKPIsLocais();
-                    return;
-                }
-
-                data.data.forEach(disp => {
-                    const tr = document.createElement('tr');
-                    
-                    let statusClass = 'status-operacional';
-                    if (disp.status === 'Atenção' || disp.status === 'Atencao') statusClass = 'status-atencao';
-                    if (disp.status === 'Crítico' || disp.status === 'Critico') statusClass = 'status-critico';
-                    
-                    const dataFormatada = disp.created_at ? new Date(disp.created_at).toLocaleString('pt-BR') : '--';
-
-                    // Opções do Select de Empresas
-                    let optionsHtml = `<option value="">-- Sem Empresa (Desvinculado) --</option>`;
-                    listaEmpresas.forEach(emp => {
-                        const isSelected = (disp.empresa_id && Number(disp.empresa_id) === Number(emp.id)) ? 'selected' : '';
-                        optionsHtml += `<option value="${emp.id}" ${isSelected}>${emp.nome}</option>`;
-                    });
-
-                    tr.innerHTML = `
-                        <td><strong>${disp.numero_serie}</strong></td>
-                        <td>
-                            <select class="select-empresa" id="select-empresa-${disp.numero_serie}">
-                                ${optionsHtml}
-                            </select>
-                        </td>
-                        <td><span class="status-badge ${statusClass}">${disp.status}</span></td>
-                        <td>${dataFormatada}</td>
-                        <td style="text-align: center;">
-                            <button class="btn-salvar-vinculo" id="btn-save-${disp.numero_serie}" onclick="salvarVinculo('${disp.numero_serie}')">
-                                Salvar
-                            </button>
-                        </td>
-                    `;
-                    tbody.appendChild(tr);
-                });
-
+                renderDevicesTable();
+                renderClientsSummary();
                 calcularKPIsLocais();
             } else {
-                tbody.innerHTML = '<tr><td colspan="5" style="text-align: center; color: red;">Erro ao carregar os dados.</td></tr>';
+                if (tbody) tbody.innerHTML = '<tr><td colspan="5" style="text-align: center; color: red;">Erro ao carregar os dados.</td></tr>';
             }
         } catch (error) {
             console.error('Erro ao carregar dispositivos:', error);
-            tbody.innerHTML = '<tr><td colspan="5" style="text-align: center; color: red;">Falha de comunicação com o servidor.</td></tr>';
+            if (tbody) tbody.innerHTML = '<tr><td colspan="5" style="text-align: center; color: red;">Falha de comunicação com o servidor.</td></tr>';
         }
     }
 
+    /**
+     * Renderiza a tabela de dispositivos respeitando busca textual
+     */
+    function renderDevicesTable() {
+        const tbody = document.getElementById('devicesTableBody');
+        const countSub = document.getElementById('devicesCountSub');
+        if (!tbody) return;
+
+        let filtrados = listaDispositivos.filter(disp => {
+            if (searchQuery) {
+                const serial = (disp.numero_serie || '').toLowerCase();
+                const empNome = (disp.empresa_nome || '').toLowerCase();
+                const status = (disp.status || '').toLowerCase();
+                if (!serial.includes(searchQuery) && !empNome.includes(searchQuery) && !status.includes(searchQuery)) {
+                    return false;
+                }
+            }
+            return true;
+        });
+
+        if (countSub) {
+            if (searchQuery) {
+                countSub.innerText = `Exibindo ${filtrados.length} de ${listaDispositivos.length} dispositivos cadastrados`;
+            } else {
+                countSub.innerText = `Total de ${listaDispositivos.length} dispositivo(s) cadastrado(s)`;
+            }
+        }
+
+        tbody.innerHTML = '';
+
+        if (filtrados.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="5" style="text-align: center; padding: 24px; color: var(--text-muted);">Nenhum dispositivo encontrado para os filtros aplicados.</td></tr>';
+            return;
+        }
+
+        filtrados.forEach(disp => {
+            const tr = document.createElement('tr');
+            
+            let statusClass = 'status-operacional';
+            const stLower = (disp.status || '').toLowerCase();
+            if (stLower === 'atenção' || stLower === 'atencao') statusClass = 'status-atencao';
+            if (stLower === 'crítico' || stLower === 'critico') statusClass = 'status-critico';
+            
+            const dataFormatada = disp.created_at ? new Date(disp.created_at).toLocaleString('pt-BR') : '--';
+
+            // Opções do Select de Clientes
+            let optionsHtml = `<option value="">-- Sem Cliente (Desvinculado) --</option>`;
+            listaEmpresas.forEach(emp => {
+                const isSelected = (disp.empresa_id && Number(disp.empresa_id) === Number(emp.id)) ? 'selected' : '';
+                optionsHtml += `<option value="${emp.id}" ${isSelected}>${escapeHtml(emp.nome)}</option>`;
+            });
+
+            tr.innerHTML = `
+                <td><strong>${escapeHtml(disp.numero_serie)}</strong></td>
+                <td>
+                    <select class="select-empresa" id="select-empresa-${disp.numero_serie}">
+                        ${optionsHtml}
+                    </select>
+                </td>
+                <td><span class="status-badge ${statusClass}">${disp.status || 'Operacional'}</span></td>
+                <td>${dataFormatada}</td>
+                <td style="text-align: center;">
+                    <button class="btn-salvar-vinculo" id="btn-save-${disp.numero_serie}" onclick="salvarVinculo('${disp.numero_serie}')">
+                        Salvar
+                    </button>
+                </td>
+            `;
+            tbody.appendChild(tr);
+        });
+    }
+
+    function escapeHtml(str) {
+        if (!str) return '';
+        return String(str)
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;')
+            .replace(/'/g, '&#039;');
+    }
+
+    /**
+     * Renderiza a tabela lateral de clientes com a quantidade de dispositivos vinculados e botão de edição.
+     * Apresenta estritamente os clientes cadastrados, no mesmo padrão da tabela principal, sem ícones.
+     */
+    function renderClientsSummary() {
+        const tbody = document.getElementById('clientsTableBody');
+        const countSub = document.getElementById('clientsCountSub');
+        if (!tbody) return;
+
+        if (countSub) {
+            countSub.innerText = `${listaEmpresas.length} cliente(s) cadastrado(s)`;
+        }
+
+        if (listaEmpresas.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="3" style="text-align: center; color: var(--text-muted); padding: 16px;">Nenhum cliente cadastrado.</td></tr>';
+            return;
+        }
+
+        tbody.innerHTML = '';
+
+        listaEmpresas.forEach(emp => {
+            const count = listaDispositivos.filter(d => Number(d.empresa_id) === Number(emp.id)).length;
+            const tr = document.createElement('tr');
+
+            const badgeClass = count > 0 ? 'status-badge status-operacional' : 'status-badge status-padrao';
+
+            tr.innerHTML = `
+                <td>
+                    <strong>${escapeHtml(emp.nome)}</strong>
+                    ${emp.cnpj ? `<div class="sub-cnpj">${escapeHtml(emp.cnpj)}</div>` : ''}
+                </td>
+                <td style="text-align: center;">
+                    <span class="${badgeClass}">${count} disp.</span>
+                </td>
+                <td style="text-align: center;">
+                    <button type="button" class="btn-action-edit" onclick="abrirModalEditarCliente(${emp.id})">Editar</button>
+                </td>
+            `;
+            tbody.appendChild(tr);
+        });
+    }
+
+    /**
+     * Abre o modal preenchendo os dados do cliente selecionado
+     */
+    window.abrirModalEditarCliente = function(clienteId) {
+        const emp = listaEmpresas.find(e => Number(e.id) === Number(clienteId));
+        if (!emp) return;
+
+        const modal = document.getElementById('modalEditarCliente');
+        const inputId = document.getElementById('editClienteId');
+        const inputNome = document.getElementById('editClienteNome');
+        const inputCnpj = document.getElementById('editClienteCnpj');
+
+        if (inputId) inputId.value = emp.id;
+        if (inputNome) inputNome.value = emp.nome || '';
+        if (inputCnpj) inputCnpj.value = emp.cnpj || '';
+
+        if (modal) modal.classList.add('active');
+        if (inputNome) setTimeout(() => inputNome.focus(), 50);
+    };
+
+    /**
+     * Fecha o modal de edição de cliente
+     */
+    window.fecharModalEditarCliente = function() {
+        const modal = document.getElementById('modalEditarCliente');
+        if (modal) modal.classList.remove('active');
+    };
+
+    /**
+     * Salva as alterações feitas no cliente (nome e CNPJ)
+     */
+    window.salvarEdicaoCliente = async function(event) {
+        if (event) event.preventDefault();
+
+        const inputId = document.getElementById('editClienteId');
+        const inputNome = document.getElementById('editClienteNome');
+        const inputCnpj = document.getElementById('editClienteCnpj');
+        const btnSalvar = document.getElementById('btnSalvarEdicaoCliente');
+
+        if (!inputId || !inputNome) return;
+
+        const clienteId = Number(inputId.value);
+        const nome = inputNome.value.trim();
+        const cnpj = inputCnpj ? inputCnpj.value.trim() : '';
+
+        if (!nome) {
+            showToast('O nome do cliente é obrigatório.', 'error');
+            return;
+        }
+
+        if (btnSalvar) {
+            btnSalvar.disabled = true;
+            btnSalvar.innerText = 'Salvando...';
+        }
+
+        try {
+            const res = await fetch(`${API_BASE}/api/admin/empresas/${clienteId}`, {
+                method: 'PUT',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}`
+                },
+                body: JSON.stringify({ nome, cnpj })
+            });
+
+            const data = await res.json();
+
+            if (res.ok && data.success) {
+                showToast(data.message || 'Cliente atualizado com sucesso!', 'success');
+
+                // Atualiza dados na lista local de empresas
+                const emp = listaEmpresas.find(e => Number(e.id) === clienteId);
+                if (emp) {
+                    emp.nome = nome;
+                    emp.cnpj = cnpj;
+                }
+
+                // Atualiza nome da empresa nos dispositivos vinculados
+                listaDispositivos.forEach(d => {
+                    if (Number(d.empresa_id) === clienteId) {
+                        d.empresa_nome = nome;
+                    }
+                });
+
+                // Atualiza as tabelas na interface
+                renderClientsSummary();
+                renderDevicesTable();
+                fecharModalEditarCliente();
+            } else {
+                showToast(data.message || 'Erro ao atualizar dados do cliente.', 'error');
+            }
+        } catch (error) {
+            console.error('Erro ao atualizar cliente:', error);
+            showToast('Erro de conexão ao salvar alterações do cliente.', 'error');
+        } finally {
+            if (btnSalvar) {
+                btnSalvar.disabled = false;
+                btnSalvar.innerText = 'Salvar Alterações';
+            }
+        }
+    };
+
+    /**
+     * Salva o vínculo de um dispositivo com o cliente selecionado
+     */
     window.salvarVinculo = async function(numeroSerie) {
         const select = document.getElementById(`select-empresa-${numeroSerie}`);
         const btn = document.getElementById(`btn-save-${numeroSerie}`);
@@ -186,12 +378,22 @@ document.addEventListener('DOMContentLoaded', () => {
             const data = await res.json();
 
             if (res.ok && data.success) {
-                showToast(data.message || `Dispositivo ${numeroSerie} atualizado com sucesso!`, 'success');
+                showToast(data.message || `Dispositivo ${numeroSerie} vinculado com sucesso!`, 'success');
+                
+                // Atualiza no cache local
                 const dispLocal = listaDispositivos.find(d => d.numero_serie === numeroSerie);
-                if (dispLocal) dispLocal.empresa_id = empresaId;
-                loadEstatisticas();
+                if (dispLocal) {
+                    dispLocal.empresa_id = empresaId;
+                    const emp = listaEmpresas.find(e => Number(e.id) === Number(empresaId));
+                    dispLocal.empresa_nome = emp ? emp.nome : null;
+                }
+
+                // Atualiza interface: estatísticas, tabela de clientes e tabela de dispositivos
+                calcularKPIsLocais();
+                renderClientsSummary();
+                renderDevicesTable();
             } else {
-                showToast(data.message || 'Erro ao vincular dispositivo à empresa.', 'error');
+                showToast(data.message || 'Erro ao vincular dispositivo ao cliente.', 'error');
             }
         } catch (error) {
             console.error('Erro ao salvar vínculo do dispositivo:', error);

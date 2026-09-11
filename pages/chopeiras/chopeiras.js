@@ -1121,7 +1121,7 @@ async function carregarRegistrosModal(page = 1) {
  */
 function formatarDataHoraLeitura(row) {
     if (!row) return '--';
-    const str = row.timestamp_formatado || row.timestamp_leitura || row.created_at;
+    const str = row.timestamp_leitura || row.timestamp_formatado || row.created_at;
     if (!str) return '--';
 
     const s = String(str).trim();

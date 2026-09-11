@@ -101,16 +101,16 @@
         <main class="main-content">
             <header>
                 <h1>Gerenciar Dispositivos</h1>
-                <p>Vincule dispositivos a empresas específicas para controle de acesso e visualização</p>
+                <p>Vincule dispositivos a clientes específicos para controle de acesso e visualização</p>
             </header>
 
             <!-- 4 Cards de Métricas -->
             <div class="dashboard-cards">
                 <div class="card">
-                    <h3>Empresas Cadastradas</h3>
+                    <h3>Clientes Cadastrados</h3>
                     <div class="card-value" id="kpiEmpresas">--</div>
                     <div class="card-indicator neutral">
-                        Empresas ativas no sistema
+                        Clientes ativos no sistema
                     </div>
                 </div>
                 <div class="card">
@@ -136,25 +136,95 @@
                 </div>
             </div>
 
-            <div class="card" style="padding: 20px;">
-                <table class="devices-table">
-                    <thead>
-                        <tr>
-                            <th>Nº de Série</th>
-                            <th>Empresa Vinculada</th>
-                            <th>Status</th>
-                            <th>Data de Cadastro</th>
-                            <th style="text-align: center; width: 100px;">Ações</th>
-                        </tr>
-                    </thead>
-                    <tbody id="devicesTableBody">
-                        <tr>
-                            <td colspan="5" style="text-align: center;">Carregando dispositivos...</td>
-                        </tr>
-                    </tbody>
-                </table>
+            <!-- Grid Principal: Tabela de Dispositivos (Esquerda) e Tabela de Clientes (Direita) -->
+            <div class="devices-layout-grid">
+                <!-- Coluna Principal: Tabela de Dispositivos -->
+                <div class="card devices-main-card">
+                    <div class="card-top-header">
+                        <div>
+                            <h2>Dispositivos Detectados</h2>
+                            <p id="devicesCountSub">Gerenciamento e vinculação de dispositivos com os clientes</p>
+                        </div>
+                        <div class="table-search-box">
+                            <input type="text" id="searchDispositivoInput" class="table-search-input" placeholder="Buscar por série ou cliente...">
+                        </div>
+                    </div>
+
+                    <div style="overflow-x: auto;">
+                        <table class="devices-table">
+                            <thead>
+                                <tr>
+                                    <th>Nº de Série</th>
+                                    <th>Cliente Vinculado</th>
+                                    <th>Status</th>
+                                    <th>Data de Cadastro</th>
+                                    <th style="text-align: center; width: 100px;">Ações</th>
+                                </tr>
+                            </thead>
+                            <tbody id="devicesTableBody">
+                                <tr>
+                                    <td colspan="5" style="text-align: center;">Carregando dispositivos...</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- Coluna Lateral: Clientes e Quantidade de Dispositivos Vinculados (Mesmo Padrão da Tabela Principal) -->
+                <div class="card companies-sidebar-card">
+                    <div class="card-top-header">
+                        <div>
+                            <h2>Clientes</h2>
+                            <p id="clientsCountSub">Dispositivos vinculados</p>
+                        </div>
+                    </div>
+
+                    <div style="overflow-x: auto; max-height: 560px;">
+                        <table class="devices-table clients-table">
+                            <thead>
+                                <tr>
+                                    <th>Cliente</th>
+                                    <th style="text-align: center; width: 75px;">Disp.</th>
+                                    <th style="text-align: center; width: 70px;">Ação</th>
+                                </tr>
+                            </thead>
+                            <tbody id="clientsTableBody">
+                                <tr>
+                                    <td colspan="3" style="text-align: center; color: var(--text-muted);">Carregando clientes...</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
             </div>
         </main>
+    </div>
+
+    <!-- Modal de Edição de Cliente -->
+    <div class="modal-overlay" id="modalEditarCliente">
+        <div class="modal-content client-edit-modal">
+            <div class="modal-header">
+                <h3>Editar Cliente</h3>
+                <button type="button" class="modal-close-btn" onclick="fecharModalEditarCliente()">&times;</button>
+            </div>
+            <form id="formEditarCliente" onsubmit="salvarEdicaoCliente(event)">
+                <div class="modal-body">
+                    <input type="hidden" id="editClienteId">
+                    <div class="modal-form-group">
+                        <label for="editClienteNome">Nome do Cliente</label>
+                        <input type="text" id="editClienteNome" required placeholder="Razão Social ou Nome Fantasia" class="modal-input">
+                    </div>
+                    <div class="modal-form-group">
+                        <label for="editClienteCnpj">CNPJ</label>
+                        <input type="text" id="editClienteCnpj" placeholder="00.000.000/0001-00" class="modal-input">
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn-modal-secondary" onclick="fecharModalEditarCliente()">Cancelar</button>
+                    <button type="submit" id="btnSalvarEdicaoCliente" class="btn-modal-primary">Salvar Alterações</button>
+                </div>
+            </form>
+        </div>
     </div>
 
     <script src="dispositivos.js"></script>

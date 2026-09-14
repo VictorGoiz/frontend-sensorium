@@ -875,14 +875,20 @@ function renderAlertsList() {
 
 async function markAlertAsRead(alertId) {
     try {
-        const res = await fetch(`${API_BASE}/api/alertas/${alertId}/lido`, { method: 'PUT' });
+        const res = await fetch(`${API_BASE}/api/alertas/${alertId}/lido`, {
+            method: 'PUT',
+            headers: getAuthHeaders()
+        });
         if (res.ok) fetchAlertsFromApi();
     } catch (e) {}
 }
 
 async function markAllAlertsAsRead() {
     try {
-        const res = await fetch(`${API_BASE}/api/alertas/limpar-todos`, { method: 'PUT' });
+        const res = await fetch(`${API_BASE}/api/alertas/limpar-todos`, {
+            method: 'PUT',
+            headers: getAuthHeaders()
+        });
         if (res.ok) fetchAlertsFromApi();
     } catch (e) {}
 }

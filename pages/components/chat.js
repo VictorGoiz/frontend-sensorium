@@ -48,11 +48,17 @@ async function handleSendMessage() {
     
     try {
         // Usa window.API_BASE definido globalmente em config.js
+        const token = localStorage.getItem('sensorium_token');
+        const headers = {
+            'Content-Type': 'application/json'
+        };
+        if (token) {
+            headers['Authorization'] = `Bearer ${token}`;
+        }
+
         const response = await fetch(`${API_BASE}/ai/responseAI`, {
             method: 'POST',
-            headers: {
-                'Content-Type': 'application/json'
-            },
+            headers,
             body: JSON.stringify({ question })
         });
         

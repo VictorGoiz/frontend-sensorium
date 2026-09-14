@@ -1282,8 +1282,7 @@ async function exportarRegistrosCSV() {
     const params = new URLSearchParams({
         numeroSerie: filterDev,
         dataInicio: dataInicio,
-        dataFim: dataFim,
-        limit: 50000
+        dataFim: dataFim
     });
 
     if (btnExport) {

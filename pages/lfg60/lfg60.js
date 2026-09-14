@@ -408,7 +408,10 @@ function renderAlertsList() {
 
 async function markAlertAsRead(alertId) {
     try {
-        const res = await fetch(`${API_BASE}/api/lfg60/alertas/${alertId}/lido`, { method: 'PUT' });
+        const res = await fetch(`${API_BASE}/api/lfg60/alertas/${alertId}/lido`, {
+            method: 'PUT',
+            headers: getAuthHeaders()
+        });
         if (res.ok) {
             fetchAlertsFromApi();
         }
@@ -419,7 +422,10 @@ async function markAlertAsRead(alertId) {
 
 async function markAllAlertsAsRead() {
     try {
-        const res = await fetch(`${API_BASE}/api/lfg60/alertas/limpar-todos`, { method: 'PUT' });
+        const res = await fetch(`${API_BASE}/api/lfg60/alertas/limpar-todos`, {
+            method: 'PUT',
+            headers: getAuthHeaders()
+        });
         if (res.ok) {
             fetchAlertsFromApi();
         }

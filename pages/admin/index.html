@@ -96,15 +96,18 @@
                             <div class="form-group">
                                 <label for="perfilUsuario">Nível de Acesso</label>
                                 <select id="perfilUsuario">
-                                    <option value="user">Usuário Comum</option>
-                                    <option value="admin">Administrador do Cliente</option>
-                                    <option value="apresentacao">Apresentação (Chopeiras / LFG60)</option>
+                                    <option value="superadmin">Superadministrador (Gestão e Vínculos)</option>
+                                    <option value="apresentacao" selected>Apresentação (Chopeiras / LFG60)</option>
                                 </select>
                             </div>
                         </div>
 
                         <div class="profile-info-box">
-                            <strong>Níveis de Permissão:</strong> Usuário Comum e Administrador acessam o monitoramento completo do cliente; Apresentação possui acesso restrito ao painel de telemetria dos dispositivos (Chopeiras e LFG60).
+                            <strong>Níveis de Permissão:</strong>
+                            <ul style="margin: 6px 0 0 16px; padding: 0; font-size: 12px; line-height: 1.5;">
+                                <li><strong>Superadministrador:</strong> Responsável pela gestão geral, cadastro de clientes, criação de usuários e vinculação de dispositivos.</li>
+                                <li><strong>Apresentação:</strong> Acesso restrito exclusivamente à área de telemetria de dispositivos (Chopeiras e LFG60). Visão geral e outras áreas ficam bloqueadas.</li>
+                            </ul>
                         </div>
 
                         <button type="submit" id="btnSubmitUsuario" class="btn-primary">

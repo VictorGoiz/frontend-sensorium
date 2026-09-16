@@ -5,19 +5,23 @@ let activeAlertFilter = 'todos';
 let sensorBadgeWatchdog = null;
 
 /**
- * Atualiza o estado da badge de transmissão ao vivo em LFG60
+ * Atualiza o estado da badge de transmissão ao vivo em LFG60 (Padrão Chopeiras)
  */
 function setSensorLiveBadgeState(isLive) {
-    const badge = document.getElementById('sensorLiveBadge');
+    const badge = document.getElementById('livePresentationBadge') || document.getElementById('sensorLiveBadge');
+    const badgeText = document.getElementById('liveBadgeText');
     if (!badge) return;
+
     if (isLive) {
         badge.classList.add('active');
+        if (badgeText) badgeText.innerText = 'AO VIVO';
         if (sensorBadgeWatchdog) clearTimeout(sensorBadgeWatchdog);
         sensorBadgeWatchdog = setTimeout(() => {
             setSensorLiveBadgeState(false);
         }, 15000);
     } else {
         badge.classList.remove('active');
+        if (badgeText) badgeText.innerText = 'AGUARDANDO DADOS';
     }
 }
 
@@ -64,6 +68,17 @@ document.addEventListener('DOMContentLoaded', function() {
         setInterval(loadDashboardData, 10000);
     }
 
+    // Monitora mudanças de tela cheia para atualizar botão
+    document.addEventListener('fullscreenchange', handleFullscreenChange);
+    document.addEventListener('webkitfullscreenchange', handleFullscreenChange);
+
+    // Monitora scroll e resize no carrossel de dispositivos
+    const container = document.getElementById('sensorListContainer');
+    if (container) {
+        container.addEventListener('scroll', handleCarouselScroll);
+    }
+    window.addEventListener('resize', updateCarouselState);
+
     // Fechar popover de alertas se clicar fora
     document.addEventListener('click', function(e) {
         const popover = document.getElementById('headerAlertsPopover');
@@ -101,6 +116,7 @@ async function fetchDevicesFromApi() {
 
         if (result.success && Array.isArray(result.data)) {
             currentDevices = result.data;
+            updateLfgDeviceSelect(currentDevices);
             renderSensorCards(currentDevices);
             updateDashboardSummary(currentDevices);
 
@@ -113,6 +129,48 @@ async function fetchDevicesFromApi() {
         }
     } catch (err) {
         console.warn('[LFG60] Erro ao carregar sensores:', err.message);
+    }
+}
+
+function updateLfgDeviceSelect(devices) {
+    const select = document.getElementById('lfgDeviceSelect');
+    if (!select) return;
+
+    const currentVal = select.value || 'all';
+    let optionsHtml = '<option value="all">Todos os Dispositivos</option>';
+    devices.forEach(d => {
+        optionsHtml += `<option value="${d.numero_serie}">Transmissor ${d.numero_serie}</option>`;
+    });
+
+    select.innerHTML = optionsHtml;
+    if (devices.some(d => d.numero_serie === currentVal)) {
+        select.value = currentVal;
+    } else {
+        select.value = 'all';
+    }
+}
+
+function onSelectLfgDeviceChange() {
+    const select = document.getElementById('lfgDeviceSelect');
+    const container = document.getElementById('sensorListContainer');
+    if (!select || !container) return;
+
+    const selectedSerial = select.value;
+    if (selectedSerial === 'all') {
+        container.scrollTo({ left: 0, behavior: 'smooth' });
+    } else {
+        const cards = Array.from(container.querySelectorAll('.sensor-card'));
+        const targetIndex = currentDevices.findIndex(d => d.numero_serie === selectedSerial);
+        if (targetIndex >= 0 && cards[targetIndex]) {
+            scrollCarouselToIndex(targetIndex);
+            cards[targetIndex].style.transition = 'transform 0.3s ease, border-color 0.3s ease';
+            cards[targetIndex].style.borderColor = '#0284c7';
+            cards[targetIndex].style.transform = 'scale(1.02)';
+            setTimeout(() => {
+                cards[targetIndex].style.borderColor = '';
+                cards[targetIndex].style.transform = '';
+            }, 1200);
+        }
     }
 }
 
@@ -272,6 +330,12 @@ function renderSensorCards(devices) {
         `;
     }).join('');
 
+    // Atualiza pílula com total de dispositivos
+    const countPill = document.getElementById('devicesCountPill');
+    if (countPill) {
+        countPill.innerText = `${devices.length} dispositivo${devices.length !== 1 ? 's' : ''}`;
+    }
+
     // Inicializa os manômetros para cada dispositivo após inserção no DOM
     devices.forEach(dev => {
         const l = dev.ultima_leitura || {};
@@ -284,6 +348,9 @@ function renderSensorCards(devices) {
         initManometroGauge(`gauge-temp-${dev.numero_serie}`, tempVal, 0, 50, tempColor);
         initManometroGauge(`gauge-umid-${dev.numero_serie}`, umidVal, 0, 100, umidColor);
     });
+
+    // Atualiza estado e visibilidade das setas e indicadores do carrossel
+    setTimeout(updateCarouselState, 80);
 }
 
 function updateDashboardSummary(devices) {
@@ -670,3 +737,105 @@ function toggleNavDropdown(btn) {
         dropdown.classList.toggle('open');
     }
 }
+
+// ----------------------------------------------------
+// 6. CONTROLE DO MODO TELA CHEIA (FULLSCREEN KIOSK / TV)
+// ----------------------------------------------------
+function toggleFullscreen() {
+    if (!document.fullscreenElement && !document.webkitFullscreenElement) {
+        if (document.documentElement.requestFullscreen) {
+            document.documentElement.requestFullscreen();
+        } else if (document.documentElement.webkitRequestFullscreen) {
+            document.documentElement.webkitRequestFullscreen();
+        }
+    } else {
+        if (document.exitFullscreen) {
+            document.exitFullscreen();
+        } else if (document.webkitExitFullscreen) {
+            document.webkitExitFullscreen();
+        }
+    }
+}
+
+function handleFullscreenChange() {
+    const isFull = !!(document.fullscreenElement || document.webkitFullscreenElement);
+    const textEl = document.getElementById('fullscreenText');
+    const iconEl = document.getElementById('fullscreenIcon');
+    document.body.classList.toggle('fullscreen-active', isFull);
+    
+    if (textEl) {
+        textEl.innerText = isFull ? 'Sair da Tela Cheia' : 'Tela Cheia';
+    }
+    if (iconEl) {
+        if (isFull) {
+            iconEl.innerHTML = '<path d="M8 3v3a2 2 0 0 1-2 2H3m18 0h-3a2 2 0 0 1-2-2V3m0 18v-3a2 2 0 0 1 2-2h3M3 16h3a2 2 0 0 1 2 2v3"/>';
+        } else {
+            iconEl.innerHTML = '<path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"/>';
+        }
+    }
+    setTimeout(updateCarouselState, 250);
+}
+
+// ----------------------------------------------------
+// 7. CONTROLE DO CARROSSEL DE DISPOSITIVOS LFG60
+// ----------------------------------------------------
+function scrollCarousel(direction) {
+    const container = document.getElementById('sensorListContainer');
+    if (!container) return;
+    const card = container.querySelector('.sensor-card');
+    const scrollAmount = card ? (card.offsetWidth + 16) : 340;
+    container.scrollBy({ left: direction * scrollAmount, behavior: 'smooth' });
+}
+
+function scrollCarouselToIndex(index) {
+    const container = document.getElementById('sensorListContainer');
+    if (!container) return;
+    const cards = container.querySelectorAll('.sensor-card');
+    if (cards[index]) {
+        cards[index].scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'start' });
+    }
+}
+
+let carouselScrollTimer = null;
+function handleCarouselScroll() {
+    if (carouselScrollTimer) clearTimeout(carouselScrollTimer);
+    carouselScrollTimer = setTimeout(updateCarouselState, 50);
+}
+
+function updateCarouselState() {
+    const container = document.getElementById('sensorListContainer');
+    const btnPrev = document.getElementById('btnCarouselPrev');
+    const btnNext = document.getElementById('btnCarouselNext');
+    const indicatorsContainer = document.getElementById('carouselIndicators');
+    const controls = document.getElementById('carouselControls');
+    if (!container) return;
+
+    const scrollLeft = container.scrollLeft;
+    const maxScroll = container.scrollWidth - container.clientWidth;
+    const hasOverflow = container.scrollWidth > (container.clientWidth + 8);
+
+    if (btnPrev) btnPrev.disabled = scrollLeft <= 4;
+    if (btnNext) btnNext.disabled = scrollLeft >= (maxScroll - 4);
+
+    const cards = container.querySelectorAll('.sensor-card');
+    if (controls) {
+        controls.style.display = (cards.length > 0 && hasOverflow) ? 'flex' : 'none';
+    }
+
+    if (indicatorsContainer && cards.length > 1 && hasOverflow) {
+        indicatorsContainer.innerHTML = '';
+        const cardWidth = cards[0].offsetWidth + 16;
+        const activeIndex = Math.min(cards.length - 1, Math.max(0, Math.round(scrollLeft / cardWidth)));
+
+        cards.forEach((_, idx) => {
+            const dot = document.createElement('div');
+            dot.className = `indicator-dot ${idx === activeIndex ? 'active' : ''}`;
+            dot.title = `Ir para dispositivo ${idx + 1}`;
+            dot.onclick = () => scrollCarouselToIndex(idx);
+            indicatorsContainer.appendChild(dot);
+        });
+    } else if (indicatorsContainer && (!hasOverflow || cards.length <= 1)) {
+        indicatorsContainer.innerHTML = '';
+    }
+}
+

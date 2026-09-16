@@ -10,6 +10,19 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap" rel="stylesheet">
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="../config.js"></script>
+    <script>
+        (function() {
+            try {
+                const token = localStorage.getItem('sensorium_token');
+                const user = JSON.parse(localStorage.getItem('sensorium_user') || '{}');
+                if (!token) {
+                    window.location.replace('../login/index.html');
+                } else if (user.perfil === 'apresentacao') {
+                    window.location.replace('../chopeiras/index.html');
+                }
+            } catch (e) {}
+        })();
+    </script>
 </head>
 <body>
     <div class="app-layout">

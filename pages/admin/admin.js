@@ -63,6 +63,30 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
+    const perfilSelect = document.getElementById('perfilUsuario');
+    const selectEmpresa = document.getElementById('selectEmpresa');
+    const formHint = document.querySelector('.form-hint');
+
+    function updatePerfilUI() {
+        if (!perfilSelect || !selectEmpresa) return;
+        if (perfilSelect.value === 'superadmin') {
+            selectEmpresa.required = false;
+            if (formHint) {
+                formHint.textContent = 'Superadministrador: acesso global à gestão de clientes e vínculos (selecionar cliente é opcional).';
+            }
+        } else {
+            selectEmpresa.required = true;
+            if (formHint) {
+                formHint.textContent = 'Apresentação: o usuário terá acesso restrito aos dispositivos (Chopeiras / LFG60) deste cliente.';
+            }
+        }
+    }
+
+    if (perfilSelect) {
+        perfilSelect.addEventListener('change', updatePerfilUI);
+        updatePerfilUI();
+    }
+
     formUsuario.addEventListener('submit', async (e) => {
         e.preventDefault();
         
@@ -72,8 +96,8 @@ document.addEventListener('DOMContentLoaded', () => {
         const senha = document.getElementById('senhaUsuario').value;
         const perfil = document.getElementById('perfilUsuario').value;
 
-        if (!empresa_id) {
-            showToast('Por favor, selecione um cliente vinculado.', 'error');
+        if (perfil === 'apresentacao' && !empresa_id) {
+            showToast('Por favor, selecione um cliente vinculado para o perfil de Apresentação.', 'error');
             return;
         }
 
@@ -89,13 +113,20 @@ document.addEventListener('DOMContentLoaded', () => {
                     'Content-Type': 'application/json',
                     'Authorization': `Bearer ${token}`
                 },
-                body: JSON.stringify({ empresa_id, nome, email, senha, perfil })
+                body: JSON.stringify({ 
+                    empresa_id: empresa_id ? Number(empresa_id) : null, 
+                    nome, 
+                    email, 
+                    senha, 
+                    perfil 
+                })
             });
             const data = await res.json();
 
             if (res.ok && data.success) {
                 showToast(data.message || 'Usuário criado com sucesso!', 'success');
                 formUsuario.reset();
+                updatePerfilUI();
             } else {
                 showToast(data.message || 'Erro ao criar usuário.', 'error');
             }

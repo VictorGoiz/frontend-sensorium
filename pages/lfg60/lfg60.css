@@ -187,3 +187,329 @@
 .sensor-details-hint:hover {
     text-decoration: underline;
 }
+
+/* ====================================================
+   ESTILOS DO HEADER APRESENTATIVO (PADRÃO CHOPEIRAS)
+   ==================================================== */
+.presentation-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 24px;
+    flex-wrap: wrap;
+    gap: 16px;
+}
+
+.header-brand {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.header-title-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.presentation-header h1 {
+    font-size: 22px;
+    font-weight: 700;
+    color: var(--text-main, #1e293b);
+    letter-spacing: -0.4px;
+    margin: 0;
+}
+
+.presentation-header p {
+    font-size: 13px;
+    color: var(--text-muted, #64748b);
+    margin: 0;
+}
+
+.badge-live-presentation {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 11px;
+    font-weight: 600;
+    color: #64748b;
+    background: #f1f5f9;
+    border: 1px solid #e2e8f0;
+    padding: 4px 10px;
+    border-radius: 20px;
+    letter-spacing: 0.2px;
+    transition: all 0.3s ease;
+}
+
+.badge-live-presentation .dot {
+    width: 7px;
+    height: 7px;
+    background-color: #94a3b8;
+    border-radius: 50%;
+    transition: background-color 0.3s ease;
+}
+
+.badge-live-presentation.active {
+    color: #10b981;
+    background: #ecfdf5;
+    border-color: #a7f3d0;
+}
+
+.badge-live-presentation.active .dot {
+    background-color: #10b981;
+    animation: pulseGlow 1.5s infinite ease-in-out;
+}
+
+.header-actions {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+}
+
+.select-presentation {
+    padding: 8px 14px;
+    border-radius: 6px;
+    border: 1px solid var(--border-fine, #e2e8f0);
+    background: #ffffff;
+    font-family: inherit;
+    font-size: 13px;
+    color: var(--text-main, #1e293b);
+    outline: none;
+    font-weight: 500;
+    transition: border-color 0.2s;
+    min-width: 190px;
+}
+
+.select-presentation:focus {
+    border-color: var(--primary-blue, #0284c7);
+}
+
+.btn-presentation-action {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    background: #ffffff;
+    border: 1px solid var(--border-fine, #e2e8f0);
+    padding: 8px 14px;
+    border-radius: 8px;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--primary-blue, #0284c7);
+    cursor: pointer;
+    transition: all 0.2s ease;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+}
+
+.btn-presentation-action:hover {
+    background: var(--primary-blue-light, #e0f2fe);
+    border-color: var(--primary-blue, #0284c7);
+    transform: translateY(-1px);
+    box-shadow: 0 2px 5px rgba(30, 96, 172, 0.12);
+}
+
+.btn-presentation-action svg {
+    flex-shrink: 0;
+}
+
+.btn-fullscreen {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 14px;
+    background: #ffffff;
+    border: 1px solid var(--border-fine, #e2e8f0);
+    border-radius: 6px;
+    color: var(--text-main, #1e293b);
+    font-size: 13px;
+    font-weight: 600;
+    font-family: inherit;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.02);
+}
+
+.btn-fullscreen:hover {
+    background: var(--primary-blue-light, #e0f2fe);
+    border-color: var(--primary-blue, #0284c7);
+    color: var(--primary-blue, #0284c7);
+    transform: translateY(-1px);
+}
+
+.devices-count-pill {
+    background: #e2e8f0;
+    color: #334155;
+    font-size: 11px;
+    font-weight: 700;
+    padding: 3px 8px;
+    border-radius: 12px;
+}
+
+/* ====================================================
+   CARROSSEL HORIZONTAL DE DISPOSITIVOS LFG60
+   ==================================================== */
+.lfg-section-header {
+    margin-bottom: 12px;
+}
+
+.carousel-controls {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.btn-carousel-nav {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 34px;
+    height: 34px;
+    background: #ffffff;
+    border: 1px solid #cbd5e1;
+    border-radius: 50%;
+    color: #1e293b;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+}
+
+.btn-carousel-nav:hover:not(:disabled) {
+    background: #0284c7;
+    border-color: #0284c7;
+    color: #ffffff;
+    transform: scale(1.05);
+}
+
+.btn-carousel-nav:disabled {
+    opacity: 0.35;
+    cursor: not-allowed;
+    box-shadow: none;
+}
+
+.carousel-indicators {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    padding: 0 4px;
+}
+
+.indicator-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: #cbd5e1;
+    cursor: pointer;
+    transition: all 0.25s ease;
+}
+
+.indicator-dot.active {
+    background: #0284c7;
+    width: 18px;
+    border-radius: 4px;
+}
+
+.lfg-carousel-wrapper {
+    position: relative;
+    width: 100%;
+    overflow: hidden;
+    padding: 4px 0 12px 0;
+}
+
+.lfg-carousel-track {
+    display: flex !important;
+    flex-direction: row !important;
+    gap: 16px;
+    overflow-x: auto;
+    overflow-y: hidden;
+    scroll-behavior: smooth;
+    scroll-snap-type: x mandatory;
+    padding: 4px 6px 14px 6px;
+    margin: 0;
+    scrollbar-width: thin;
+    scrollbar-color: #cbd5e1 transparent;
+    -webkit-overflow-scrolling: touch;
+}
+
+.lfg-carousel-track::-webkit-scrollbar {
+    height: 6px;
+}
+
+.lfg-carousel-track::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+.lfg-carousel-track::-webkit-scrollbar-thumb {
+    background-color: #cbd5e1;
+    border-radius: 6px;
+}
+
+.lfg-carousel-track .sensor-card {
+    flex: 0 0 330px;
+    min-width: 310px;
+    max-width: 360px;
+    scroll-snap-align: start;
+    box-sizing: border-box;
+}
+
+/* ====================================================
+   MODO TELA CHEIA (FULLSCREEN KIOSK / TV)
+   ==================================================== */
+:fullscreen body,
+body.fullscreen-active {
+    background: #f8fafc;
+}
+
+:fullscreen .sidebar,
+body.fullscreen-active .sidebar {
+    display: none !important;
+}
+
+:fullscreen .app-layout,
+body.fullscreen-active .app-layout {
+    display: block;
+    width: 100vw;
+    height: 100vh;
+}
+
+:fullscreen .main-content,
+body.fullscreen-active .main-content {
+    width: 100%;
+    max-width: 100vw;
+    padding: 24px 36px;
+    box-sizing: border-box;
+}
+
+:fullscreen .page-header,
+body.fullscreen-active .page-header {
+    margin-bottom: 20px;
+}
+
+:fullscreen .dashboard-cards,
+body.fullscreen-active .dashboard-cards {
+    margin-bottom: 24px;
+}
+
+:fullscreen .lfg-carousel-track .sensor-card,
+body.fullscreen-active .lfg-carousel-track .sensor-card {
+    flex: 0 0 370px;
+    min-width: 350px;
+    padding: 20px;
+    border-radius: 12px;
+    box-shadow: 0 4px 16px rgba(0,0,0,0.06);
+}
+
+:fullscreen .manometro-canvas-wrapper,
+body.fullscreen-active .manometro-canvas-wrapper {
+    height: 105px;
+}
+
+:fullscreen .manometro-val,
+body.fullscreen-active .manometro-val {
+    font-size: 19px;
+}
+
+:fullscreen .manometro-label,
+body.fullscreen-active .manometro-label {
+    font-size: 11px;
+}
+

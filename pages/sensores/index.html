@@ -15,6 +15,19 @@
     <!-- Leaflet CSS for Maps -->
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <script src="../config.js"></script>
+    <script>
+        (function() {
+            try {
+                const token = localStorage.getItem('sensorium_token');
+                const user = JSON.parse(localStorage.getItem('sensorium_user') || '{}');
+                if (!token) {
+                    window.location.replace('../login/index.html');
+                } else if (user.perfil === 'apresentacao') {
+                    window.location.replace('../chopeiras/index.html');
+                }
+            } catch (e) {}
+        })();
+    </script>
 </head>
 <body>
     <div class="app-layout">

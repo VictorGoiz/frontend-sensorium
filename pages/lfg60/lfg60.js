@@ -42,22 +42,30 @@ document.addEventListener('DOMContentLoaded', function() {
     // 1. Carregar Sensores e Alertas da API
     loadDashboardData();
 
-    // Conectar via Socket.IO para atualizações em tempo real
-    if (typeof io !== 'undefined') {
-        const socket = io(API_BASE);
-        socket.on('dashboard_update', (data) => {
-            console.log('[LFG60] Recebido update via WebSocket:', data);
-            setSensorLiveBadgeState(true);
+    // Conectar via Socket.IO para atualizações em tempo real com debounce
+    let updateDebounceTimer = null;
+    function triggerDashboardUpdate(data) {
+        setSensorLiveBadgeState(true);
+        if (updateDebounceTimer) clearTimeout(updateDebounceTimer);
+        updateDebounceTimer = setTimeout(() => {
             loadDashboardData();
             
             // Se o modal do dispositivo atualizado estiver aberto, atualiza o histórico também
             const modal = document.getElementById('sensorModal');
-            if (modal && modal.classList.contains('active')) {
-                const title = document.getElementById('modalSensorTitle').innerText;
+            if (modal && modal.classList.contains('active') && data?.numeroSerie) {
+                const title = document.getElementById('modalSensorTitle')?.innerText || '';
                 if (title.includes(data.numeroSerie)) {
                     fetchDeviceHistory(data.numeroSerie);
                 }
             }
+        }, 80);
+    }
+
+    if (typeof io !== 'undefined') {
+        const socket = io(API_BASE);
+        socket.on('dashboard_update', (data) => {
+            console.log('[LFG60] Recebido update via WebSocket:', data);
+            triggerDashboardUpdate(data);
         });
 
         socket.on('disconnect', () => {
@@ -193,22 +201,25 @@ function getHumidityGaugeColor(umidVal) {
     return '#ef4444'; // Crítico Vermelho
 }
 
-function initManometroGauge(canvasId, value, min, max, fillColor) {
-    const canvas = document.getElementById(canvasId);
-    if (!canvas || typeof Chart === 'undefined') return;
-
-    // Destrói instância prévia do mesmo canvas se existir
-    if (activeManometros[canvasId]) {
-        activeManometros[canvasId].destroy();
-        delete activeManometros[canvasId];
-    }
-
-    const ctx = canvas.getContext('2d');
+function initOrUpdateManometroGauge(canvasId, value, min, max, fillColor) {
     const val = value !== null && value !== undefined && !isNaN(value) ? Number(value) : min;
     const clamped = Math.max(min, Math.min(max, val));
     const progress = clamped - min;
     const remaining = max - clamped;
 
+    // Se já existe instância do gráfico ativa, apenas atualiza dados sem reconstruir o canvas
+    if (activeManometros[canvasId]) {
+        const chart = activeManometros[canvasId];
+        chart.data.datasets[0].data = [progress, remaining];
+        chart.data.datasets[0].backgroundColor = [fillColor, '#e2e8f0'];
+        chart.update('none'); // Atualização instantânea com latência zero
+        return;
+    }
+
+    const canvas = document.getElementById(canvasId);
+    if (!canvas || typeof Chart === 'undefined') return;
+
+    const ctx = canvas.getContext('2d');
     activeManometros[canvasId] = new Chart(ctx, {
         type: 'doughnut',
         data: {
@@ -226,7 +237,7 @@ function initManometroGauge(canvasId, value, min, max, fillColor) {
             maintainAspectRatio: false,
             cutout: '74%',
             animation: {
-                duration: 500
+                duration: 200
             },
             plugins: {
                 tooltip: { enabled: false },
@@ -240,18 +251,88 @@ function renderSensorCards(devices) {
     const container = document.getElementById('sensorListContainer');
     if (!container) return;
 
-    // Destrói gráficos ativos anteriores para evitar memory leaks
+    if (devices.length === 0) {
+        // Limpa manômetros anteriores
+        Object.keys(activeManometros).forEach(key => {
+            if (activeManometros[key]) {
+                activeManometros[key].destroy();
+                delete activeManometros[key];
+            }
+        });
+        container.innerHTML = `<div style="padding: 20px; text-align: center; color: #888; width: 100%;">Nenhum dispositivo cadastrado no banco de dados.</div>`;
+        return;
+    }
+
+    // Verifica se a estrutura de cards já está presente no DOM
+    const existingCards = container.querySelectorAll('.sensor-card');
+    const hasMatchingDom = existingCards.length === devices.length && devices.every(d => document.getElementById(`sensor-card-${d.numero_serie}`));
+
+    if (hasMatchingDom) {
+        // Atualização in-place ultra-rápida (60 FPS, sem re-renderizar o HTML)
+        devices.forEach(dev => {
+            const l = dev.ultima_leitura || {};
+            const led = dev.led || 'Verde';
+            const statusText = dev.status || 'Operacional';
+            const isAlert = led === 'Amarelo' || led === 'Vermelho' || statusText !== 'Operacional';
+
+            const tempVal = l.temperatura !== null && l.temperatura !== undefined ? Number(l.temperatura) : null;
+            const umidVal = l.umidade !== null && l.umidade !== undefined ? Number(l.umidade) : null;
+            const co2Text = l.co2 !== null && l.co2 !== undefined ? `${l.co2} ppm` : '--';
+
+            const tempDisplay = tempVal !== null ? `${tempVal.toFixed(1)}°C` : '--';
+            const umidDisplay = umidVal !== null ? `${umidVal.toFixed(1)}%` : '--';
+
+            const tempColor = getTemperatureGaugeColor(tempVal);
+            const umidColor = getHumidityGaugeColor(umidVal);
+
+            const cardEl = document.getElementById(`sensor-card-${dev.numero_serie}`);
+            if (cardEl) {
+                cardEl.className = `sensor-card ${isAlert ? 'alert' : ''}`;
+            }
+
+            const badgeEl = document.getElementById(`status-badge-${dev.numero_serie}`);
+            if (badgeEl) {
+                const statusClass = statusText === 'Crítico' ? 'critico' : (statusText === 'Atenção' ? 'atencao' : 'operacional');
+                const dotClass = led === 'Vermelho' ? 'red' : (led === 'Amarelo' ? 'yellow' : 'green');
+                badgeEl.className = `header-status-badge ${statusClass}`;
+                badgeEl.innerHTML = `<span class="status-dot ${dotClass}" title="LED: ${led}"></span><span>${statusText}</span>`;
+            }
+
+            const tempTextEl = document.getElementById(`temp-val-${dev.numero_serie}`);
+            if (tempTextEl) {
+                tempTextEl.innerText = tempDisplay;
+                tempTextEl.style.color = tempColor;
+            }
+
+            const umidTextEl = document.getElementById(`umid-val-${dev.numero_serie}`);
+            if (umidTextEl) {
+                umidTextEl.innerText = umidDisplay;
+                umidTextEl.style.color = umidColor;
+            }
+
+            const co2El = document.getElementById(`co2-val-${dev.numero_serie}`);
+            if (co2El) co2El.innerText = co2Text;
+
+            // Atualiza os manômetros de forma instantânea
+            initOrUpdateManometroGauge(`gauge-temp-${dev.numero_serie}`, tempVal, 0, 50, tempColor);
+            initOrUpdateManometroGauge(`gauge-umid-${dev.numero_serie}`, umidVal, 0, 100, umidColor);
+        });
+
+        // Atualiza pílula de contagem
+        const countPill = document.getElementById('devicesCountPill');
+        if (countPill) {
+            countPill.innerText = `${devices.length} dispositivo${devices.length !== 1 ? 's' : ''}`;
+        }
+        return;
+    }
+
+    // Caso seja primeiro carregamento ou lista alterada, monta o HTML
     Object.keys(activeManometros).forEach(key => {
         if (activeManometros[key]) {
             activeManometros[key].destroy();
             delete activeManometros[key];
         }
     });
-
-    if (devices.length === 0) {
-        container.innerHTML = `<div style="grid-column: 1/-1; padding: 20px; text-align: center; color: #888;">Nenhum dispositivo cadastrado no banco de dados.</div>`;
-        return;
-    }
 
     container.innerHTML = devices.map(dev => {
         const l = dev.ultima_leitura || {};
@@ -273,10 +354,10 @@ function renderSensorCards(devices) {
         const dotClass = led === 'Vermelho' ? 'red' : (led === 'Amarelo' ? 'yellow' : 'green');
 
         return `
-            <div class="sensor-card ${isAlert ? 'alert' : ''}" onclick="openDeviceDetailModal('${dev.numero_serie}')">
+            <div class="sensor-card ${isAlert ? 'alert' : ''}" id="sensor-card-${dev.numero_serie}" onclick="openDeviceDetailModal('${dev.numero_serie}')">
                 <div class="sensor-header">
                     <h4>Transmissor ${dev.numero_serie}</h4>
-                    <div class="header-status-badge ${statusClass}">
+                    <div class="header-status-badge ${statusClass}" id="status-badge-${dev.numero_serie}">
                         <span class="status-dot ${dotClass}" title="LED: ${led}"></span>
                         <span>${statusText}</span>
                     </div>
@@ -288,7 +369,7 @@ function renderSensorCards(devices) {
                         <div class="manometro-canvas-wrapper">
                             <canvas id="gauge-temp-${dev.numero_serie}"></canvas>
                             <div class="manometro-center-info">
-                                <span class="manometro-val" style="color: ${tempColor};">${tempDisplay}</span>
+                                <span class="manometro-val" id="temp-val-${dev.numero_serie}" style="color: ${tempColor};">${tempDisplay}</span>
                                 <span class="manometro-label">Temperatura</span>
                             </div>
                         </div>
@@ -304,7 +385,7 @@ function renderSensorCards(devices) {
                         <div class="manometro-canvas-wrapper">
                             <canvas id="gauge-umid-${dev.numero_serie}"></canvas>
                             <div class="manometro-center-info">
-                                <span class="manometro-val" style="color: ${umidColor};">${umidDisplay}</span>
+                                <span class="manometro-val" id="umid-val-${dev.numero_serie}" style="color: ${umidColor};">${umidDisplay}</span>
                                 <span class="manometro-label">Umidade</span>
                             </div>
                         </div>
@@ -319,7 +400,7 @@ function renderSensorCards(devices) {
                 <div class="sensor-card-footer">
                     <div class="sensor-extra-pill">
                         <span>CO2:</span>
-                        <strong>${co2Text}</strong>
+                        <strong id="co2-val-${dev.numero_serie}">${co2Text}</strong>
                     </div>
                     <div class="sensor-details-hint">
                         <span>Ver detalhes</span>
@@ -345,12 +426,12 @@ function renderSensorCards(devices) {
         const tempColor = getTemperatureGaugeColor(tempVal);
         const umidColor = getHumidityGaugeColor(umidVal);
 
-        initManometroGauge(`gauge-temp-${dev.numero_serie}`, tempVal, 0, 50, tempColor);
-        initManometroGauge(`gauge-umid-${dev.numero_serie}`, umidVal, 0, 100, umidColor);
+        initOrUpdateManometroGauge(`gauge-temp-${dev.numero_serie}`, tempVal, 0, 50, tempColor);
+        initOrUpdateManometroGauge(`gauge-umid-${dev.numero_serie}`, umidVal, 0, 100, umidColor);
     });
 
     // Atualiza estado e visibilidade das setas e indicadores do carrossel
-    setTimeout(updateCarouselState, 80);
+    setTimeout(updateCarouselState, 50);
 }
 
 function updateDashboardSummary(devices) {

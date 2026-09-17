@@ -43,7 +43,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
     // Conectar via Socket.IO para atualizações em tempo real
     if (typeof io !== 'undefined') {
-        const socket = io(API_BASE);
+        const socket = io(API_BASE, { auth: { token: localStorage.getItem('sensorium_token') } });
         socket.on('dashboard_update', (data) => {
             console.log('Recebido update via WebSocket:', data);
             setSensorLiveBadgeState(true);
@@ -434,7 +434,7 @@ async function openPrescribedRangesModal() {
     if (!modal || !tbody) return;
 
     try {
-        const res = await fetch(`${API_BASE}/api/limites`);
+        const res = await fetch(`${API_BASE}/api/limites`, { headers: getAuthHeaders() });
         if (!res.ok) throw new Error('Erro ao buscar limites');
         const limites = await res.json();
         
@@ -512,7 +512,7 @@ async function savePrescribedRanges() {
     try {
         const res = await fetch(`${API_BASE}/api/limites`, {
             method: 'PUT',
-            headers: { 'Content-Type': 'application/json' },
+            headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
             body: JSON.stringify(novosLimites)
         });
         

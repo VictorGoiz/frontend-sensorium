@@ -72,6 +72,7 @@ function initRealtimeConnection() {
         try {
             const socketUrl = window.API_BASE || (window.location.origin.includes(':') ? window.location.origin : 'http://localhost:3000');
             socketInstance = io(socketUrl, {
+                auth: { token: localStorage.getItem('sensorium_token') },
                 reconnection: true,
                 reconnectionAttempts: Infinity,
                 reconnectionDelay: 1000,

@@ -62,7 +62,7 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     if (typeof io !== 'undefined') {
-        const socket = io(API_BASE);
+        const socket = io(API_BASE, { auth: { token: localStorage.getItem('sensorium_token') } });
         socket.on('dashboard_update', (data) => {
             console.log('[LFG60] Recebido update via WebSocket:', data);
             triggerDashboardUpdate(data);
@@ -708,7 +708,7 @@ async function openPrescribedRangesModal() {
     if (!modal || !tbody) return;
 
     try {
-        const res = await fetch(`${API_BASE}/api/lfg60/limites`);
+        const res = await fetch(`${API_BASE}/api/lfg60/limites`, { headers: getAuthHeaders() });
         if (!res.ok) throw new Error('Erro ao buscar limites');
         const limites = await res.json();
         
@@ -786,7 +786,7 @@ async function savePrescribedRanges() {
     try {
         const res = await fetch(`${API_BASE}/api/lfg60/limites`, {
             method: 'PUT',
-            headers: { 'Content-Type': 'application/json' },
+            headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
             body: JSON.stringify(novosLimites)
         });
         

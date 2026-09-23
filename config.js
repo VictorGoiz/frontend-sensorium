@@ -14,4 +14,4 @@ const LOCAL_API_URL = 'http://localhost:3000';
 
 window.API_BASE = isLocalhost ? LOCAL_API_URL : EC2_API_URL;
 
-console.log('[Config] API_BASE configurado para:', window.API_BASE);
+

@@ -207,7 +207,7 @@ function handleLiveChopeiraReading(reading) {
     if (cardEl) {
         const pressureEl = cardEl.querySelector('.chopeira-pressure-val');
         if (pressureEl && sensor1 !== null && sensor1 !== undefined) {
-            pressureEl.innerText = `${Number(sensor1).toFixed(2)} bar`;
+            pressureEl.innerText = `${Number(sensor1).toFixed(2)} psi`;
         }
     }
 
@@ -416,8 +416,8 @@ function renderChopeirasGrid(devices) {
             const l = d.ultima_leitura || {};
             const press = l.sensor1 !== null && l.sensor1 !== undefined ? Number(l.sensor1).toFixed(2) : '--';
             const pressEl = card.querySelector('.chopeira-pressure-val');
-            if (pressEl && pressEl.innerText !== `${press} bar`) {
-                pressEl.innerText = `${press} bar`;
+            if (pressEl && pressEl.innerText !== `${press} psi`) {
+                pressEl.innerText = `${press} psi`;
             }
             const timeEl = card.querySelector('.chopeira-time-val');
             if (timeEl && l.timestamp) {
@@ -621,7 +621,7 @@ class FluidTelemetryEngine {
             
             // Marcador numérico do eixo Y
             ctx.fillStyle = '#64748b';
-            ctx.fillText(`${step} bar`, padLeft - 10, y);
+            ctx.fillText(`${step} psi`, padLeft - 10, y);
         });
         
         // 2. Linha Fixa de Setpoint ON (Verde Esmeralda)
@@ -839,7 +839,7 @@ class FluidTelemetryEngine {
                 ctx.strokeStyle = '#ffffff';
                 ctx.stroke();
                 
-                const ttText = `${Number(closest.val).toFixed(2)} bar`;
+                const ttText = `${Number(closest.val).toFixed(2)} psi`;
                 ctx.font = '600 11px Inter, sans-serif';
                 const textWidth = ctx.measureText(ttText).width;
                 const ttBoxW = textWidth + 18;
@@ -1159,13 +1159,13 @@ function renderTabelaRegistros(rows) {
 
     tableBody.innerHTML = rows.map(r => {
         const formattedDate = formatarDataHoraLeitura(r);
-        const pressaoVal = (r.sensor1 !== null && r.sensor1 !== undefined) ? `${Number(r.sensor1).toFixed(2)} bar` : '--';
-        const r1OnVal = (r.rele1_on !== null && r.rele1_on !== undefined) ? `${Number(r.rele1_on).toFixed(1)} bar` : '--';
-        const r1OffVal = (r.rele1_off !== null && r.rele1_off !== undefined) ? `${Number(r.rele1_off).toFixed(1)} bar` : '--';
+        const pressaoVal = (r.sensor1 !== null && r.sensor1 !== undefined) ? `${Number(r.sensor1).toFixed(2)} psi` : '--';
+        const r1OnVal = (r.rele1_on !== null && r.rele1_on !== undefined) ? `${Number(r.rele1_on).toFixed(1)} psi` : '--';
+        const r1OffVal = (r.rele1_off !== null && r.rele1_off !== undefined) ? `${Number(r.rele1_off).toFixed(1)} psi` : '--';
         const r1AcVal = r.rele1_acionamentos ?? '--';
 
-        const r2OnVal = (r.rele2_on !== null && r.rele2_on !== undefined) ? `${Number(r.rele2_on).toFixed(1)} bar` : '--';
-        const r2OffVal = (r.rele2_off !== null && r.rele2_off !== undefined) ? `${Number(r.rele2_off).toFixed(1)} bar` : '--';
+        const r2OnVal = (r.rele2_on !== null && r.rele2_on !== undefined) ? `${Number(r.rele2_on).toFixed(1)} psi` : '--';
+        const r2OffVal = (r.rele2_off !== null && r.rele2_off !== undefined) ? `${Number(r.rele2_off).toFixed(1)} psi` : '--';
         const r2AcVal = r.rele2_acionamentos ?? '--';
 
         const empresaNome = r.empresa_nome || 'Sensorium HQ';

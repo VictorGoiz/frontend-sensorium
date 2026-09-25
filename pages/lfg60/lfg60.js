@@ -127,6 +127,9 @@ async function fetchDevicesFromApi() {
             updateLfgDeviceSelect(currentDevices);
             renderSensorCards(currentDevices);
             updateDashboardSummary(currentDevices);
+            if (document.body.classList.contains('fullscreen-active')) {
+                updateFullscreenTelemetry();
+            }
 
             const hasData = currentDevices.length > 0 && currentDevices.some(d => d.ultima_leitura && (d.ultima_leitura.temperatura !== null || d.ultima_leitura.umidade !== null || d.ultima_leitura.co2 !== null));
             if (hasData) {
@@ -820,8 +823,15 @@ function toggleNavDropdown(btn) {
 }
 
 // ----------------------------------------------------
-// 6. CONTROLE DO MODO TELA CHEIA (FULLSCREEN KIOSK / TV)
+// 6. APRESENTAÇÃO UNITÁRIA EM TELA CHEIA (CARROSSEL KIOSK / TV)
 // ----------------------------------------------------
+let fullscreenActiveIndex = 0;
+let fsAutoplayInterval = null;
+const fsAutoplayDuration = 8000;
+let fsGaugeTempChart = null;
+let fsGaugeUmidChart = null;
+let fsKeyboardListenerAttached = false;
+
 function toggleFullscreen() {
     if (!document.fullscreenElement && !document.webkitFullscreenElement) {
         if (document.documentElement.requestFullscreen) {
@@ -854,7 +864,368 @@ function handleFullscreenChange() {
             iconEl.innerHTML = '<path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"/>';
         }
     }
-    setTimeout(updateCarouselState, 250);
+
+    if (isFull) {
+        setupFullscreenPresentation();
+    } else {
+        stopFullscreenAutoplay();
+        setTimeout(updateCarouselState, 250);
+    }
+}
+
+function setupFullscreenPresentation() {
+    if (!fsKeyboardListenerAttached) {
+        document.addEventListener('keydown', handleFullscreenKeydown);
+        fsKeyboardListenerAttached = true;
+    }
+
+    populateFsDeviceSelect();
+
+    // Sincroniza com dispositivo selecionado no header comum se aplicável
+    const standardSelect = document.getElementById('lfgDeviceSelect');
+    if (standardSelect && standardSelect.value !== 'all' && currentDevices && currentDevices.length > 0) {
+        const foundIdx = currentDevices.findIndex(d => d.numero_serie === standardSelect.value);
+        if (foundIdx >= 0) fullscreenActiveIndex = foundIdx;
+    }
+
+    renderFullscreenDevice(fullscreenActiveIndex);
+}
+
+function populateFsDeviceSelect() {
+    const select = document.getElementById('fsDeviceSelect');
+    if (!select) return;
+
+    if (!currentDevices || currentDevices.length === 0) {
+        select.innerHTML = '<option value="">Nenhum transmissor</option>';
+        return;
+    }
+
+    select.innerHTML = currentDevices.map((d, idx) => `
+        <option value="${d.numero_serie}">Transmissor ${d.numero_serie} (${idx + 1}/${currentDevices.length})</option>
+    `).join('');
+}
+
+function onFsDeviceSelectChange(selectedSerial) {
+    if (!selectedSerial || !currentDevices) return;
+    const idx = currentDevices.findIndex(d => d.numero_serie === selectedSerial);
+    if (idx >= 0) {
+        renderFullscreenDevice(idx);
+    }
+}
+
+function handleFullscreenKeydown(e) {
+    if (!document.body.classList.contains('fullscreen-active')) return;
+
+    if (e.key === 'ArrowLeft') {
+        e.preventDefault();
+        navigateFullscreenCarousel(-1);
+    } else if (e.key === 'ArrowRight') {
+        e.preventDefault();
+        navigateFullscreenCarousel(1);
+    } else if (e.key === ' ' || e.code === 'Space') {
+        e.preventDefault();
+        toggleFullscreenAutoplay();
+    }
+}
+
+function getParamEvaluation(param, val) {
+    if (val === null || val === undefined || isNaN(val)) {
+        return { text: 'N/A', cls: 'ideal' };
+    }
+    const v = Number(val);
+    switch (param) {
+        case 'temperatura':
+            if (v >= 18 && v <= 26) return { text: 'Ideal', cls: 'ideal' };
+            if ((v >= 15 && v < 18) || (v > 26 && v <= 30)) return { text: 'Aviso', cls: 'aviso' };
+            return { text: 'Crítico', cls: 'critico' };
+        case 'umidade':
+            if (v >= 30 && v <= 60) return { text: 'Ideal', cls: 'ideal' };
+            if ((v >= 20 && v < 30) || (v > 60 && v <= 75)) return { text: 'Aviso', cls: 'aviso' };
+            return { text: 'Crítico', cls: 'critico' };
+        case 'co2':
+            if (v <= 800) return { text: 'Normal', cls: 'ideal' };
+            if (v <= 1200) return { text: 'Aviso', cls: 'aviso' };
+            return { text: 'Crítico', cls: 'critico' };
+        case 'pm25':
+            if (v <= 15) return { text: 'Normal', cls: 'ideal' };
+            if (v <= 25) return { text: 'Aviso', cls: 'aviso' };
+            return { text: 'Crítico', cls: 'critico' };
+        case 'pm10':
+            if (v <= 30) return { text: 'Normal', cls: 'ideal' };
+            if (v <= 50) return { text: 'Aviso', cls: 'aviso' };
+            return { text: 'Crítico', cls: 'critico' };
+        case 'voc':
+            if (v <= 0.20) return { text: 'Normal', cls: 'ideal' };
+            if (v <= 0.50) return { text: 'Aviso', cls: 'aviso' };
+            return { text: 'Crítico', cls: 'critico' };
+        case 'formaldeido':
+            if (v <= 0.05) return { text: 'Normal', cls: 'ideal' };
+            if (v <= 0.10) return { text: 'Aviso', cls: 'aviso' };
+            return { text: 'Crítico', cls: 'critico' };
+        default:
+            return { text: 'Normal', cls: 'ideal' };
+    }
+}
+
+function updateFullscreenGaugeChart(chartInstance, canvasId, value, min, max, fillColor) {
+    const val = (value !== null && value !== undefined && !isNaN(value)) ? Number(value) : min;
+    const clamped = Math.max(min, Math.min(max, val));
+    const progress = clamped - min;
+    const remaining = max - clamped;
+
+    if (chartInstance) {
+        chartInstance.data.datasets[0].data = [progress, remaining];
+        chartInstance.data.datasets[0].backgroundColor = [fillColor, '#e2e8f0'];
+        chartInstance.update('none');
+        return chartInstance;
+    }
+
+    const canvas = document.getElementById(canvasId);
+    if (!canvas || typeof Chart === 'undefined') return null;
+
+    const ctx = canvas.getContext('2d');
+    return new Chart(ctx, {
+        type: 'doughnut',
+        data: {
+            datasets: [{
+                data: [progress, remaining],
+                backgroundColor: [fillColor, '#e2e8f0'],
+                borderWidth: 0,
+                circumference: 180,
+                rotation: 270,
+                borderRadius: [6, 6]
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            cutout: '74%',
+            animation: { duration: 150 },
+            plugins: {
+                tooltip: { enabled: false },
+                legend: { display: false }
+            }
+        }
+    });
+}
+
+function renderFullscreenDevice(index) {
+    if (!currentDevices || currentDevices.length === 0) return;
+
+    if (index < 0) index = currentDevices.length - 1;
+    if (index >= currentDevices.length) index = 0;
+    fullscreenActiveIndex = index;
+
+    const dev = currentDevices[index];
+    const l = dev.ultima_leitura || {};
+
+    // 1. Atualizar Header do Dispositivo
+    const titleEl = document.getElementById('fsDeviceTitle');
+    if (titleEl) titleEl.innerText = `Transmissor ${dev.numero_serie}`;
+
+    const statusPill = document.getElementById('fsStatusPill');
+    const statusText = document.getElementById('fsStatusText');
+    const st = dev.status || 'Operacional';
+    if (statusPill && statusText) {
+        const statusClass = st === 'Crítico' ? 'critico' : (st === 'Atenção' ? 'atencao' : 'operacional');
+        statusPill.className = `fs-status-pill ${statusClass}`;
+        statusText.innerText = st;
+    }
+
+    const ledDot = document.getElementById('fsLedDot');
+    const ledText = document.getElementById('fsLedText');
+    const led = dev.led || 'Verde';
+    if (ledDot && ledText) {
+        const dotClass = led === 'Vermelho' ? 'red' : (led === 'Amarelo' ? 'yellow' : 'green');
+        ledDot.className = `fs-led-dot ${dotClass}`;
+        ledText.innerText = `LED: ${led}`;
+    }
+
+    const lastTimeEl = document.getElementById('fsLastReadingTime');
+    if (lastTimeEl) {
+        const timeStr = l.timestamp ? new Date(l.timestamp).toLocaleString('pt-BR') : 'Aguardando primeira leitura';
+        lastTimeEl.innerText = `Última Leitura: ${timeStr}`;
+    }
+
+    // 2. Manômetros de Temperatura e Umidade
+    const tempVal = (l.temperatura !== null && l.temperatura !== undefined) ? Number(l.temperatura) : null;
+    const umidVal = (l.umidade !== null && l.umidade !== undefined) ? Number(l.umidade) : null;
+
+    const tempDisplay = tempVal !== null ? `${tempVal.toFixed(1)}` : '--';
+    const umidDisplay = umidVal !== null ? `${umidVal.toFixed(1)}` : '--';
+
+    const tempColor = getTemperatureGaugeColor(tempVal);
+    const umidColor = getHumidityGaugeColor(umidVal);
+
+    const tempEval = getParamEvaluation('temperatura', tempVal);
+    const umidEval = getParamEvaluation('umidade', umidVal);
+
+    const tempValEl = document.getElementById('fsTempVal');
+    if (tempValEl) {
+        tempValEl.innerText = tempDisplay;
+        tempValEl.style.color = tempColor;
+    }
+    const tempChipEl = document.getElementById('fsTempChip');
+    if (tempChipEl) {
+        tempChipEl.className = `fs-gauge-chip ${tempEval.cls}`;
+        tempChipEl.innerText = tempEval.text;
+    }
+
+    const umidValEl = document.getElementById('fsUmidVal');
+    if (umidValEl) {
+        umidValEl.innerText = umidDisplay;
+        umidValEl.style.color = umidColor;
+    }
+    const umidChipEl = document.getElementById('fsUmidChip');
+    if (umidChipEl) {
+        umidChipEl.className = `fs-gauge-chip ${umidEval.cls}`;
+        umidChipEl.innerText = umidEval.text;
+    }
+
+    // Atualiza gráficos Chart.js dos manômetros
+    fsGaugeTempChart = updateFullscreenGaugeChart(fsGaugeTempChart, 'fsGaugeTempCanvas', tempVal, 0, 50, tempColor);
+    fsGaugeUmidChart = updateFullscreenGaugeChart(fsGaugeUmidChart, 'fsGaugeUmidCanvas', umidVal, 0, 100, umidColor);
+
+    // 3. Demais Parâmetros do Modal
+    updateFsVarCard('co2', l.co2, val => val !== null && val !== undefined ? String(val) : '--', 'co2');
+    updateFsVarCard('pm25', l.pm25, val => val !== null && val !== undefined ? Number(val).toFixed(1) : '--', 'pm25');
+    updateFsVarCard('pm10', l.pm10, val => val !== null && val !== undefined ? Number(val).toFixed(1) : '--', 'pm10');
+    updateFsVarCard('voc', l.voc, val => val !== null && val !== undefined ? Number(val).toFixed(2) : '--', 'voc');
+    updateFsVarCard('formaldeido', l.formaldeido, val => val !== null && val !== undefined ? Number(val).toFixed(3) : '--', 'formaldeido');
+
+    // 4. Card de Diagnóstico Geral
+    const diagLed = document.getElementById('fsDiagLedVal');
+    if (diagLed) {
+        diagLed.innerText = led;
+        diagLed.style.color = led === 'Vermelho' ? '#ef4444' : (led === 'Amarelo' ? '#f59e0b' : '#10b981');
+    }
+
+    const diagEval = document.getElementById('fsDiagEvaluation');
+    const diagBadge = document.getElementById('fsStatus-diag');
+    let outCount = 0;
+    ['temperatura', 'umidade', 'co2', 'pm25', 'pm10', 'voc', 'formaldeido'].forEach(p => {
+        const ev = getParamEvaluation(p, l[p]);
+        if (ev.cls !== 'ideal') outCount++;
+    });
+
+    if (diagEval && diagBadge) {
+        if (outCount === 0) {
+            diagBadge.className = 'fs-param-status estavel';
+            diagBadge.innerText = 'Estável';
+            diagEval.innerText = 'Todos os 7 parâmetros em conformidade';
+            diagEval.style.color = '#059669';
+        } else {
+            diagBadge.className = 'fs-param-status aviso';
+            diagBadge.innerText = 'Atenção';
+            diagEval.innerText = `${outCount} parâmetro(s) fora da faixa ideal`;
+            diagEval.style.color = '#d97706';
+        }
+    }
+
+    // 5. Atualizar Indicadores (Dots) e Contador
+    renderFsDots();
+    const counterEl = document.getElementById('fsDeviceCounterText');
+    if (counterEl) {
+        counterEl.innerText = `Dispositivo ${fullscreenActiveIndex + 1} de ${currentDevices.length}`;
+    }
+
+    // 6. Sincronizar Select
+    const select = document.getElementById('fsDeviceSelect');
+    if (select && select.value !== dev.numero_serie) {
+        select.value = dev.numero_serie;
+    }
+}
+
+function updateFsVarCard(paramKey, rawVal, formatFn, evalKey) {
+    const valEl = document.getElementById(`fsVal-${paramKey}`);
+    const statusEl = document.getElementById(`fsStatus-${paramKey}`);
+    const cardEl = document.getElementById(`fsCard-${paramKey}`);
+
+    const displayVal = formatFn(rawVal);
+    const evaluation = getParamEvaluation(evalKey, rawVal);
+
+    if (valEl) valEl.innerText = displayVal;
+    if (statusEl) {
+        statusEl.className = `fs-param-status ${evaluation.cls}`;
+        statusEl.innerText = evaluation.text;
+    }
+    if (cardEl) {
+        if (evaluation.cls === 'critico') {
+            cardEl.style.borderColor = '#fecaca';
+        } else if (evaluation.cls === 'aviso') {
+            cardEl.style.borderColor = '#fde68a';
+        } else {
+            cardEl.style.borderColor = '#e2e8f0';
+        }
+    }
+}
+
+function renderFsDots() {
+    const dotsContainer = document.getElementById('fsCarouselDots');
+    if (!dotsContainer || !currentDevices) return;
+
+    dotsContainer.innerHTML = currentDevices.map((_, idx) => `
+        <div class="fs-dot ${idx === fullscreenActiveIndex ? 'active' : ''}" 
+             onclick="renderFullscreenDevice(${idx})" 
+             title="Ir para transmissor ${idx + 1}"></div>
+    `).join('');
+}
+
+function navigateFullscreenCarousel(direction) {
+    renderFullscreenDevice(fullscreenActiveIndex + direction);
+
+    // Se o carrossel automático estiver rodando, reinicia o timer
+    if (fsAutoplayInterval) {
+        clearInterval(fsAutoplayInterval);
+        fsAutoplayInterval = setInterval(() => {
+            navigateFullscreenCarousel(1);
+        }, fsAutoplayDuration);
+    }
+}
+
+function toggleFullscreenAutoplay() {
+    if (fsAutoplayInterval) {
+        stopFullscreenAutoplay();
+    } else {
+        startFullscreenAutoplay();
+    }
+}
+
+function startFullscreenAutoplay() {
+    if (fsAutoplayInterval) clearInterval(fsAutoplayInterval);
+    fsAutoplayInterval = setInterval(() => {
+        navigateFullscreenCarousel(1);
+    }, fsAutoplayDuration);
+
+    const btn = document.getElementById('fsAutoplayBtn');
+    const text = document.getElementById('fsAutoplayText');
+    const icon = document.getElementById('fsAutoplayIcon');
+    if (btn) btn.classList.add('active');
+    if (text) text.innerText = 'Pausar (8s)';
+    if (icon) {
+        icon.innerHTML = '<rect x="6" y="4" width="4" height="16"></rect><rect x="14" y="4" width="4" height="16"></rect>';
+    }
+}
+
+function stopFullscreenAutoplay() {
+    if (fsAutoplayInterval) {
+        clearInterval(fsAutoplayInterval);
+        fsAutoplayInterval = null;
+    }
+    const btn = document.getElementById('fsAutoplayBtn');
+    const text = document.getElementById('fsAutoplayText');
+    const icon = document.getElementById('fsAutoplayIcon');
+    if (btn) btn.classList.remove('active');
+    if (text) text.innerText = 'Auto (8s)';
+    if (icon) {
+        icon.innerHTML = '<polygon points="5 3 19 12 5 21 5 3"></polygon>';
+    }
+}
+
+function updateFullscreenTelemetry() {
+    if (!currentDevices || currentDevices.length === 0) return;
+    populateFsDeviceSelect();
+    renderFullscreenDevice(fullscreenActiveIndex);
 }
 
 // ----------------------------------------------------

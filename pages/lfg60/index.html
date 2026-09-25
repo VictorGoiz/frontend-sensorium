@@ -157,6 +157,261 @@
         </main>
     </div>
 
+    <!-- MODO APRESENTAÇÃO TELA CHEIA (UNITÁRIA COM CARROSSEL) -->
+    <div id="lfgFullscreenPresentation" class="lfg-fullscreen-presentation">
+        <!-- Barra Superior da Apresentação -->
+        <div class="fs-top-bar">
+            <div class="fs-device-meta">
+                <div class="fs-device-title-row">
+                    <span class="fs-brand-tag">LEFOO LFG60</span>
+                    <h2 id="fsDeviceTitle">Transmissor --</h2>
+                    <div class="fs-status-pill operacional" id="fsStatusPill">
+                        <span class="fs-status-dot" id="fsStatusDot"></span>
+                        <span id="fsStatusText">Operacional</span>
+                    </div>
+                    <div class="fs-led-indicator" id="fsLedIndicator">
+                        <span class="fs-led-dot green" id="fsLedDot"></span>
+                        <span id="fsLedText">LED: Verde</span>
+                    </div>
+                    <div class="fs-live-badge active" id="fsLiveBadge">
+                        <span class="live-dot"></span>
+                        <span>AO VIVO</span>
+                    </div>
+                </div>
+                <div class="fs-timestamp-row">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
+                    <span id="fsLastReadingTime">Última Leitura: --</span>
+                </div>
+            </div>
+
+            <div class="fs-top-actions">
+                <button class="fs-action-btn fs-autoplay-btn" id="fsAutoplayBtn" onclick="toggleFullscreenAutoplay()" title="Alternar Rotação Automática de Dispositivos (Espaço)">
+                    <svg id="fsAutoplayIcon" width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                        <polygon points="5 3 19 12 5 21 5 3"></polygon>
+                    </svg>
+                    <span id="fsAutoplayText">Auto (8s)</span>
+                </button>
+
+                <select id="fsDeviceSelect" class="fs-device-select" onchange="onFsDeviceSelectChange(this.value)" title="Ir diretamente para um transmissor">
+                    <!-- Preenchido dinamicamente -->
+                </select>
+
+                <button class="fs-action-btn fs-btn-exit" onclick="toggleFullscreen()" title="Sair do Modo Tela Cheia (Esc)">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
+                        <line x1="18" y1="6" x2="6" y2="18"></line>
+                        <line x1="6" y1="6" x2="18" y2="18"></line>
+                    </svg>
+                    <span>Sair</span>
+                </button>
+            </div>
+        </div>
+
+        <!-- Palco Central Unitário com Carrossel -->
+        <div class="fs-stage">
+            <!-- Seta de Navegação Esquerda -->
+            <button class="fs-nav-arrow prev" id="fsNavPrev" onclick="navigateFullscreenCarousel(-1)" title="Dispositivo anterior (Seta Esquerda)">
+                <svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                    <polyline points="15 18 9 12 15 6"></polyline>
+                </svg>
+            </button>
+
+            <!-- Card de Apresentação Unitária do Dispositivo -->
+            <div class="fs-card-stage" id="fsCardStage">
+                <!-- Coluna Esquerda: Manômetros Principais (Temperatura e Umidade Relativa) -->
+                <div class="fs-gauges-section">
+                    <!-- Manômetro de Temperatura -->
+                    <div class="fs-gauge-card" id="fsGaugeCardTemp">
+                        <div class="fs-gauge-header">
+                            <div>
+                                <span class="fs-gauge-title">Temperatura Ambiente</span>
+                                <span class="fs-gauge-range">Faixa Ideal: 18.0°C a 26.0°C</span>
+                            </div>
+                            <span class="fs-gauge-chip ideal" id="fsTempChip">Ideal</span>
+                        </div>
+                        <div class="fs-gauge-chart-container">
+                            <canvas id="fsGaugeTempCanvas"></canvas>
+                            <div class="fs-gauge-center">
+                                <span class="fs-gauge-number" id="fsTempVal">--</span>
+                                <span class="fs-gauge-unit">°C</span>
+                            </div>
+                        </div>
+                        <div class="fs-gauge-scale">
+                            <span>0°C</span>
+                            <span class="fs-gauge-scale-mid">Faixa Ideal: 18° a 26°C</span>
+                            <span>50°C</span>
+                        </div>
+                    </div>
+
+                    <!-- Manômetro de Umidade Relativa -->
+                    <div class="fs-gauge-card" id="fsGaugeCardUmid">
+                        <div class="fs-gauge-header">
+                            <div>
+                                <span class="fs-gauge-title">Umidade Relativa</span>
+                                <span class="fs-gauge-range">Faixa Ideal: 30.0% a 60.0%</span>
+                            </div>
+                            <span class="fs-gauge-chip ideal" id="fsUmidChip">Ideal</span>
+                        </div>
+                        <div class="fs-gauge-chart-container">
+                            <canvas id="fsGaugeUmidCanvas"></canvas>
+                            <div class="fs-gauge-center">
+                                <span class="fs-gauge-number" id="fsUmidVal">--</span>
+                                <span class="fs-gauge-unit">%</span>
+                            </div>
+                        </div>
+                        <div class="fs-gauge-scale">
+                            <span>0%</span>
+                            <span class="fs-gauge-scale-mid">Faixa Ideal: 30% a 60%</span>
+                            <span>100%</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Coluna Direita: Os outros 5 Parâmetros Ambientais do Modal + Diagnóstico -->
+                <div class="fs-params-section">
+                    <div class="fs-params-header">
+                        <h3>Parâmetros Ambientais de Precisão</h3>
+                        <span>Normas e Limites Regulamentares Prescritos</span>
+                    </div>
+
+                    <div class="fs-params-grid">
+                        <!-- CO2 -->
+                        <div class="fs-param-card" id="fsCard-co2">
+                            <div class="fs-param-top">
+                                <span class="fs-param-badge">CO₂</span>
+                                <span class="fs-param-status ideal" id="fsStatus-co2">Ideal</span>
+                            </div>
+                            <div class="fs-param-label">Dióxido de Carbono</div>
+                            <div class="fs-param-val-row">
+                                <span class="fs-param-val" id="fsVal-co2">--</span>
+                                <span class="fs-param-unit">ppm</span>
+                            </div>
+                            <div class="fs-param-footer">
+                                <span>Faixa Ideal: &le; 800 ppm</span>
+                            </div>
+                        </div>
+
+                        <!-- PM2.5 -->
+                        <div class="fs-param-card" id="fsCard-pm25">
+                            <div class="fs-param-top">
+                                <span class="fs-param-badge">PM2.5</span>
+                                <span class="fs-param-status ideal" id="fsStatus-pm25">Ideal</span>
+                            </div>
+                            <div class="fs-param-label">Material Particulado Fino</div>
+                            <div class="fs-param-val-row">
+                                <span class="fs-param-val" id="fsVal-pm25">--</span>
+                                <span class="fs-param-unit">µg/m³</span>
+                            </div>
+                            <div class="fs-param-footer">
+                                <span>Faixa Ideal: &le; 15.0 µg/m³</span>
+                            </div>
+                        </div>
+
+                        <!-- PM10 -->
+                        <div class="fs-param-card" id="fsCard-pm10">
+                            <div class="fs-param-top">
+                                <span class="fs-param-badge">PM10</span>
+                                <span class="fs-param-status ideal" id="fsStatus-pm10">Ideal</span>
+                            </div>
+                            <div class="fs-param-label">Partículas Inaláveis</div>
+                            <div class="fs-param-val-row">
+                                <span class="fs-param-val" id="fsVal-pm10">--</span>
+                                <span class="fs-param-unit">µg/m³</span>
+                            </div>
+                            <div class="fs-param-footer">
+                                <span>Faixa Ideal: &le; 30.0 µg/m³</span>
+                            </div>
+                        </div>
+
+                        <!-- VOC -->
+                        <div class="fs-param-card" id="fsCard-voc">
+                            <div class="fs-param-top">
+                                <span class="fs-param-badge">VOC</span>
+                                <span class="fs-param-status ideal" id="fsStatus-voc">Ideal</span>
+                            </div>
+                            <div class="fs-param-label">Compostos Orgânicos Voláteis</div>
+                            <div class="fs-param-val-row">
+                                <span class="fs-param-val" id="fsVal-voc">--</span>
+                                <span class="fs-param-unit">ppm</span>
+                            </div>
+                            <div class="fs-param-footer">
+                                <span>Faixa Ideal: &le; 0.20 ppm</span>
+                            </div>
+                        </div>
+
+                        <!-- Formaldeído -->
+                        <div class="fs-param-card" id="fsCard-formaldeido">
+                            <div class="fs-param-top">
+                                <span class="fs-param-badge">HCHO</span>
+                                <span class="fs-param-status ideal" id="fsStatus-formaldeido">Ideal</span>
+                            </div>
+                            <div class="fs-param-label">Formaldeído</div>
+                            <div class="fs-param-val-row">
+                                <span class="fs-param-val" id="fsVal-formaldeido">--</span>
+                                <span class="fs-param-unit">mg/m³</span>
+                            </div>
+                            <div class="fs-param-footer">
+                                <span>Faixa Ideal: &le; 0.05 mg/m³</span>
+                            </div>
+                        </div>
+
+                        <!-- Diagnóstico Geral -->
+                        <div class="fs-param-card diag" id="fsCard-diag">
+                            <div class="fs-param-top">
+                                <span class="fs-param-badge diag">DIAG</span>
+                                <span class="fs-param-status estavel" id="fsStatus-diag">Estável</span>
+                            </div>
+                            <div class="fs-param-label">Diagnóstico do Transmissor</div>
+                            <div class="fs-diag-content">
+                                <div class="fs-diag-line">
+                                    <span>LED Frontal:</span>
+                                    <strong id="fsDiagLedVal">Verde</strong>
+                                </div>
+                                <div class="fs-diag-line">
+                                    <span>Transmissão:</span>
+                                    <strong id="fsDiagMqttVal" style="color: #10b981;">Online (MQTT)</strong>
+                                </div>
+                            </div>
+                            <div class="fs-param-footer">
+                                <span id="fsDiagEvaluation">Operação padrão</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Seta de Navegação Direita -->
+            <button class="fs-nav-arrow next" id="fsNavNext" onclick="navigateFullscreenCarousel(1)" title="Próximo dispositivo (Seta Direita)">
+                <svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                    <polyline points="9 18 15 12 9 6"></polyline>
+                </svg>
+            </button>
+        </div>
+
+        <!-- Barra Inferior do Carrossel -->
+        <div class="fs-bottom-bar">
+            <div class="fs-carousel-nav-group">
+                <button class="fs-btn-nav-small" onclick="navigateFullscreenCarousel(-1)" title="Anterior">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="15 18 9 12 15 6"></polyline></svg>
+                    <span>Anterior</span>
+                </button>
+
+                <div class="fs-dots-container" id="fsCarouselDots">
+                    <!-- Dots dinâmicos dos dispositivos -->
+                </div>
+
+                <button class="fs-btn-nav-small" onclick="navigateFullscreenCarousel(1)" title="Próximo">
+                    <span>Próximo</span>
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="9 18 15 12 9 6"></polyline></svg>
+                </button>
+            </div>
+
+            <div class="fs-counter-info">
+                <span class="fs-counter-badge" id="fsDeviceCounterText">Dispositivo 1 de 1</span>
+                <span class="fs-keyboard-hint">Navegue com as setas <strong>&larr;</strong> <strong>&rarr;</strong> &bull; <strong>Espaço</strong> para pausar/girar &bull; <strong>Esc</strong> para sair</span>
+            </div>
+        </div>
+    </div>
+
     <!-- Modal for Detailed Sensor Info -->
     <div class="modal-overlay" id="sensorModal">
         <div class="modal-content sensor-detail-modal">

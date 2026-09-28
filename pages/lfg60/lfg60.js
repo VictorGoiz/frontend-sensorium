@@ -217,9 +217,11 @@ async function fetchDevicesFromApi() {
                 currentDevices = JSON.parse(JSON.stringify(SIMULATED_LFG60_DEVICES));
             }
         } else {
+            // Preserva estado ativo da simulação para não reiniciar dados quando chegam leituras reais via WebSocket/MQTT
             SIMULATED_LFG60_DEVICES.forEach(sim => {
+                const existing = currentDevices.find(d => d.numero_serie === sim.numero_serie);
                 if (!loadedData.some(d => d.numero_serie === sim.numero_serie)) {
-                    loadedData.push(JSON.parse(JSON.stringify(sim)));
+                    loadedData.push(existing || JSON.parse(JSON.stringify(sim)));
                 }
             });
             currentDevices = loadedData;
@@ -248,6 +250,61 @@ async function fetchDevicesFromApi() {
             setSensorLiveBadgeState(true);
         }
     }
+}
+
+/**
+ * Atualização direta in-place do card do dispositivo simulado (fluidez total a 60 FPS)
+ */
+function updateSingleSensorCardInPlace(dev) {
+    if (!dev || !dev.numero_serie) return;
+    const l = dev.ultima_leitura || {};
+    const led = dev.led || 'Green';
+    const statusRaw = dev.status || 'Operational';
+    const isAlert = led === 'Amarelo' || led === 'Vermelho' || led === 'Yellow' || led === 'Red' || (statusRaw !== 'Operacional' && statusRaw !== 'Operational');
+
+    const tempVal = l.temperatura !== null && l.temperatura !== undefined ? Number(l.temperatura) : null;
+    const umidVal = l.umidade !== null && l.umidade !== undefined ? Number(l.umidade) : null;
+    const co2Text = l.co2 !== null && l.co2 !== undefined ? `${l.co2} ppm` : '--';
+
+    const tempDisplay = tempVal !== null ? `${tempVal.toFixed(1)}°C` : '--';
+    const umidDisplay = umidVal !== null ? `${umidVal.toFixed(1)}%` : '--';
+
+    const tempColor = getTemperatureGaugeColor(tempVal);
+    const umidColor = getHumidityGaugeColor(umidVal);
+
+    const cardEl = document.getElementById(`sensor-card-${dev.numero_serie}`);
+    if (cardEl) {
+        cardEl.className = `sensor-card ${isAlert ? 'alert' : ''}`;
+    }
+
+    const badgeEl = document.getElementById(`status-badge-${dev.numero_serie}`);
+    if (badgeEl) {
+        const isCrit = statusRaw === 'Crítico' || statusRaw === 'Critical';
+        const isWarn = statusRaw === 'Atenção' || statusRaw === 'Warning';
+        const statusClass = isCrit ? 'critico' : (isWarn ? 'atencao' : 'operacional');
+        const dotClass = (led === 'Vermelho' || led === 'Red') ? 'red' : ((led === 'Amarelo' || led === 'Yellow') ? 'yellow' : 'green');
+        const translatedSt = translateStatus(statusRaw);
+        badgeEl.className = `header-status-badge ${statusClass}`;
+        badgeEl.innerHTML = `<span class="status-dot ${dotClass}" title="LED: ${translateLed(led)}"></span><span>${translatedSt}</span>`;
+    }
+
+    const tempTextEl = document.getElementById(`temp-val-${dev.numero_serie}`);
+    if (tempTextEl) {
+        tempTextEl.innerText = tempDisplay;
+        tempTextEl.style.color = tempColor;
+    }
+
+    const umidTextEl = document.getElementById(`umid-val-${dev.numero_serie}`);
+    if (umidTextEl) {
+        umidTextEl.innerText = umidDisplay;
+        umidTextEl.style.color = umidColor;
+    }
+
+    const co2El = document.getElementById(`co2-val-${dev.numero_serie}`);
+    if (co2El) co2El.innerText = co2Text;
+
+    initOrUpdateManometroGauge(`gauge-temp-${dev.numero_serie}`, tempVal, 0, 50, tempColor);
+    initOrUpdateManometroGauge(`gauge-umid-${dev.numero_serie}`, umidVal, 0, 100, umidColor);
 }
 
 /**
@@ -284,10 +341,8 @@ function simulateLiveLfg60Step() {
             l.formaldeido = 0.02;
             l.timestamp = new Date().toISOString();
 
-            // Atualiza temperatura
+            // Atualiza temperatura e inverte direção nos limites 23.0 e 35.0
             dev._simTemp += dev._simInc;
-
-            // Inverte direção ao chegar nos limites
             if (dev._simTemp >= 35.0) {
                 dev._simTemp = 35.0;
                 dev._simInc = -0.5;
@@ -310,25 +365,29 @@ function simulateLiveLfg60Step() {
                 dev.led = 'Green';
                 dev.status = 'Operational';
             }
+
+            // Atualização in-place de alta performance no card
+            updateSingleSensorCardInPlace(dev);
+
+            // Se o modal de detalhes estiver aberto neste dispositivo, atualiza os dados
+            const modal = document.getElementById('sensorModal');
+            if (modal && modal.classList.contains('active')) {
+                const title = document.getElementById('modalSensorTitle')?.innerText || '';
+                if (title.includes(dev.numero_serie)) {
+                    updateOpenModalSimulatedValues(dev);
+                }
+            }
         }
     });
 
     if (hasSimulated) {
         setSensorLiveBadgeState(true);
-        renderSensorCards(currentDevices);
         updateDashboardSummary(currentDevices);
 
         if (document.body.classList.contains('fullscreen-active')) {
-            renderFullscreenDevice(fullscreenActiveIndex);
-        }
-
-        // Atualiza modal se estiver aberto no dispositivo simulado
-        const modal = document.getElementById('sensorModal');
-        if (modal && modal.classList.contains('active')) {
-            const title = document.getElementById('modalSensorTitle')?.innerText || '';
-            const openDev = currentDevices.find(d => title.includes(d.numero_serie));
-            if (openDev && (openDev.isSimulated || (openDev.numero_serie && openDev.numero_serie.startsWith('LFG60-SIM')))) {
-                updateOpenModalSimulatedValues(openDev);
+            const activeDev = currentDevices[fullscreenActiveIndex];
+            if (activeDev && (activeDev.isSimulated || (activeDev.numero_serie && activeDev.numero_serie.startsWith('LFG60-SIM')))) {
+                renderFullscreenDevice(fullscreenActiveIndex);
             }
         }
     }

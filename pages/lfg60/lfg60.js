@@ -246,20 +246,16 @@ async function fetchDevicesFromApi() {
     }
 }
 
-function getRandomInRange(min, max, decimals = 1) {
-    const factor = Math.pow(10, decimals);
-    return Math.round((min + Math.random() * (max - min)) * factor) / factor;
-}
-
 /**
- * Simulação dos valores de telemetria dos dispositivos de exemplo a cada 3 segundos
+ * Simulação sequencial dos valores de telemetria:
+ * Varia a temperatura de 18°C a 36°C pulando de 1 em 1 a cada 3s, invertendo o sentido nos limites.
  */
 function simulateLiveLfg60Step() {
     if (!currentDevices || currentDevices.length === 0) return;
 
     let hasSimulated = false;
 
-    currentDevices.forEach((dev) => {
+    currentDevices.forEach((dev, idx) => {
         // Apenas alterar dispositivos explicitamente simulados, nunca sobrescrever dispositivos reais de produção
         if (dev && (dev.isSimulated === true || (dev.numero_serie && dev.numero_serie.startsWith('LFG60-SIM')))) {
             hasSimulated = true;
@@ -267,16 +263,32 @@ function simulateLiveLfg60Step() {
                 dev.ultima_leitura = {};
             }
 
-            const l = dev.ultima_leitura;
+            // Inicializa estado sequencial (SIM-01 inicia em 18°C subindo; SIM-02 inicia em 24°C subindo)
+            if (typeof dev._simTemp === 'undefined') {
+                dev._simTemp = idx === 0 ? 18 : 24;
+                dev._simDir = 1;
+            } else {
+                dev._simTemp += dev._simDir * 1;
+                if (dev._simTemp >= 36) {
+                    dev._simTemp = 36;
+                    dev._simDir = -1;
+                } else if (dev._simTemp <= 18) {
+                    dev._simTemp = 18;
+                    dev._simDir = 1;
+                }
+            }
 
-            // Temperatura aleatória de 18°C a 36°C a cada 3 segundos
-            l.temperatura = getRandomInRange(18.0, 36.0, 1);
-            l.umidade = getRandomInRange(35.0, 65.0, 1);
-            l.co2 = getRandomInRange(450, 950, 0);
-            l.pm25 = getRandomInRange(5.0, 20.0, 1);
-            l.pm10 = getRandomInRange(10.0, 35.0, 1);
-            l.voc = getRandomInRange(0.04, 0.18, 2);
-            l.formaldeido = getRandomInRange(0.010, 0.035, 3);
+            const l = dev.ultima_leitura;
+            l.temperatura = dev._simTemp;
+
+            // Parâmetros coerentes com a evolução da temperatura
+            const tempOffset = (dev._simTemp - 18) / 18; // 0.0 a 1.0
+            l.umidade = Number((58.0 - tempOffset * 18.0 + (idx === 1 ? 2.5 : 0)).toFixed(1));
+            l.co2 = Math.round(480 + tempOffset * 420 + (idx === 1 ? 80 : 0));
+            l.pm25 = Number((7.0 + tempOffset * 8.5).toFixed(1));
+            l.pm10 = Number((14.0 + tempOffset * 16.0).toFixed(1));
+            l.voc = Number((0.06 + tempOffset * 0.12).toFixed(2));
+            l.formaldeido = Number((0.012 + tempOffset * 0.025).toFixed(3));
             l.timestamp = new Date().toISOString();
 
             // Status e LED reativos

@@ -3,6 +3,49 @@ let currentDevices = [];
 let currentAlerts = [];
 let activeAlertFilter = 'todos';
 let sensorBadgeWatchdog = null;
+let simulationStepCount = 0;
+
+// ----------------------------------------------------
+// DISPOSITIVOS SIMULADOS DE EXEMPLO (DEMONSTRAÇÃO FRONTEND)
+// ----------------------------------------------------
+const SIMULATED_LFG60_DEVICES = [
+    {
+        numero_serie: 'LFG60-SIM-01',
+        nome: 'Meeting Room - Floor 2',
+        cliente: 'LEFOO Innovation Lab',
+        status: 'Operational',
+        led: 'Green',
+        isSimulated: true,
+        ultima_leitura: {
+            temperatura: 22.4,
+            umidade: 48.5,
+            co2: 520,
+            pm25: 8.2,
+            pm10: 16.5,
+            voc: 0.08,
+            formaldeido: 0.015,
+            timestamp: new Date().toISOString()
+        }
+    },
+    {
+        numero_serie: 'LFG60-SIM-02',
+        nome: 'Cleanroom Lab - Zone B',
+        cliente: 'LEFOO Innovation Lab',
+        status: 'Operational',
+        led: 'Green',
+        isSimulated: true,
+        ultima_leitura: {
+            temperatura: 23.8,
+            umidade: 52.0,
+            co2: 640,
+            pm25: 10.4,
+            pm10: 21.2,
+            voc: 0.11,
+            formaldeido: 0.022,
+            timestamp: new Date().toISOString()
+        }
+    }
+];
 
 /**
  * Translations helpers
@@ -73,8 +116,11 @@ document.addEventListener('DOMContentLoaded', function() {
         } catch (e) {}
     }
 
-    // 1. Load Sensors and Alerts from API
+    // 1. Load Sensors and Alerts from API / Mock
     loadDashboardData();
+
+    // Variação contínua e rápida dos dispositivos simulados (a cada 350ms)
+    setInterval(simulateLiveLfg60Step, 350);
 
     // Connect via Socket.IO for real-time updates with debounce
     let updateDebounceTimer = null;
@@ -145,34 +191,181 @@ function getAuthHeaders() {
 }
 
 // ----------------------------------------------------
-// 1. DEVICES AND READINGS FROM API
+// 1. DEVICES AND READINGS FROM API / SIMULATION
 // ----------------------------------------------------
 async function fetchDevicesFromApi() {
     try {
-        const res = await fetch(`${API_BASE}/api/lfg60`, {
-            headers: getAuthHeaders()
-        });
-        if (!res.ok) throw new Error('Failed to connect to LFG60 API.');
-        const result = await res.json();
-
-        if (result.success && Array.isArray(result.data)) {
-            currentDevices = result.data;
-            updateLfgDeviceSelect(currentDevices);
-            renderSensorCards(currentDevices);
-            updateDashboardSummary(currentDevices);
-            if (document.body.classList.contains('fullscreen-active')) {
-                updateFullscreenTelemetry();
+        let loadedData = null;
+        try {
+            const res = await fetch(`${API_BASE}/api/lfg60`, {
+                headers: getAuthHeaders()
+            });
+            if (res.ok) {
+                const result = await res.json();
+                if (result.success && Array.isArray(result.data) && result.data.length > 0) {
+                    loadedData = result.data;
+                }
             }
+        } catch (apiErr) {}
 
-            const hasData = currentDevices.length > 0 && currentDevices.some(d => d.ultima_leitura && (d.ultima_leitura.temperatura !== null || d.ultima_leitura.umidade !== null || d.ultima_leitura.co2 !== null));
-            if (hasData) {
-                setSensorLiveBadgeState(true);
-            } else if (currentDevices.length === 0) {
-                setSensorLiveBadgeState(false);
+        if (!loadedData || loadedData.length === 0) {
+            if (currentDevices.length === 0) {
+                currentDevices = JSON.parse(JSON.stringify(SIMULATED_LFG60_DEVICES));
             }
+        } else {
+            SIMULATED_LFG60_DEVICES.forEach(sim => {
+                if (!loadedData.some(d => d.numero_serie === sim.numero_serie)) {
+                    loadedData.push(JSON.parse(JSON.stringify(sim)));
+                }
+            });
+            currentDevices = loadedData;
+        }
+
+        updateLfgDeviceSelect(currentDevices);
+        renderSensorCards(currentDevices);
+        updateDashboardSummary(currentDevices);
+        if (document.body.classList.contains('fullscreen-active')) {
+            updateFullscreenTelemetry();
+        }
+
+        const hasData = currentDevices.length > 0 && currentDevices.some(d => d.ultima_leitura && (d.ultima_leitura.temperatura !== null || d.ultima_leitura.umidade !== null || d.ultima_leitura.co2 !== null));
+        if (hasData) {
+            setSensorLiveBadgeState(true);
+        } else if (currentDevices.length === 0) {
+            setSensorLiveBadgeState(false);
         }
     } catch (err) {
         console.warn('[LFG60] Error loading sensors:', err.message);
+        if (currentDevices.length === 0) {
+            currentDevices = JSON.parse(JSON.stringify(SIMULATED_LFG60_DEVICES));
+            updateLfgDeviceSelect(currentDevices);
+            renderSensorCards(currentDevices);
+            updateDashboardSummary(currentDevices);
+            setSensorLiveBadgeState(true);
+        }
+    }
+}
+
+/**
+ * Simulação contínua e suave dos valores de telemetria dos dispositivos de exemplo
+ */
+function simulateLiveLfg60Step() {
+    if (!currentDevices || currentDevices.length === 0) return;
+    simulationStepCount++;
+
+    let hasSimulated = false;
+
+    currentDevices.forEach((dev, idx) => {
+        if (dev.isSimulated || dev.numero_serie.startsWith('LFG60-SIM') || currentDevices.length <= 2) {
+            hasSimulated = true;
+            if (!dev.ultima_leitura) {
+                dev.ultima_leitura = {
+                    temperatura: 22.0,
+                    umidade: 45.0,
+                    co2: 500,
+                    pm25: 8.0,
+                    pm10: 16.0,
+                    voc: 0.08,
+                    formaldeido: 0.015,
+                    timestamp: new Date().toISOString()
+                };
+            }
+
+            const l = dev.ultima_leitura;
+            const seed = simulationStepCount * 0.18 + (idx * 3.14);
+
+            // Variação rápida e contínua dos dados: temperatura oscilando dinamicamente entre 18°C e 36°C
+            const tempVal = 27.0 + Math.sin(seed * 0.85) * 9.0 + (Math.random() - 0.5) * 0.2;
+            l.temperatura = Number(Math.min(36.0, Math.max(18.0, tempVal)).toFixed(1));
+
+            const baseUmid = idx === 0 ? 48.0 : 51.5;
+            l.umidade = Number((baseUmid + Math.cos(seed * 0.6) * 6.5 + (Math.random() - 0.5) * 0.4).toFixed(1));
+
+            const baseCo2 = idx === 0 ? 530 : 650;
+            l.co2 = Math.round(baseCo2 + Math.sin(seed * 0.5) * 110 + (Math.random() - 0.5) * 12);
+
+            const basePm25 = idx === 0 ? 8.2 : 10.8;
+            l.pm25 = Number((basePm25 + Math.sin(seed * 0.7) * 3.2 + (Math.random() - 0.5) * 0.3).toFixed(1));
+
+            const basePm10 = idx === 0 ? 16.5 : 21.0;
+            l.pm10 = Number((basePm10 + Math.cos(seed * 0.7) * 4.8 + (Math.random() - 0.5) * 0.5).toFixed(1));
+
+            const baseVoc = idx === 0 ? 0.08 : 0.11;
+            l.voc = Number((baseVoc + Math.sin(seed * 0.4) * 0.04 + (Math.random() - 0.5) * 0.005).toFixed(2));
+
+            const baseHcho = idx === 0 ? 0.015 : 0.022;
+            l.formaldeido = Number((baseHcho + Math.cos(seed * 0.4) * 0.008 + (Math.random() - 0.5) * 0.001).toFixed(3));
+
+            l.timestamp = new Date().toISOString();
+
+            // Status e LED reativos
+            const isCrit = l.temperatura < 15 || l.temperatura > 30 || l.umidade < 20 || l.umidade > 75 || l.co2 > 1200;
+            const isWarn = l.temperatura < 18 || l.temperatura > 26 || l.umidade < 30 || l.umidade > 60 || l.co2 > 800;
+
+            if (isCrit) {
+                dev.led = 'Red';
+                dev.status = 'Critical';
+            } else if (isWarn) {
+                dev.led = 'Yellow';
+                dev.status = 'Warning';
+            } else {
+                dev.led = 'Green';
+                dev.status = 'Operational';
+            }
+        }
+    });
+
+    if (hasSimulated) {
+        setSensorLiveBadgeState(true);
+        renderSensorCards(currentDevices);
+        updateDashboardSummary(currentDevices);
+
+        if (document.body.classList.contains('fullscreen-active')) {
+            renderFullscreenDevice(fullscreenActiveIndex);
+        }
+
+        // Atualiza modal se estiver aberto no dispositivo simulado
+        const modal = document.getElementById('sensorModal');
+        if (modal && modal.classList.contains('active')) {
+            const title = document.getElementById('modalSensorTitle')?.innerText || '';
+            const openDev = currentDevices.find(d => title.includes(d.numero_serie));
+            if (openDev && (openDev.isSimulated || openDev.numero_serie.startsWith('LFG60-SIM'))) {
+                updateOpenModalSimulatedValues(openDev);
+            }
+        }
+    }
+}
+
+function updateOpenModalSimulatedValues(dev) {
+    const l = dev.ultima_leitura || {};
+    const timestampStr = l.timestamp ? new Date(l.timestamp).toLocaleString('en-US') : 'No reading records';
+    const timeEl = document.getElementById('modalLastTimestamp');
+    if (timeEl) timeEl.innerText = `Last Reading: ${timestampStr}`;
+
+    const led = dev.led || 'Green';
+    const dot = document.getElementById('modalLedDot');
+    const ledText = document.getElementById('modalLedText');
+    const devStatus = document.getElementById('modalDeviceStatus');
+
+    if (dot) {
+        const isRed = led === 'Vermelho' || led === 'Red';
+        const isYellow = led === 'Amarelo' || led === 'Yellow';
+        dot.style.background = isRed ? '#dc2626' : (isYellow ? '#f59e0b' : '#10b981');
+    }
+    if (ledText) ledText.innerText = `Indicator LED: ${translateLed(led)}`;
+    if (devStatus) devStatus.innerText = `Overall Status: ${translateStatus(dev.status)}`;
+
+    const grid = document.getElementById('modalParamsGrid');
+    if (grid) {
+        grid.innerHTML = `
+            ${renderParamCard('Temperature', l.temperatura, '°C', '18.0 - 26.0 °C', l.temperatura < 18 || l.temperatura > 26)}
+            ${renderParamCard('Relative Humidity', l.umidade, '%', '30.0 - 60.0 %', l.umidade < 30 || l.umidade > 60)}
+            ${renderParamCard('CO2', l.co2, 'ppm', '≤ 800 ppm', l.co2 > 800)}
+            ${renderParamCard('PM2.5', l.pm25, 'µg/m³', '≤ 15 µg/m³', l.pm25 > 15)}
+            ${renderParamCard('PM10', l.pm10, 'µg/m³', '≤ 30 µg/m³', l.pm10 > 30)}
+            ${renderParamCard('VOC', l.voc, 'ppm', '≤ 0.20 ppm', l.voc > 0.20)}
+            ${renderParamCard('Formaldehyde', l.formaldeido, 'mg/m³', '≤ 0.05 mg/m³', l.formaldeido > 0.05)}
+        `;
     }
 }
 
@@ -680,6 +873,45 @@ function openDeviceDetailModal(numeroSerie) {
 async function fetchDeviceHistory(numeroSerie) {
     const historyContainer = document.getElementById('modalHistoryContainer');
     if (!historyContainer) return;
+
+    if (numeroSerie.startsWith('LFG60-SIM')) {
+        const mockHistory = [];
+        const now = Date.now();
+        for (let i = 0; i < 15; i++) {
+            const t = new Date(now - i * 60000);
+            const temp = Number((27.0 + Math.sin(i * 0.6) * 8.5).toFixed(1));
+            const umid = Number((48.5 + Math.cos(i * 0.4) * 6.5).toFixed(1));
+            const co2 = Math.round(580 + Math.sin(i * 0.5) * 120);
+            const isWarn = temp < 18 || temp > 26 || umid < 30 || umid > 60 || co2 > 800;
+            const isCrit = temp < 15 || temp > 30 || umid < 20 || umid > 75 || co2 > 1200;
+            const itemLed = isCrit ? 'Red' : (isWarn ? 'Yellow' : 'Green');
+            mockHistory.push({
+                timestamp_leitura: t.toISOString(),
+                led: itemLed,
+                temperatura: temp,
+                umidade: umid,
+                co2: co2
+            });
+        }
+        historyContainer.innerHTML = mockHistory.map(item => {
+            const time = new Date(item.timestamp_leitura).toLocaleString('en-US');
+            const ledColor = item.led === 'Red' ? '#ef4444' : (item.led === 'Yellow' ? '#f59e0b' : '#10b981');
+            return `
+                <div style="padding: 6px 0; border-bottom: 1px dashed #334155; display: flex; justify-content: space-between; align-items: center; gap: 10px;">
+                    <div>
+                        <span style="color: ${ledColor}; font-weight: bold;">● [${item.led}]</span> 
+                        <span style="color: #94a3b8;">${time}</span>
+                    </div>
+                    <div style="text-align: right; color: #e2e8f0;">
+                        Temp: <strong>${item.temperatura}°C</strong> | 
+                        Humidity: <strong>${item.umidade}%</strong> | 
+                        CO2: <strong>${item.co2} ppm</strong>
+                    </div>
+                </div>
+            `;
+        }).join('');
+        return;
+    }
 
     historyContainer.innerHTML = `<div style="color: #94a3b8;">Loading history from database...</div>`;
 

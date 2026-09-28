@@ -119,8 +119,8 @@ document.addEventListener('DOMContentLoaded', function() {
     // 1. Load Sensors and Alerts from API / Mock
     loadDashboardData();
 
-    // Variação contínua e rápida dos dispositivos simulados (a cada 350ms)
-    setInterval(simulateLiveLfg60Step, 350);
+    // Variação contínua dos dispositivos simulados a cada 1 segundo
+    setInterval(simulateLiveLfg60Step, 1000);
 
     // Connect via Socket.IO for real-time updates with debounce
     let updateDebounceTimer = null;
@@ -256,13 +256,14 @@ function simulateLiveLfg60Step() {
     let hasSimulated = false;
 
     currentDevices.forEach((dev, idx) => {
-        if (dev.isSimulated || dev.numero_serie.startsWith('LFG60-SIM') || currentDevices.length <= 2) {
+        // Apenas alterar dispositivos explicitamente simulados, nunca sobrescrever dispositivos reais de produção
+        if (dev.isSimulated === true || (dev.numero_serie && dev.numero_serie.startsWith('LFG60-SIM'))) {
             hasSimulated = true;
             if (!dev.ultima_leitura) {
                 dev.ultima_leitura = {
-                    temperatura: 22.0,
-                    umidade: 45.0,
-                    co2: 500,
+                    temperatura: 24.0,
+                    umidade: 48.0,
+                    co2: 550,
                     pm25: 8.0,
                     pm10: 16.0,
                     voc: 0.08,
@@ -272,29 +273,29 @@ function simulateLiveLfg60Step() {
             }
 
             const l = dev.ultima_leitura;
-            const seed = simulationStepCount * 0.18 + (idx * 3.14);
+            const seed = simulationStepCount * 0.45 + (idx * 2.2);
 
-            // Variação rápida e contínua dos dados: temperatura oscilando dinamicamente entre 18°C e 36°C
-            const tempVal = 27.0 + Math.sin(seed * 0.85) * 9.0 + (Math.random() - 0.5) * 0.2;
+            // Variação rápida a cada 1s: temperatura transita de forma dinâmica e perceptível entre 18.0°C e 36.0°C
+            const tempVal = 27.0 + Math.sin(seed) * 8.9 + (Math.random() - 0.5) * 0.3;
             l.temperatura = Number(Math.min(36.0, Math.max(18.0, tempVal)).toFixed(1));
 
             const baseUmid = idx === 0 ? 48.0 : 51.5;
-            l.umidade = Number((baseUmid + Math.cos(seed * 0.6) * 6.5 + (Math.random() - 0.5) * 0.4).toFixed(1));
+            l.umidade = Number((baseUmid + Math.cos(seed * 0.8) * 8.0 + (Math.random() - 0.5) * 0.5).toFixed(1));
 
             const baseCo2 = idx === 0 ? 530 : 650;
-            l.co2 = Math.round(baseCo2 + Math.sin(seed * 0.5) * 110 + (Math.random() - 0.5) * 12);
+            l.co2 = Math.round(baseCo2 + Math.sin(seed * 0.7) * 140 + (Math.random() - 0.5) * 10);
 
             const basePm25 = idx === 0 ? 8.2 : 10.8;
-            l.pm25 = Number((basePm25 + Math.sin(seed * 0.7) * 3.2 + (Math.random() - 0.5) * 0.3).toFixed(1));
+            l.pm25 = Number((basePm25 + Math.sin(seed * 0.75) * 4.0 + (Math.random() - 0.5) * 0.2).toFixed(1));
 
             const basePm10 = idx === 0 ? 16.5 : 21.0;
-            l.pm10 = Number((basePm10 + Math.cos(seed * 0.7) * 4.8 + (Math.random() - 0.5) * 0.5).toFixed(1));
+            l.pm10 = Number((basePm10 + Math.cos(seed * 0.75) * 6.5 + (Math.random() - 0.5) * 0.3).toFixed(1));
 
             const baseVoc = idx === 0 ? 0.08 : 0.11;
-            l.voc = Number((baseVoc + Math.sin(seed * 0.4) * 0.04 + (Math.random() - 0.5) * 0.005).toFixed(2));
+            l.voc = Number((baseVoc + Math.sin(seed * 0.6) * 0.05 + (Math.random() - 0.5) * 0.003).toFixed(2));
 
             const baseHcho = idx === 0 ? 0.015 : 0.022;
-            l.formaldeido = Number((baseHcho + Math.cos(seed * 0.4) * 0.008 + (Math.random() - 0.5) * 0.001).toFixed(3));
+            l.formaldeido = Number((baseHcho + Math.cos(seed * 0.6) * 0.01 + (Math.random() - 0.5) * 0.001).toFixed(3));
 
             l.timestamp = new Date().toISOString();
 
@@ -329,7 +330,7 @@ function simulateLiveLfg60Step() {
         if (modal && modal.classList.contains('active')) {
             const title = document.getElementById('modalSensorTitle')?.innerText || '';
             const openDev = currentDevices.find(d => title.includes(d.numero_serie));
-            if (openDev && (openDev.isSimulated || openDev.numero_serie.startsWith('LFG60-SIM'))) {
+            if (openDev && (openDev.isSimulated || (openDev.numero_serie && openDev.numero_serie.startsWith('LFG60-SIM')))) {
                 updateOpenModalSimulatedValues(openDev);
             }
         }

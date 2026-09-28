@@ -119,8 +119,8 @@ document.addEventListener('DOMContentLoaded', function() {
     // 1. Load Sensors and Alerts from API / Mock
     loadDashboardData();
 
-    // Variação contínua dos dispositivos simulados a cada 1 segundo
-    setInterval(simulateLiveLfg60Step, 1000);
+    // Variação dos dispositivos simulados a cada 3 segundos
+    setInterval(simulateLiveLfg60Step, 3000);
 
     // Connect via Socket.IO for real-time updates with debounce
     let updateDebounceTimer = null;
@@ -246,57 +246,37 @@ async function fetchDevicesFromApi() {
     }
 }
 
+function getRandomInRange(min, max, decimals = 1) {
+    const factor = Math.pow(10, decimals);
+    return Math.round((min + Math.random() * (max - min)) * factor) / factor;
+}
+
 /**
- * Simulação contínua e suave dos valores de telemetria dos dispositivos de exemplo
+ * Simulação dos valores de telemetria dos dispositivos de exemplo a cada 3 segundos
  */
 function simulateLiveLfg60Step() {
     if (!currentDevices || currentDevices.length === 0) return;
-    simulationStepCount++;
 
     let hasSimulated = false;
 
-    currentDevices.forEach((dev, idx) => {
+    currentDevices.forEach((dev) => {
         // Apenas alterar dispositivos explicitamente simulados, nunca sobrescrever dispositivos reais de produção
-        if (dev.isSimulated === true || (dev.numero_serie && dev.numero_serie.startsWith('LFG60-SIM'))) {
+        if (dev && (dev.isSimulated === true || (dev.numero_serie && dev.numero_serie.startsWith('LFG60-SIM')))) {
             hasSimulated = true;
             if (!dev.ultima_leitura) {
-                dev.ultima_leitura = {
-                    temperatura: 24.0,
-                    umidade: 48.0,
-                    co2: 550,
-                    pm25: 8.0,
-                    pm10: 16.0,
-                    voc: 0.08,
-                    formaldeido: 0.015,
-                    timestamp: new Date().toISOString()
-                };
+                dev.ultima_leitura = {};
             }
 
             const l = dev.ultima_leitura;
-            const seed = simulationStepCount * 0.45 + (idx * 2.2);
 
-            // Variação rápida a cada 1s: temperatura transita de forma dinâmica e perceptível entre 18.0°C e 36.0°C
-            const tempVal = 27.0 + Math.sin(seed) * 8.9 + (Math.random() - 0.5) * 0.3;
-            l.temperatura = Number(Math.min(36.0, Math.max(18.0, tempVal)).toFixed(1));
-
-            const baseUmid = idx === 0 ? 48.0 : 51.5;
-            l.umidade = Number((baseUmid + Math.cos(seed * 0.8) * 8.0 + (Math.random() - 0.5) * 0.5).toFixed(1));
-
-            const baseCo2 = idx === 0 ? 530 : 650;
-            l.co2 = Math.round(baseCo2 + Math.sin(seed * 0.7) * 140 + (Math.random() - 0.5) * 10);
-
-            const basePm25 = idx === 0 ? 8.2 : 10.8;
-            l.pm25 = Number((basePm25 + Math.sin(seed * 0.75) * 4.0 + (Math.random() - 0.5) * 0.2).toFixed(1));
-
-            const basePm10 = idx === 0 ? 16.5 : 21.0;
-            l.pm10 = Number((basePm10 + Math.cos(seed * 0.75) * 6.5 + (Math.random() - 0.5) * 0.3).toFixed(1));
-
-            const baseVoc = idx === 0 ? 0.08 : 0.11;
-            l.voc = Number((baseVoc + Math.sin(seed * 0.6) * 0.05 + (Math.random() - 0.5) * 0.003).toFixed(2));
-
-            const baseHcho = idx === 0 ? 0.015 : 0.022;
-            l.formaldeido = Number((baseHcho + Math.cos(seed * 0.6) * 0.01 + (Math.random() - 0.5) * 0.001).toFixed(3));
-
+            // Temperatura aleatória de 18°C a 36°C a cada 3 segundos
+            l.temperatura = getRandomInRange(18.0, 36.0, 1);
+            l.umidade = getRandomInRange(35.0, 65.0, 1);
+            l.co2 = getRandomInRange(450, 950, 0);
+            l.pm25 = getRandomInRange(5.0, 20.0, 1);
+            l.pm10 = getRandomInRange(10.0, 35.0, 1);
+            l.voc = getRandomInRange(0.04, 0.18, 2);
+            l.formaldeido = getRandomInRange(0.010, 0.035, 3);
             l.timestamp = new Date().toISOString();
 
             // Status e LED reativos
@@ -437,43 +417,54 @@ function initOrUpdateManometroGauge(canvasId, value, min, max, fillColor) {
     const progress = clamped - min;
     const remaining = max - clamped;
 
-    if (activeManometros[canvasId]) {
-        const chart = activeManometros[canvasId];
-        chart.data.datasets[0].data = [progress, remaining];
-        chart.data.datasets[0].backgroundColor = [fillColor, '#e2e8f0'];
-        chart.update('none');
-        return;
-    }
-
     const canvas = document.getElementById(canvasId);
     if (!canvas || typeof Chart === 'undefined') return;
 
-    const ctx = canvas.getContext('2d');
-    activeManometros[canvasId] = new Chart(ctx, {
-        type: 'doughnut',
-        data: {
-            datasets: [{
-                data: [progress, remaining],
-                backgroundColor: [fillColor, '#e2e8f0'],
-                borderWidth: 0,
-                circumference: 180,
-                rotation: 270,
-                borderRadius: [4, 4]
-            }]
-        },
-        options: {
-            responsive: true,
-            maintainAspectRatio: false,
-            cutout: '74%',
-            animation: {
-                duration: 200
-            },
-            plugins: {
-                tooltip: { enabled: false },
-                legend: { display: false }
+    if (activeManometros[canvasId]) {
+        try {
+            const chart = activeManometros[canvasId];
+            if (chart && chart.canvas === canvas) {
+                chart.data.datasets[0].data = [progress, remaining];
+                chart.data.datasets[0].backgroundColor = [fillColor, '#e2e8f0'];
+                chart.update('none');
+                return;
+            } else if (chart) {
+                chart.destroy();
+                delete activeManometros[canvasId];
             }
+        } catch (e) {
+            delete activeManometros[canvasId];
         }
-    });
+    }
+
+    try {
+        const ctx = canvas.getContext('2d');
+        activeManometros[canvasId] = new Chart(ctx, {
+            type: 'doughnut',
+            data: {
+                datasets: [{
+                    data: [progress, remaining],
+                    backgroundColor: [fillColor, '#e2e8f0'],
+                    borderWidth: 0,
+                    circumference: 180,
+                    rotation: 270,
+                    borderRadius: [4, 4]
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                cutout: '74%',
+                animation: false,
+                plugins: {
+                    tooltip: { enabled: false },
+                    legend: { display: false }
+                }
+            }
+        });
+    } catch (chartErr) {
+        console.warn('Error creating chart:', chartErr);
+    }
 }
 
 function renderSensorCards(devices) {

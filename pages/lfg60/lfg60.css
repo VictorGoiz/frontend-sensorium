@@ -336,6 +336,34 @@
     transform: translateY(-1px);
 }
 
+/* --- Header Brand Logo LEFOO --- */
+.header-brand-logo {
+    display: flex;
+    align-items: center;
+    margin-left: 6px;
+    padding-left: 12px;
+    border-left: 1px solid var(--border-fine, #e2e8f0);
+}
+
+.header-lefoo-logo {
+    height: 36px;
+    max-width: 140px;
+    width: auto;
+    object-fit: contain;
+    border-radius: 6px;
+    background: #ffffff;
+    border: 1px solid var(--border-fine, #e2e8f0);
+    padding: 3px 8px;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+    display: block;
+}
+
+.header-lefoo-logo:hover {
+    transform: scale(1.02);
+    box-shadow: 0 3px 8px rgba(0, 0, 0, 0.08);
+}
+
 .devices-count-pill {
     background: #e2e8f0;
     color: #334155;
@@ -701,6 +729,28 @@ body.fullscreen-active #lfgFullscreenPresentation {
     background: #fef2f2;
     color: #dc2626;
     border-color: #fecaca;
+}
+
+/* --- Fullscreen Brand Logo LEFOO --- */
+.fs-brand-logo {
+    display: flex;
+    align-items: center;
+    margin-left: 4px;
+    padding-left: 12px;
+    border-left: 1px solid #e2e8f0;
+}
+
+.fs-lefoo-logo {
+    height: 38px;
+    max-width: 140px;
+    width: auto;
+    object-fit: contain;
+    border-radius: 6px;
+    background: #ffffff;
+    border: 1px solid #e2e8f0;
+    padding: 3px 8px;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+    display: block;
 }
 
 /* --- Palco Central Unitário (Apresentação Focada) --- */

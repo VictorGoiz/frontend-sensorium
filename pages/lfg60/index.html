@@ -1,9 +1,9 @@
 <!DOCTYPE html>
-<html lang="pt-BR">
+<html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Sensimonitor - Apresentação LFG60</title>
+    <title>Sensimonitor - LFG60 Presentation</title>
     <link rel="icon" type="image/png" href="../img/logo_head.png">
     <link rel="stylesheet" href="../home/home.css">
     <link rel="stylesheet" href="../components/chat.css">
@@ -24,207 +24,218 @@
                 <img src="../img/logo_sensimonitor.png" alt="SensiMonitor" class="sidebar-logo">
             </div>
             <nav>
-                <a href="../home/index.html" class="nav-item">Visão Geral</a>
-                <a href="../sensores/index.html" class="nav-item">Sensores</a>
-                <a href="../reles/index.html" class="nav-item">Relés</a>
+                <a href="../home/index.html" class="nav-item">Overview</a>
+                <a href="../sensores/index.html" class="nav-item">Sensors</a>
+                <a href="../reles/index.html" class="nav-item">Relays</a>
                 
-                <!-- Dropdown Dispositivos (Área de Apresentação) -->
+                <!-- Devices Dropdown (Presentation Area) -->
                 <div class="nav-dropdown open">
                     <button class="nav-dropdown-toggle active" onclick="toggleNavDropdown(this)">
-                        <span>Dispositivos</span>
+                        <span>Devices</span>
                         <svg class="chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                             <polyline points="6 9 12 15 18 9"></polyline>
                         </svg>
                     </button>
                     <div class="nav-dropdown-menu">
-                        <a href="../chopeiras/index.html" class="nav-subitem">Chopeiras</a>
+                        <a href="../chopeiras/index.html" class="nav-subitem">Kegerators</a>
                         <a href="index.html" class="nav-subitem active">LFG60</a>
+                        <a href="../incendio/index.html" class="nav-subitem">Fire Protection System</a>
                     </div>
                 </div>
             </nav>
             <div class="user-info">
-                <a href="../login/index.html" class="logout-btn">Sair</a>
+                <a href="../login/index.html" class="logout-btn">Logout</a>
             </div>
         </aside>
 
         <main class="main-content">
-            <!-- Header Apresentativo no Padrão de Chopeiras -->
+            <!-- Header in Kegerator Style -->
             <header class="presentation-header">
                 <div class="header-brand">
                     <div class="header-title-row">
-                        <h1>Monitoramento LFG60</h1>
+                        <h1>LFG60 Monitoring</h1>
                         <span class="badge-live-presentation" id="livePresentationBadge">
                             <span class="dot"></span>
-                            <span id="liveBadgeText">AGUARDANDO DADOS</span>
+                            <span id="liveBadgeText">WAITING FOR DATA</span>
                         </span>
                     </div>
-                    <p>Telemetria e monitoramento ambiental dos transmissores LEFOO LFG60 em tempo real</p>
+                    <p>Real-time telemetry and environmental monitoring of LEFOO LFG60 transmitters</p>
                 </div>
 
                 <div class="header-actions">
                     <select id="lfgDeviceSelect" class="select-presentation" onchange="onSelectLfgDeviceChange()">
-                        <option value="all">Todos os Dispositivos</option>
+                        <option value="all">All Devices</option>
                     </select>
 
-                    <button class="btn-presentation-action" onclick="openPrescribedRangesModal()" title="Tabela de Limites e Ranges Prescritos">
+                    <button class="btn-presentation-action" onclick="openPrescribedRangesModal()" title="Prescribed Ranges & Limits Table">
                         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                             <path d="M12 20h9"></path>
                             <path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"></path>
                         </svg>
-                        <span>Limites & Ranges</span>
+                        <span>Limits & Ranges</span>
                     </button>
 
-                    <!-- Header Avisos e Alertas Button & Drawer -->
+                    <!-- Header Warnings and Alerts Button & Drawer -->
                     <div class="header-alerts-container">
-                        <button class="header-alert-btn" id="headerAlertBtn" onclick="toggleHeaderAlerts()" title="Central de Avisos e Alertas">
+                        <button class="header-alert-btn" id="headerAlertBtn" onclick="toggleHeaderAlerts()" title="Warnings & Alerts Center">
                             <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" fill="currentColor" viewBox="0 0 16 16">
                                 <path d="M8 16a2 2 0 0 0 2-2H6a2 2 0 0 0 2 2zM8 1.918l-.797.161A4.002 4.002 0 0 0 4 6c0 .628-.134 2.197-.459 3.742-.16.767-.376 1.566-.663 2.258h10.244c-.287-.692-.502-1.49-.663-2.258C12.134 8.197 12 6.628 12 6a4.002 4.002 0 0 0-3.203-3.92L8 1.917zM14.22 12c.223.447.481.801.78 1H1c.299-.199.557-.553.78-1C2.68 10.2 3 6.88 3 6c0-2.42 1.72-4.44 4.005-4.901a1 1 0 1 1 1.99 0A5.002 5.002 0 0 1 13 6c0 .88.32 4.2 1.22 6z"/>
                             </svg>
                             <span class="alert-badge" id="headerAlertBadge">0</span>
                         </button>
 
-                        <!-- Dropdown / Popover de Alertas -->
+                        <!-- Alerts Dropdown / Popover -->
                         <div class="header-alerts-popover" id="headerAlertsPopover">
                             <div class="popover-header">
                                 <div class="popover-title">
-                                    <span>Central de Avisos e Alertas</span>
+                                    <span>Warnings & Alerts Center</span>
                                 </div>
-                                <button class="btn-clear-all" onclick="markAllAlertsAsRead()">Marcar todos como lidos</button>
+                                <button class="btn-clear-all" onclick="markAllAlertsAsRead()">Mark all as read</button>
                             </div>
                             <div class="popover-filters">
-                                <button class="filter-tab active" onclick="filterAlerts('todos', this)">Todos</button>
-                                <button class="filter-tab" onclick="filterAlerts('Critico', this)">Críticos</button>
-                                <button class="filter-tab" onclick="filterAlerts('Aviso', this)">Avisos</button>
+                                <button class="filter-tab active" onclick="filterAlerts('todos', this)">All</button>
+                                <button class="filter-tab" onclick="filterAlerts('Critico', this)">Critical</button>
+                                <button class="filter-tab" onclick="filterAlerts('Aviso', this)">Warnings</button>
                             </div>
                             <div class="popover-body" id="headerAlertsList">
-                                <div class="alerts-loading">Carregando alertas...</div>
+                                <div class="alerts-loading">Loading alerts...</div>
                             </div>
                         </div>
                     </div>
 
-                    <button class="btn-fullscreen" onclick="toggleFullscreen()" title="Alternar Modo Tela Cheia (TV / Painel)">
+                    <button class="btn-fullscreen" onclick="toggleFullscreen()" title="Toggle Fullscreen Mode (TV / Dashboard)">
                         <svg id="fullscreenIcon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                             <path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"/>
                         </svg>
-                        <span id="fullscreenText">Tela Cheia</span>
+                        <span id="fullscreenText">Fullscreen</span>
                     </button>
+
+                    <!-- LEFOO Logo -->
+                    <div class="header-brand-logo" title="LEFOO">
+                        <img src="../img/logo_lefoo.jpeg" alt="LEFOO" class="header-lefoo-logo">
+                    </div>
                 </div>
             </header>
 
             <div class="dashboard-cards sensor-cards">
                 <div class="card dark-card">
-                    <h3>Status Geral dos Dispositivos</h3>
-                    <div class="card-value" id="cardStatusGeral">Operacional</div>
-                    <div class="card-indicator positive" id="cardStatusGeralSub">Sensores dentro do range</div>
+                    <h3>Overall Device Status</h3>
+                    <div class="card-value" id="cardStatusGeral">Operational</div>
+                    <div class="card-indicator positive" id="cardStatusGeralSub">Sensors within range</div>
                 </div>
                 <div class="card dark-card">
-                    <h3>Dispositivos em Atenção</h3>
+                    <h3>Devices under Warning</h3>
                     <div class="card-value warning" id="cardCountAtencao">0</div>
-                    <div class="card-indicator warning">Sensível a desvios</div>
+                    <div class="card-indicator warning">Sensitive to deviations</div>
                 </div>
                 <div class="card dark-card alert-card">
-                    <h3>Alertas Ativos não Lidos</h3>
+                    <h3>Active Unread Alerts</h3>
                     <div class="card-value warning" id="cardCountAlertas">0</div>
-                    <div class="card-indicator" id="cardAlertasSub">Ação requerida</div>
+                    <div class="card-indicator" id="cardAlertasSub">Action required</div>
                 </div>
             </div>
 
-            <!-- Header da Lista de Dispositivos com Controles do Carrossel -->
+            <!-- Connected Devices List Header with Carousel Controls -->
             <div class="section-title lfg-section-header" style="display: flex; justify-content: space-between; align-items: center; margin-top: 25px;">
                 <div class="section-title-left" style="display: flex; align-items: center; gap: 10px;">
-                    <h2>Dispositivos Conectados (Transmissores LEFOO LFG60)</h2>
-                    <span class="devices-count-pill" id="devicesCountPill">0 dispositivos</span>
+                    <h2>Connected Devices (LEFOO LFG60 Transmitters)</h2>
+                    <span class="devices-count-pill" id="devicesCountPill">0 devices</span>
                 </div>
                 
                 <div class="carousel-controls" id="carouselControls">
-                    <button class="btn-carousel-nav" id="btnCarouselPrev" onclick="scrollCarousel(-1)" title="Dispositivos anteriores">
+                    <button class="btn-carousel-nav" id="btnCarouselPrev" onclick="scrollCarousel(-1)" title="Previous devices">
                         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="15 18 9 12 15 6"></polyline></svg>
                     </button>
                     <div class="carousel-indicators" id="carouselIndicators"></div>
-                    <button class="btn-carousel-nav" id="btnCarouselNext" onclick="scrollCarousel(1)" title="Próximos dispositivos">
+                    <button class="btn-carousel-nav" id="btnCarouselNext" onclick="scrollCarousel(1)" title="Next devices">
                         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="9 18 15 12 9 6"></polyline></svg>
                     </button>
                 </div>
             </div>
 
-            <!-- Carrossel de Dispositivos -->
+            <!-- Devices Carousel -->
             <div class="lfg-carousel-wrapper" id="lfgCarouselWrapper">
                 <div class="sensor-list lfg-carousel-track" id="sensorListContainer">
-                    <div style="padding: 20px; text-align: center; color: #888; width: 100%;">Carregando dispositivos do banco de dados...</div>
+                    <div style="padding: 20px; text-align: center; color: #888; width: 100%;">Loading devices from database...</div>
                 </div>
             </div>
 
         </main>
     </div>
 
-    <!-- MODO APRESENTAÇÃO TELA CHEIA (UNITÁRIA COM CARROSSEL) -->
+    <!-- FULLSCREEN PRESENTATION MODE (UNITARY WITH CAROUSEL) -->
     <div id="lfgFullscreenPresentation" class="lfg-fullscreen-presentation">
-        <!-- Barra Superior da Apresentação -->
+        <!-- Top Bar of Presentation -->
         <div class="fs-top-bar">
             <div class="fs-device-meta">
                 <div class="fs-device-title-row">
                     <span class="fs-brand-tag">LEFOO LFG60</span>
-                    <h2 id="fsDeviceTitle">Transmissor --</h2>
+                    <h2 id="fsDeviceTitle">Transmitter --</h2>
                     <div class="fs-status-pill operacional" id="fsStatusPill">
                         <span class="fs-status-dot" id="fsStatusDot"></span>
-                        <span id="fsStatusText">Operacional</span>
+                        <span id="fsStatusText">Operational</span>
                     </div>
                     <div class="fs-led-indicator" id="fsLedIndicator">
                         <span class="fs-led-dot green" id="fsLedDot"></span>
-                        <span id="fsLedText">LED: Verde</span>
+                        <span id="fsLedText">LED: Green</span>
                     </div>
                     <div class="fs-live-badge active" id="fsLiveBadge">
                         <span class="live-dot"></span>
-                        <span>AO VIVO</span>
+                        <span>LIVE</span>
                     </div>
                 </div>
                 <div class="fs-timestamp-row">
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
-                    <span id="fsLastReadingTime">Última Leitura: --</span>
+                    <span id="fsLastReadingTime">Last Reading: --</span>
                 </div>
             </div>
 
             <div class="fs-top-actions">
-                <button class="fs-action-btn fs-autoplay-btn" id="fsAutoplayBtn" onclick="toggleFullscreenAutoplay()" title="Alternar Rotação Automática de Dispositivos (Espaço)">
+                <button class="fs-action-btn fs-autoplay-btn" id="fsAutoplayBtn" onclick="toggleFullscreenAutoplay()" title="Toggle Automatic Device Rotation (Space)">
                     <svg id="fsAutoplayIcon" width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
                         <polygon points="5 3 19 12 5 21 5 3"></polygon>
                     </svg>
                     <span id="fsAutoplayText">Auto (8s)</span>
                 </button>
 
-                <select id="fsDeviceSelect" class="fs-device-select" onchange="onFsDeviceSelectChange(this.value)" title="Ir diretamente para um transmissor">
-                    <!-- Preenchido dinamicamente -->
+                <select id="fsDeviceSelect" class="fs-device-select" onchange="onFsDeviceSelectChange(this.value)" title="Jump directly to transmitter">
+                    <!-- Populated dynamically -->
                 </select>
 
-                <button class="fs-action-btn fs-btn-exit" onclick="toggleFullscreen()" title="Sair do Modo Tela Cheia (Esc)">
+                <button class="fs-action-btn fs-btn-exit" onclick="toggleFullscreen()" title="Exit Fullscreen Mode (Esc)">
                     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
                         <line x1="18" y1="6" x2="6" y2="18"></line>
                         <line x1="6" y1="6" x2="18" y2="18"></line>
                     </svg>
-                    <span>Sair</span>
+                    <span>Exit</span>
                 </button>
+
+                <!-- LEFOO Logo in Fullscreen -->
+                <div class="fs-brand-logo" title="LEFOO">
+                    <img src="../img/logo_lefoo.jpeg" alt="LEFOO" class="fs-lefoo-logo">
+                </div>
             </div>
         </div>
 
-        <!-- Palco Central Unitário com Carrossel -->
+        <!-- Central Unitary Stage with Carousel -->
         <div class="fs-stage">
-            <!-- Seta de Navegação Esquerda -->
-            <button class="fs-nav-arrow prev" id="fsNavPrev" onclick="navigateFullscreenCarousel(-1)" title="Dispositivo anterior (Seta Esquerda)">
+            <!-- Left Navigation Arrow -->
+            <button class="fs-nav-arrow prev" id="fsNavPrev" onclick="navigateFullscreenCarousel(-1)" title="Previous device (Left Arrow)">
                 <svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
                     <polyline points="15 18 9 12 15 6"></polyline>
                 </svg>
             </button>
 
-            <!-- Card de Apresentação Unitária do Dispositivo -->
+            <!-- Unitary Device Presentation Card -->
             <div class="fs-card-stage" id="fsCardStage">
-                <!-- Coluna Esquerda: Manômetros Principais (Temperatura e Umidade Relativa) -->
+                <!-- Left Column: Main Gauges (Ambient Temperature and Relative Humidity) -->
                 <div class="fs-gauges-section">
-                    <!-- Manômetro de Temperatura -->
+                    <!-- Temperature Gauge -->
                     <div class="fs-gauge-card" id="fsGaugeCardTemp">
                         <div class="fs-gauge-header">
                             <div>
-                                <span class="fs-gauge-title">Temperatura Ambiente</span>
-                                <span class="fs-gauge-range">Faixa Ideal: 18.0°C a 26.0°C</span>
+                                <span class="fs-gauge-title">Ambient Temperature</span>
+                                <span class="fs-gauge-range">Ideal Range: 18.0°C to 26.0°C</span>
                             </div>
                             <span class="fs-gauge-chip ideal" id="fsTempChip">Ideal</span>
                         </div>
@@ -237,17 +248,17 @@
                         </div>
                         <div class="fs-gauge-scale">
                             <span>0°C</span>
-                            <span class="fs-gauge-scale-mid">Faixa Ideal: 18° a 26°C</span>
+                            <span class="fs-gauge-scale-mid">Ideal Range: 18° to 26°C</span>
                             <span>50°C</span>
                         </div>
                     </div>
 
-                    <!-- Manômetro de Umidade Relativa -->
+                    <!-- Relative Humidity Gauge -->
                     <div class="fs-gauge-card" id="fsGaugeCardUmid">
                         <div class="fs-gauge-header">
                             <div>
-                                <span class="fs-gauge-title">Umidade Relativa</span>
-                                <span class="fs-gauge-range">Faixa Ideal: 30.0% a 60.0%</span>
+                                <span class="fs-gauge-title">Relative Humidity</span>
+                                <span class="fs-gauge-range">Ideal Range: 30.0% to 60.0%</span>
                             </div>
                             <span class="fs-gauge-chip ideal" id="fsUmidChip">Ideal</span>
                         </div>
@@ -260,17 +271,17 @@
                         </div>
                         <div class="fs-gauge-scale">
                             <span>0%</span>
-                            <span class="fs-gauge-scale-mid">Faixa Ideal: 30% a 60%</span>
+                            <span class="fs-gauge-scale-mid">Ideal Range: 30% to 60%</span>
                             <span>100%</span>
                         </div>
                     </div>
                 </div>
 
-                <!-- Coluna Direita: Os outros 5 Parâmetros Ambientais do Modal + Diagnóstico -->
+                <!-- Right Column: Remaining 5 Environmental Parameters + Diagnostics -->
                 <div class="fs-params-section">
                     <div class="fs-params-header">
-                        <h3>Parâmetros Ambientais de Precisão</h3>
-                        <span>Normas e Limites Regulamentares Prescritos</span>
+                        <h3>Precision Environmental Parameters</h3>
+                        <span>Prescribed Regulatory Standards and Limits</span>
                     </div>
 
                     <div class="fs-params-grid">
@@ -280,13 +291,13 @@
                                 <span class="fs-param-badge">CO₂</span>
                                 <span class="fs-param-status ideal" id="fsStatus-co2">Ideal</span>
                             </div>
-                            <div class="fs-param-label">Dióxido de Carbono</div>
+                            <div class="fs-param-label">Carbon Dioxide</div>
                             <div class="fs-param-val-row">
                                 <span class="fs-param-val" id="fsVal-co2">--</span>
                                 <span class="fs-param-unit">ppm</span>
                             </div>
                             <div class="fs-param-footer">
-                                <span>Faixa Ideal: &le; 800 ppm</span>
+                                <span>Ideal Range: &le; 800 ppm</span>
                             </div>
                         </div>
 
@@ -296,13 +307,13 @@
                                 <span class="fs-param-badge">PM2.5</span>
                                 <span class="fs-param-status ideal" id="fsStatus-pm25">Ideal</span>
                             </div>
-                            <div class="fs-param-label">Material Particulado Fino</div>
+                            <div class="fs-param-label">Fine Particulate Matter</div>
                             <div class="fs-param-val-row">
                                 <span class="fs-param-val" id="fsVal-pm25">--</span>
                                 <span class="fs-param-unit">µg/m³</span>
                             </div>
                             <div class="fs-param-footer">
-                                <span>Faixa Ideal: &le; 15.0 µg/m³</span>
+                                <span>Ideal Range: &le; 15.0 µg/m³</span>
                             </div>
                         </div>
 
@@ -312,13 +323,13 @@
                                 <span class="fs-param-badge">PM10</span>
                                 <span class="fs-param-status ideal" id="fsStatus-pm10">Ideal</span>
                             </div>
-                            <div class="fs-param-label">Partículas Inaláveis</div>
+                            <div class="fs-param-label">Inhalable Particles</div>
                             <div class="fs-param-val-row">
                                 <span class="fs-param-val" id="fsVal-pm10">--</span>
                                 <span class="fs-param-unit">µg/m³</span>
                             </div>
                             <div class="fs-param-footer">
-                                <span>Faixa Ideal: &le; 30.0 µg/m³</span>
+                                <span>Ideal Range: &le; 30.0 µg/m³</span>
                             </div>
                         </div>
 
@@ -328,86 +339,86 @@
                                 <span class="fs-param-badge">VOC</span>
                                 <span class="fs-param-status ideal" id="fsStatus-voc">Ideal</span>
                             </div>
-                            <div class="fs-param-label">Compostos Orgânicos Voláteis</div>
+                            <div class="fs-param-label">Volatile Organic Compounds</div>
                             <div class="fs-param-val-row">
                                 <span class="fs-param-val" id="fsVal-voc">--</span>
                                 <span class="fs-param-unit">ppm</span>
                             </div>
                             <div class="fs-param-footer">
-                                <span>Faixa Ideal: &le; 0.20 ppm</span>
+                                <span>Ideal Range: &le; 0.20 ppm</span>
                             </div>
                         </div>
 
-                        <!-- Formaldeído -->
+                        <!-- Formaldehyde -->
                         <div class="fs-param-card" id="fsCard-formaldeido">
                             <div class="fs-param-top">
                                 <span class="fs-param-badge">HCHO</span>
                                 <span class="fs-param-status ideal" id="fsStatus-formaldeido">Ideal</span>
                             </div>
-                            <div class="fs-param-label">Formaldeído</div>
+                            <div class="fs-param-label">Formaldehyde</div>
                             <div class="fs-param-val-row">
                                 <span class="fs-param-val" id="fsVal-formaldeido">--</span>
                                 <span class="fs-param-unit">mg/m³</span>
                             </div>
                             <div class="fs-param-footer">
-                                <span>Faixa Ideal: &le; 0.05 mg/m³</span>
+                                <span>Ideal Range: &le; 0.05 mg/m³</span>
                             </div>
                         </div>
 
-                        <!-- Diagnóstico Geral -->
+                        <!-- General Diagnostics -->
                         <div class="fs-param-card diag" id="fsCard-diag">
                             <div class="fs-param-top">
                                 <span class="fs-param-badge diag">DIAG</span>
-                                <span class="fs-param-status estavel" id="fsStatus-diag">Estável</span>
+                                <span class="fs-param-status estavel" id="fsStatus-diag">Stable</span>
                             </div>
-                            <div class="fs-param-label">Diagnóstico do Transmissor</div>
+                            <div class="fs-param-label">Transmitter Diagnostics</div>
                             <div class="fs-diag-content">
                                 <div class="fs-diag-line">
-                                    <span>LED Frontal:</span>
-                                    <strong id="fsDiagLedVal">Verde</strong>
+                                    <span>Front LED:</span>
+                                    <strong id="fsDiagLedVal">Green</strong>
                                 </div>
                                 <div class="fs-diag-line">
-                                    <span>Transmissão:</span>
+                                    <span>Transmission:</span>
                                     <strong id="fsDiagMqttVal" style="color: #10b981;">Online (MQTT)</strong>
                                 </div>
                             </div>
                             <div class="fs-param-footer">
-                                <span id="fsDiagEvaluation">Operação padrão</span>
+                                <span id="fsDiagEvaluation">Standard operation</span>
                             </div>
                         </div>
                     </div>
                 </div>
             </div>
 
-            <!-- Seta de Navegação Direita -->
-            <button class="fs-nav-arrow next" id="fsNavNext" onclick="navigateFullscreenCarousel(1)" title="Próximo dispositivo (Seta Direita)">
+            <!-- Right Navigation Arrow -->
+            <button class="fs-nav-arrow next" id="fsNavNext" onclick="navigateFullscreenCarousel(1)" title="Next device (Right Arrow)">
                 <svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
                     <polyline points="9 18 15 12 9 6"></polyline>
                 </svg>
             </button>
         </div>
 
-        <!-- Barra Inferior do Carrossel -->
+        <!-- Bottom Bar of Carousel -->
         <div class="fs-bottom-bar">
             <div class="fs-carousel-nav-group">
-                <button class="fs-btn-nav-small" onclick="navigateFullscreenCarousel(-1)" title="Anterior">
+                <button class="fs-btn-nav-small" onclick="navigateFullscreenCarousel(-1)" title="Previous">
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="15 18 9 12 15 6"></polyline></svg>
-                    <span>Anterior</span>
+                    <span>Previous</span>
                 </button>
 
                 <div class="fs-dots-container" id="fsCarouselDots">
-                    <!-- Dots dinâmicos dos dispositivos -->
+                    <!-- Dynamic dots for devices -->
                 </div>
 
-                <button class="fs-btn-nav-small" onclick="navigateFullscreenCarousel(1)" title="Próximo">
-                    <span>Próximo</span>
+                <button class="fs-btn-nav-small" onclick="navigateFullscreenCarousel(1)" title="Next">
+                    <span>Next</span>
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="9 18 15 12 9 6"></polyline></svg>
                 </button>
             </div>
 
             <div class="fs-counter-info">
-                <span class="fs-counter-badge" id="fsDeviceCounterText">Dispositivo 1 de 1</span>
-                <span class="fs-keyboard-hint">Navegue com as setas <strong>&larr;</strong> <strong>&rarr;</strong> &bull; <strong>Espaço</strong> para pausar/girar &bull; <strong>Esc</strong> para sair</span>
+                <span class="fs-counter-badge" id="fsDeviceCounterText">Device 1 of 1</span>
+                <span class="fs-keyboard-hint">Navigate with arrows <strong>&larr;</strong> <strong>&rarr;</strong> &bull; <strong>Space</strong> to pause/rotate &bull; <strong>Esc</strong> to exit</span>
             </div>
         </div>
     </div>
@@ -416,35 +427,35 @@
     <div class="modal-overlay" id="sensorModal">
         <div class="modal-content sensor-detail-modal">
             <div class="modal-header">
-                <h2 id="modalSensorTitle">Detalhes do Dispositivo</h2>
+                <h2 id="modalSensorTitle">Device Details</h2>
                 <button class="close-btn" onclick="closeSensorModal()">&times;</button>
             </div>
             <div class="modal-body">
                 <div class="modal-info-grid">
                     <div class="device-summary-box">
-                        <h3>Status em Tempo Real</h3>
+                        <h3>Real-Time Status</h3>
                         <div class="led-indicator-large" id="modalLedIndicator">
                             <span class="led-dot" id="modalLedDot"></span>
-                            <span id="modalLedText">LED: Verde</span>
+                            <span id="modalLedText">LED: Green</span>
                         </div>
-                        <div class="device-status-badge" id="modalDeviceStatus">Status: Operacional</div>
+                        <div class="device-status-badge" id="modalDeviceStatus">Status: Operational</div>
                     </div>
 
                     <div class="location-box">
-                        <h3>Informações do Dispositivo</h3>
-                        <p id="modalLocationText">Número de Série: --</p>
-                        <p id="modalLastTimestamp">Última Leitura: --</p>
+                        <h3>Device Information</h3>
+                        <p id="modalLocationText">Serial Number: --</p>
+                        <p id="modalLastTimestamp">Last Reading: --</p>
                     </div>
                 </div>
 
-                <h3 style="margin-top: 20px; font-size: 15px;">Leitura dos 7 Parâmetros Ambientais</h3>
+                <h3 style="margin-top: 20px; font-size: 15px;">7 Environmental Parameters Readings</h3>
                 <div class="params-detail-grid" id="modalParamsGrid">
-                    <!-- Preenchido via JavaScript -->
+                    <!-- Populated via JavaScript -->
                 </div>
 
-                <h3 style="margin-top: 20px; font-size: 15px;">Histórico Recente de Leituras</h3>
+                <h3 style="margin-top: 20px; font-size: 15px;">Recent Readings History</h3>
                 <div id="modalHistoryContainer" style="max-height: 160px; overflow-y: auto; background: #0f172a; padding: 12px; border-radius: 8px; border: 1px solid #1e293b; color: #cbd5e1; font-size: 12px; margin-top: 8px;">
-                    <div>Carregando histórico...</div>
+                    <div>Loading history...</div>
                 </div>
 
                 <div class="modal-map" id="map" style="margin-top: 20px; height: 200px; border-radius: 8px;"></div>
@@ -456,47 +467,47 @@
     <div class="modal-overlay" id="rangesModal">
         <div class="modal-content ranges-modal-content">
             <div class="modal-header">
-                <h2>Tabela de Limites e Ranges Prescritos (LEFOO LFG60)</h2>
+                <h2>Prescribed Ranges & Limits Table (LEFOO LFG60)</h2>
                 <button class="close-btn" onclick="closeRangesModal()">&times;</button>
             </div>
             <div class="modal-body">
                 <p style="font-size: 13px; color: #555; margin-bottom: 15px;">
-                    Valores prescritos para controle automático de alertas e sinalização do LED Tricolor.
+                    Prescribed values for automated alert management and Tricolor LED status signaling.
                 </p>
                 <div class="table-responsive">
                     <table class="ranges-table">
                         <thead>
                             <tr>
-                                <th>Parâmetro</th>
-                                <th>Unidade</th>
-                                <th>Faixa Ideal (Verde)</th>
-                                <th>Aviso (Amarelo)</th>
-                                <th>Crítico (Vermelho)</th>
+                                <th>Parameter</th>
+                                <th>Unit</th>
+                                <th>Ideal Range (Green)</th>
+                                <th>Warning (Yellow)</th>
+                                <th>Critical (Red)</th>
                             </tr>
                         </thead>
                         <tbody id="rangesTableBody">
-                            <!-- Preenchido via JavaScript com inputs editáveis -->
+                            <!-- Populated via JavaScript with editable inputs -->
                         </tbody>
                     </table>
                 </div>
                 <div style="margin-top: 20px; text-align: right;">
-                    <button class="btn-config-main" onclick="savePrescribedRanges()">Salvar Configurações</button>
+                    <button class="btn-config-main" onclick="savePrescribedRanges()">Save Settings</button>
                 </div>
             </div>
         </div>
     </div>
 
-    <!-- Chat / Alertas Lateral -->
+    <!-- Chat / Lateral Alerts -->
     <div class="chat-sidebar-overlay" id="chatOverlay" onclick="toggleChat()"></div>
     <div class="chat-sidebar" id="chatSidebar">
         <div class="chat-header">
-            <h3>Central de Alertas</h3>
+            <h3>Alerts Center</h3>
             <button class="close-chat-btn" onclick="toggleChat()">&times;</button>
         </div>
         <div class="chat-body" id="chatBody"></div>
         <div class="chat-footer">
-            <input type="text" id="chatInput" placeholder="Faça uma pergunta sobre os sensores...">
-            <button id="chatSendBtn">Enviar</button>
+            <input type="text" id="chatInput" placeholder="Ask a question about the sensors...">
+            <button id="chatSendBtn">Send</button>
         </div>
     </div>
 

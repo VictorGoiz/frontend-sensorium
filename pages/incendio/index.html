@@ -3,9 +3,9 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Sensimonitor - Apresentação de Chopeiras</title>
+    <title>Sensimonitor - Monitoramento do Sistema de Incêndio</title>
     <link rel="icon" type="image/png" href="../img/logo_head.png">
-    <link rel="stylesheet" href="chopeiras.css">
+    <link rel="stylesheet" href="incendio.css">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
@@ -23,7 +23,7 @@
                 <a href="../sensores/index.html" class="nav-item">Sensores</a>
                 <a href="../reles/index.html" class="nav-item">Relés</a>
                 
-                <!-- Dropdown Apresentação -->
+                <!-- Dropdown Apresentação de Dispositivos -->
                 <div class="nav-dropdown open">
                     <button class="nav-dropdown-toggle active" onclick="toggleNavDropdown(this)">
                         <span>Dispositivos</span>
@@ -32,9 +32,9 @@
                         </svg>
                     </button>
                     <div class="nav-dropdown-menu">
-                        <a href="index.html" class="nav-subitem active">Chopeiras</a>
+                        <a href="../chopeiras/index.html" class="nav-subitem">Chopeiras</a>
                         <a href="../lfg60/index.html" class="nav-subitem">LFG60</a>
-                        <a href="../incendio/index.html" class="nav-subitem">Sistema de Incêndio</a>
+                        <a href="index.html" class="nav-subitem active">Sistema de Incêndio</a>
                     </div>
                 </div>
             </nav>
@@ -48,28 +48,29 @@
             <header class="presentation-header">
                 <div class="header-brand">
                     <div class="header-title-row">
-                        <h1>Chopeiras</h1>
+                       
+                        <h1>Sistema de Incêndio</h1>
                         <span class="badge-live-presentation" id="livePresentationBadge">
                             <span class="dot"></span>
                             <span id="liveBadgeText">AGUARDANDO DADOS</span>
                         </span>
                     </div>
-                    <p>Telemetria e controle contínuo de pressão e acionamento de relés em alta resolução</p>
+                    <p>Telemetria contínua da pressão hidráulica da rede, acionamento das bombas de combate e supervisão em alta resolução</p>
                 </div>
 
                 <div class="header-actions">
-                    <select id="chopeiraSelect" class="select-presentation" onchange="onSelectChopeiraChange()">
-                        <option value="">Carregando chopeiras...</option>
+                    <select id="incendioSelect" class="select-presentation" onchange="onSelectIncendioChange()">
+                        <option value="">Carregando sistemas...</option>
                     </select>
 
-                    <select id="chopeiraPeriodSelect" class="select-presentation" style="min-width: 130px;" onchange="loadChopeiraChart(null, true)">
+                    <select id="incendioPeriodSelect" class="select-presentation" style="min-width: 130px;" onchange="loadIncendioChart(null, true)">
                         <option value="all">Ao Vivo</option>
                         <option value="1h">1 hora</option>
                         <option value="6h">6 horas</option>
                         <option value="24h">24 horas</option>
                     </select>
 
-                    <button class="btn-presentation-action" onclick="openRegistrosModal()" title="Consultar histórico, exportar em CSV e gerenciar leituras dos relés">
+                    <button class="btn-presentation-action" onclick="openRegistrosModal()" title="Consultar histórico, exportar em CSV e gerenciar telemetria da rede de incêndio">
                         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                             <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
                             <polyline points="14 2 14 8 20 8"></polyline>
@@ -80,7 +81,7 @@
                         <span>Registros</span>
                     </button>
 
-                    <button class="btn-fullscreen" onclick="toggleFullscreen()" title="Alternar Modo Tela Cheia (TV / Painel)">
+                    <button class="btn-fullscreen" onclick="toggleFullscreen()" title="Alternar Modo Tela Cheia (TV / Painel de Supervisão)">
                         <svg id="fullscreenIcon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                             <path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"/>
                         </svg>
@@ -91,65 +92,65 @@
 
             <!-- 4 Executive Cards Row -->
             <div class="executive-cards-grid">
-                <!-- Card 1: Pressão Atual -->
+                <!-- Card 1: Pressão da Rede Hidráulica -->
                 <div class="exec-card">
                     <div class="exec-card-header">
-                        <h3>Pressão Atual (Sensor 1)</h3>
-                        
+                        <h3>Pressão da Rede (Sensor 1)</h3>
+                        <span class="card-tag">Barrilete / Sprinklers</span>
                     </div>
                     <div class="exec-main-value">
                         <span id="execPressureVal" class="exec-number">--</span>
                         <span class="exec-unit">psi</span>
                     </div>
                     <div class="exec-card-footer">
-                        <span class="exec-sublabel">Dispositivo Ativo:</span>
+                        <span class="exec-sublabel">Central / Rede Ativa:</span>
                         <span id="execDeviceSerial" class="val-pill blue">--</span>
                     </div>
                 </div>
 
-                <!-- Card 2: Relé 1 (Linha de Chopp) -->
+                <!-- Card 2: Relé 1 (Bomba Principal de Combate) -->
                 <div class="exec-card">
                     <div class="exec-card-header">
-                        <h3>Relé 1 </h3>
-                       
+                        <h3>Relé 1 - Bomba Principal</h3>
+                        <span class="card-tag">Combate</span>
                     </div>
                     <div class="exec-main-value">
-                        <span id="execR1Status" class="exec-number" style="font-size: 24px;">--</span>
+                        <span id="execR1Status" class="exec-number" style="font-size: 22px;">--</span>
                     </div>
                     <div class="exec-card-footer">
-                        <span>ON: <strong id="execR1On" class="val-pill green">--</strong> | OFF: <strong id="execR1Off" class="val-pill red">--</strong></span>
-                        <span>Acionamentos: <strong id="execR1Ac">--</strong></span>
+                        <span>Disparo (ON): <strong id="execR1On" class="val-pill red">--</strong> | Corte (OFF): <strong id="execR1Off" class="val-pill green">--</strong></span>
+                        <span>Partidas: <strong id="execR1Ac">--</strong></span>
                     </div>
                 </div>
 
-                <!-- Card 3: Relé 2 (Refrigeração) -->
+                <!-- Card 3: Relé 2 (Bomba Jockey / Pressurização) -->
                 <div class="exec-card">
                     <div class="exec-card-header">
-                        <h3>Relé 2 </h3>
-                       
+                        <h3>Relé 2 - Bomba Jockey</h3>
+                        <span class="card-tag">Pressurização</span>
                     </div>
                     <div class="exec-main-value">
-                        <span id="execR2Status" class="exec-number" style="font-size: 24px;">--</span>
+                        <span id="execR2Status" class="exec-number" style="font-size: 22px;">--</span>
                     </div>
                     <div class="exec-card-footer">
-                        <span>ON: <strong id="execR2On" class="val-pill green">--</strong> | OFF: <strong id="execR2Off" class="val-pill red">--</strong></span>
-                        <span>Acionamentos: <strong id="execR2Ac">--</strong></span>
+                        <span>Disparo (ON): <strong id="execR2On" class="val-pill orange">--</strong> | Corte (OFF): <strong id="execR2Off" class="val-pill green">--</strong></span>
+                        <span>Partidas: <strong id="execR2Ac">--</strong></span>
                     </div>
                 </div>
 
-                <!-- Card 4: Status do Sistema & Unidades -->
+                <!-- Card 4: Status Operacional Geral -->
                 <div class="exec-card">
                     <div class="exec-card-header">
-                        <h3>Status Geral</h3>
-                       
+                        <h3>Status Geral da Rede</h3>
+                        <span class="card-tag">Supervisão</span>
                     </div>
                     <div class="exec-main-value">
-                        <span id="execTotalChopeiras" class="exec-number">0</span>
-                        <span class="exec-unit">unidades</span>
+                        <span id="execTotalIncendio" class="exec-number">0</span>
+                        <span class="exec-unit">centrais</span>
                     </div>
                     <div class="exec-card-footer">
                         <span>Condição Operacional:</span>
-                        <span id="execSystemStatus" class="val-pill green">Normal</span>
+                        <span id="execSystemStatus" class="val-pill green">Pressurizado / Normal</span>
                     </div>
                 </div>
             </div>
@@ -157,38 +158,42 @@
             <!-- Main Interactive Chart Presentation -->
             <div class="presentation-chart-card">
                 <div class="chart-card-header">
-                    <h2>Curva de Pressão em Tempo Real & Setpoints</h2>
+                    <div>
+                        <h2>Curva de Pressão Hidráulica em Tempo Real & Setpoints</h2>
+                        <span class="chart-subtitle">Monitoramento milimétrico contínuo de oscilações, disparos automáticos e recomposição da pressão</span>
+                    </div>
                     <div class="chart-card-meta">
                         <div class="legend-inline">
-                            <span class="legend-item"><span class="legend-line blue"></span> Pressão (Sensor 1)</span>
-                            <span class="legend-item"><span class="legend-line green"></span> Setpoint ON</span>
-                            <span class="legend-item"><span class="legend-line red"></span> Setpoint OFF</span>
+                            <span class="legend-item"><span class="legend-line blue"></span> Pressão da Rede (psi)</span>
+                            <span class="legend-item"><span class="legend-line red"></span> Disparo Bomba Principal (ON)</span>
+                            <span class="legend-item"><span class="legend-line orange"></span> Disparo Bomba Jockey (ON)</span>
+                            <span class="legend-item"><span class="legend-line green"></span> Pressão Máxima de Corte (OFF)</span>
                         </div>
                     </div>
                 </div>
                 <div class="chart-stage-wrapper">
-                    <canvas id="chopeirasChart"></canvas>
+                    <canvas id="incendioChart"></canvas>
                 </div>
             </div>
 
-            <!-- Grid de Todas as Chopeiras Monitoradas -->
-            <div class="chopeiras-section-title">
-                <span>Parque de Chopeiras Conectadas</span>
-                <span id="chopeirasListSummary" style="font-size: 12px; color: var(--text-muted); font-weight: 400;">Atualização contínua</span>
+            <!-- Grid de Centrais / Redes Monitoradas -->
+            <div class="incendio-section-title">
+                <span>Centrais e Redes de Incêndio Monitoradas</span>
+                <span id="incendioListSummary" style="font-size: 12px; color: var(--text-muted); font-weight: 400;">Telemetria contínua</span>
             </div>
-            <div id="chopeirasGrid" class="chopeiras-devices-grid">
-                <div style="grid-column: 1/-1; padding: 20px; text-align: center; color: var(--text-muted); font-size: 13px;">Carregando chopeiras...</div>
+            <div id="incendioGrid" class="incendio-devices-grid">
+                <div style="grid-column: 1/-1; padding: 20px; text-align: center; color: var(--text-muted); font-size: 13px;">Carregando redes e centrais...</div>
             </div>
         </main>
     </div>
 
-    <!-- Modal de Registro de Leituras dos Relés -->
+    <!-- Modal de Registro de Leituras e Telemetria -->
     <div class="modal-registros-overlay" id="registrosModal" onclick="handleRegistrosModalBackdrop(event)">
         <div class="modal-registros-container">
             <div class="modal-registros-header">
                 <div>
-                    <h2>Histórico & Registros das Leituras dos Relés</h2>
-                    <p>Consulte telemetria detalhada, exporte relatórios em CSV por data e gerencie registros</p>
+                    <h2>Histórico & Registros da Rede de Incêndio</h2>
+                    <p>Consulte telemetria de pressão, acionamento de bombas, exporte relatórios em CSV e gerencie registros</p>
                 </div>
                 <button class="modal-close-btn" onclick="closeRegistrosModal()" title="Fechar (ESC)">&times;</button>
             </div>
@@ -197,9 +202,9 @@
             <div class="modal-registros-toolbar">
                 <div class="filter-group">
                     <div class="filter-item">
-                        <label for="filterModalDispositivo">Chopeira / Dispositivo</label>
+                        <label for="filterModalDispositivo">Central / Rede de Incêndio</label>
                         <select id="filterModalDispositivo" class="input-filter" onchange="filtrarRegistrosModal()">
-                            <option value="todos">Todos os Dispositivos</option>
+                            <option value="todos">Todas as Centrais</option>
                         </select>
                     </div>
                     <div class="filter-item">
@@ -238,7 +243,7 @@
                         </svg>
                         <span>Exportar CSV</span>
                     </button>
-                    <button class="btn-action-delete" onclick="abrirConfirmacaoExclusao()" title="Apagar registros de leituras no intervalo de datas definido">
+                    <button class="btn-action-delete" onclick="abrirConfirmacaoExclusao()" title="Apagar registros no intervalo de datas definido">
                         <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                             <polyline points="3 6 5 6 21 6"></polyline>
                             <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
@@ -258,16 +263,16 @@
                 <table class="registros-table">
                     <thead>
                         <tr>
-                            <th>Dispositivo</th>
-                            <th>Cliente</th>
+                            <th>Central / Rede</th>
+                            <th>Local / Setor</th>
                             <th>Data & Hora</th>
-                            <th>Pressão Sensor 1</th>
-                            <th>Relé 1 ON</th>
-                            <th>Relé 1 OFF</th>
-                            <th>Acionamentos R1</th>
-                            <th>Relé 2 ON</th>
-                            <th>Relé 2 OFF</th>
-                            <th>Acionamentos R2</th>
+                            <th>Pressão da Rede</th>
+                            <th>Bomba Principal ON</th>
+                            <th>Bomba Principal OFF</th>
+                            <th>Partidas Principal</th>
+                            <th>Bomba Jockey ON</th>
+                            <th>Bomba Jockey OFF</th>
+                            <th>Partidas Jockey</th>
                         </tr>
                     </thead>
                     <tbody id="registrosTableBody">
@@ -304,9 +309,9 @@
                 <h3>Confirmar Exclusão de Registros</h3>
             </div>
             <div class="modal-confirm-body">
-                <p>Tem certeza que deseja apagar permanentemente os registros de leitura de relés no período selecionado?</p>
+                <p>Tem certeza que deseja apagar permanentemente os registros de telemetria do sistema de incêndio no período selecionado?</p>
                 <div class="confirm-summary-box">
-                    <div><strong>Dispositivo:</strong> <span id="confirmDeleteDispositivo">Todos</span></div>
+                    <div><strong>Central / Dispositivo:</strong> <span id="confirmDeleteDispositivo">Todas</span></div>
                     <div><strong>Data Inicial:</strong> <span id="confirmDeleteDataInicio">--</span></div>
                     <div><strong>Data Final:</strong> <span id="confirmDeleteDataFim">--</span></div>
                 </div>
@@ -319,7 +324,6 @@
         </div>
     </div>
 
-
-    <script src="chopeiras.js"></script>
+    <script src="incendio.js"></script>
 </body>
 </html>

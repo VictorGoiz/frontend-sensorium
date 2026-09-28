@@ -5,7 +5,42 @@ let activeAlertFilter = 'todos';
 let sensorBadgeWatchdog = null;
 
 /**
- * Atualiza o estado da badge de transmissão ao vivo em LFG60 (Padrão Chopeiras)
+ * Translations helpers
+ */
+function translateLed(led) {
+    if (!led) return 'Green';
+    const l = String(led).toLowerCase();
+    if (l === 'vermelho' || l === 'red') return 'Red';
+    if (l === 'amarelo' || l === 'yellow') return 'Yellow';
+    if (l === 'verde' || l === 'green') return 'Green';
+    return led;
+}
+
+function translateStatus(st) {
+    if (!st) return 'Operational';
+    const s = String(st).toLowerCase();
+    if (s === 'operacional' || s === 'operational') return 'Operational';
+    if (s === 'atenção' || s === 'atencao' || s === 'warning') return 'Warning';
+    if (s === 'crítico' || s === 'critico' || s === 'critical') return 'Critical';
+    if (s === 'normal') return 'Normal';
+    return st;
+}
+
+function translateParamKey(param) {
+    const map = {
+        'temperatura': 'Temperature',
+        'umidade': 'Relative Humidity',
+        'co2': 'Carbon Dioxide (CO₂)',
+        'pm25': 'Fine Particulate Matter (PM2.5)',
+        'pm10': 'Inhalable Particles (PM10)',
+        'voc': 'Volatile Organic Compounds (VOC)',
+        'formaldeido': 'Formaldehyde (HCHO)'
+    };
+    return map[param] || param;
+}
+
+/**
+ * Updates live transmission badge state for LFG60
  */
 function setSensorLiveBadgeState(isLive) {
     const badge = document.getElementById('livePresentationBadge') || document.getElementById('sensorLiveBadge');
@@ -14,14 +49,14 @@ function setSensorLiveBadgeState(isLive) {
 
     if (isLive) {
         badge.classList.add('active');
-        if (badgeText) badgeText.innerText = 'AO VIVO';
+        if (badgeText) badgeText.innerText = 'LIVE';
         if (sensorBadgeWatchdog) clearTimeout(sensorBadgeWatchdog);
         sensorBadgeWatchdog = setTimeout(() => {
             setSensorLiveBadgeState(false);
         }, 15000);
     } else {
         badge.classList.remove('active');
-        if (badgeText) badgeText.innerText = 'AGUARDANDO DADOS';
+        if (badgeText) badgeText.innerText = 'WAITING FOR DATA';
     }
 }
 
@@ -30,7 +65,6 @@ document.addEventListener('DOMContentLoaded', function() {
     if (userStr) {
         try {
             const user = JSON.parse(userStr);
-            // Na área de apresentação, perfil restrito mantém apenas o menu de dispositivos
             if (user.perfil === 'apresentacao') {
                 document.querySelectorAll('.sidebar nav > a.nav-item').forEach(el => {
                     el.style.display = 'none';
@@ -39,10 +73,10 @@ document.addEventListener('DOMContentLoaded', function() {
         } catch (e) {}
     }
 
-    // 1. Carregar Sensores e Alertas da API
+    // 1. Load Sensors and Alerts from API
     loadDashboardData();
 
-    // Conectar via Socket.IO para atualizações em tempo real com debounce
+    // Connect via Socket.IO for real-time updates with debounce
     let updateDebounceTimer = null;
     function triggerDashboardUpdate(data) {
         setSensorLiveBadgeState(true);
@@ -50,7 +84,6 @@ document.addEventListener('DOMContentLoaded', function() {
         updateDebounceTimer = setTimeout(() => {
             loadDashboardData();
             
-            // Se o modal do dispositivo atualizado estiver aberto, atualiza o histórico também
             const modal = document.getElementById('sensorModal');
             if (modal && modal.classList.contains('active') && data?.numeroSerie) {
                 const title = document.getElementById('modalSensorTitle')?.innerText || '';
@@ -64,7 +97,7 @@ document.addEventListener('DOMContentLoaded', function() {
     if (typeof io !== 'undefined') {
         const socket = io(API_BASE, { auth: { token: localStorage.getItem('sensorium_token') } });
         socket.on('dashboard_update', (data) => {
-            console.log('[LFG60] Recebido update via WebSocket:', data);
+            console.log('[LFG60] WebSocket update received:', data);
             triggerDashboardUpdate(data);
         });
 
@@ -72,22 +105,22 @@ document.addEventListener('DOMContentLoaded', function() {
             setSensorLiveBadgeState(false);
         });
     } else {
-        console.warn('[LFG60] Socket.IO não carregado. Fazendo fallback para polling.');
+        console.warn('[LFG60] Socket.IO not loaded. Falling back to polling.');
         setInterval(loadDashboardData, 10000);
     }
 
-    // Monitora mudanças de tela cheia para atualizar botão
+    // Fullscreen change listener
     document.addEventListener('fullscreenchange', handleFullscreenChange);
     document.addEventListener('webkitfullscreenchange', handleFullscreenChange);
 
-    // Monitora scroll e resize no carrossel de dispositivos
+    // Carousel scroll and resize listeners
     const container = document.getElementById('sensorListContainer');
     if (container) {
         container.addEventListener('scroll', handleCarouselScroll);
     }
     window.addEventListener('resize', updateCarouselState);
 
-    // Fechar popover de alertas se clicar fora
+    // Close alerts popover on outside click
     document.addEventListener('click', function(e) {
         const popover = document.getElementById('headerAlertsPopover');
         const alertBtn = document.getElementById('headerAlertBtn');
@@ -112,14 +145,14 @@ function getAuthHeaders() {
 }
 
 // ----------------------------------------------------
-// 1. DISPOSITIVOS E LEITURAS DA API (banco.sql)
+// 1. DEVICES AND READINGS FROM API
 // ----------------------------------------------------
 async function fetchDevicesFromApi() {
     try {
         const res = await fetch(`${API_BASE}/api/lfg60`, {
             headers: getAuthHeaders()
         });
-        if (!res.ok) throw new Error('Falha ao conectar com a API LFG60.');
+        if (!res.ok) throw new Error('Failed to connect to LFG60 API.');
         const result = await res.json();
 
         if (result.success && Array.isArray(result.data)) {
@@ -139,7 +172,7 @@ async function fetchDevicesFromApi() {
             }
         }
     } catch (err) {
-        console.warn('[LFG60] Erro ao carregar sensores:', err.message);
+        console.warn('[LFG60] Error loading sensors:', err.message);
     }
 }
 
@@ -148,9 +181,9 @@ function updateLfgDeviceSelect(devices) {
     if (!select) return;
 
     const currentVal = select.value || 'all';
-    let optionsHtml = '<option value="all">Todos os Dispositivos</option>';
+    let optionsHtml = '<option value="all">All Devices</option>';
     devices.forEach(d => {
-        optionsHtml += `<option value="${d.numero_serie}">Transmissor ${d.numero_serie}</option>`;
+        optionsHtml += `<option value="${d.numero_serie}">Transmitter ${d.numero_serie}</option>`;
     });
 
     select.innerHTML = optionsHtml;
@@ -186,22 +219,22 @@ function onSelectLfgDeviceChange() {
 }
 
 // ----------------------------------------------------
-// MANÔMETROS CHART.JS NOS CARDS DE DISPOSITIVOS
+// CHART.JS GAUGES IN DEVICE CARDS
 // ----------------------------------------------------
 const activeManometros = {};
 
 function getTemperatureGaugeColor(tempVal) {
     if (tempVal === null || tempVal === undefined || isNaN(tempVal)) return '#94a3b8';
-    if (tempVal >= 18 && tempVal <= 26) return '#10b981'; // Ideal Verde
-    if ((tempVal >= 15 && tempVal < 18) || (tempVal > 26 && tempVal <= 30)) return '#f59e0b'; // Aviso Amarelo
-    return '#ef4444'; // Crítico Vermelho
+    if (tempVal >= 18 && tempVal <= 26) return '#10b981'; // Ideal Green
+    if ((tempVal >= 15 && tempVal < 18) || (tempVal > 26 && tempVal <= 30)) return '#f59e0b'; // Warning Yellow
+    return '#ef4444'; // Critical Red
 }
 
 function getHumidityGaugeColor(umidVal) {
     if (umidVal === null || umidVal === undefined || isNaN(umidVal)) return '#94a3b8';
-    if (umidVal >= 30 && umidVal <= 60) return '#0284c7'; // Ideal Azul Oceano
-    if ((umidVal >= 20 && umidVal < 30) || (umidVal > 60 && umidVal <= 75)) return '#f59e0b'; // Aviso Amarelo
-    return '#ef4444'; // Crítico Vermelho
+    if (umidVal >= 30 && umidVal <= 60) return '#0284c7'; // Ideal Ocean Blue
+    if ((umidVal >= 20 && umidVal < 30) || (umidVal > 60 && umidVal <= 75)) return '#f59e0b'; // Warning Yellow
+    return '#ef4444'; // Critical Red
 }
 
 function initOrUpdateManometroGauge(canvasId, value, min, max, fillColor) {
@@ -210,12 +243,11 @@ function initOrUpdateManometroGauge(canvasId, value, min, max, fillColor) {
     const progress = clamped - min;
     const remaining = max - clamped;
 
-    // Se já existe instância do gráfico ativa, apenas atualiza dados sem reconstruir o canvas
     if (activeManometros[canvasId]) {
         const chart = activeManometros[canvasId];
         chart.data.datasets[0].data = [progress, remaining];
         chart.data.datasets[0].backgroundColor = [fillColor, '#e2e8f0'];
-        chart.update('none'); // Atualização instantânea com latência zero
+        chart.update('none');
         return;
     }
 
@@ -255,28 +287,25 @@ function renderSensorCards(devices) {
     if (!container) return;
 
     if (devices.length === 0) {
-        // Limpa manômetros anteriores
         Object.keys(activeManometros).forEach(key => {
             if (activeManometros[key]) {
                 activeManometros[key].destroy();
                 delete activeManometros[key];
             }
         });
-        container.innerHTML = `<div style="padding: 20px; text-align: center; color: #888; width: 100%;">Nenhum dispositivo cadastrado no banco de dados.</div>`;
+        container.innerHTML = `<div style="padding: 20px; text-align: center; color: #888; width: 100%;">No devices registered in the database.</div>`;
         return;
     }
 
-    // Verifica se a estrutura de cards já está presente no DOM
     const existingCards = container.querySelectorAll('.sensor-card');
     const hasMatchingDom = existingCards.length === devices.length && devices.every(d => document.getElementById(`sensor-card-${d.numero_serie}`));
 
     if (hasMatchingDom) {
-        // Atualização in-place ultra-rápida (60 FPS, sem re-renderizar o HTML)
         devices.forEach(dev => {
             const l = dev.ultima_leitura || {};
             const led = dev.led || 'Verde';
-            const statusText = dev.status || 'Operacional';
-            const isAlert = led === 'Amarelo' || led === 'Vermelho' || statusText !== 'Operacional';
+            const statusRaw = dev.status || 'Operacional';
+            const isAlert = led === 'Amarelo' || led === 'Vermelho' || led === 'Yellow' || led === 'Red' || (statusRaw !== 'Operacional' && statusRaw !== 'Operational');
 
             const tempVal = l.temperatura !== null && l.temperatura !== undefined ? Number(l.temperatura) : null;
             const umidVal = l.umidade !== null && l.umidade !== undefined ? Number(l.umidade) : null;
@@ -295,10 +324,13 @@ function renderSensorCards(devices) {
 
             const badgeEl = document.getElementById(`status-badge-${dev.numero_serie}`);
             if (badgeEl) {
-                const statusClass = statusText === 'Crítico' ? 'critico' : (statusText === 'Atenção' ? 'atencao' : 'operacional');
-                const dotClass = led === 'Vermelho' ? 'red' : (led === 'Amarelo' ? 'yellow' : 'green');
+                const isCrit = statusRaw === 'Crítico' || statusRaw === 'Critical';
+                const isWarn = statusRaw === 'Atenção' || statusRaw === 'Warning';
+                const statusClass = isCrit ? 'critico' : (isWarn ? 'atencao' : 'operacional');
+                const dotClass = (led === 'Vermelho' || led === 'Red') ? 'red' : ((led === 'Amarelo' || led === 'Yellow') ? 'yellow' : 'green');
+                const translatedSt = translateStatus(statusRaw);
                 badgeEl.className = `header-status-badge ${statusClass}`;
-                badgeEl.innerHTML = `<span class="status-dot ${dotClass}" title="LED: ${led}"></span><span>${statusText}</span>`;
+                badgeEl.innerHTML = `<span class="status-dot ${dotClass}" title="LED: ${translateLed(led)}"></span><span>${translatedSt}</span>`;
             }
 
             const tempTextEl = document.getElementById(`temp-val-${dev.numero_serie}`);
@@ -316,20 +348,17 @@ function renderSensorCards(devices) {
             const co2El = document.getElementById(`co2-val-${dev.numero_serie}`);
             if (co2El) co2El.innerText = co2Text;
 
-            // Atualiza os manômetros de forma instantânea
             initOrUpdateManometroGauge(`gauge-temp-${dev.numero_serie}`, tempVal, 0, 50, tempColor);
             initOrUpdateManometroGauge(`gauge-umid-${dev.numero_serie}`, umidVal, 0, 100, umidColor);
         });
 
-        // Atualiza pílula de contagem
         const countPill = document.getElementById('devicesCountPill');
         if (countPill) {
-            countPill.innerText = `${devices.length} dispositivo${devices.length !== 1 ? 's' : ''}`;
+            countPill.innerText = `${devices.length} device${devices.length !== 1 ? 's' : ''}`;
         }
         return;
     }
 
-    // Caso seja primeiro carregamento ou lista alterada, monta o HTML
     Object.keys(activeManometros).forEach(key => {
         if (activeManometros[key]) {
             activeManometros[key].destroy();
@@ -340,8 +369,8 @@ function renderSensorCards(devices) {
     container.innerHTML = devices.map(dev => {
         const l = dev.ultima_leitura || {};
         const led = dev.led || 'Verde';
-        const statusText = dev.status || 'Operacional';
-        const isAlert = led === 'Amarelo' || led === 'Vermelho' || statusText !== 'Operacional';
+        const statusRaw = dev.status || 'Operacional';
+        const isAlert = led === 'Amarelo' || led === 'Vermelho' || led === 'Yellow' || led === 'Red' || (statusRaw !== 'Operacional' && statusRaw !== 'Operational');
         
         const tempVal = l.temperatura !== null && l.temperatura !== undefined ? Number(l.temperatura) : null;
         const umidVal = l.umidade !== null && l.umidade !== undefined ? Number(l.umidade) : null;
@@ -353,50 +382,53 @@ function renderSensorCards(devices) {
         const tempColor = getTemperatureGaugeColor(tempVal);
         const umidColor = getHumidityGaugeColor(umidVal);
 
-        const statusClass = statusText === 'Crítico' ? 'critico' : (statusText === 'Atenção' ? 'atencao' : 'operacional');
-        const dotClass = led === 'Vermelho' ? 'red' : (led === 'Amarelo' ? 'yellow' : 'green');
+        const isCrit = statusRaw === 'Crítico' || statusRaw === 'Critical';
+        const isWarn = statusRaw === 'Atenção' || statusRaw === 'Warning';
+        const statusClass = isCrit ? 'critico' : (isWarn ? 'atencao' : 'operacional');
+        const dotClass = (led === 'Vermelho' || led === 'Red') ? 'red' : ((led === 'Amarelo' || led === 'Yellow') ? 'yellow' : 'green');
+        const translatedSt = translateStatus(statusRaw);
 
         return `
             <div class="sensor-card ${isAlert ? 'alert' : ''}" id="sensor-card-${dev.numero_serie}" onclick="openDeviceDetailModal('${dev.numero_serie}')">
                 <div class="sensor-header">
-                    <h4>Transmissor ${dev.numero_serie}</h4>
+                    <h4>Transmitter ${dev.numero_serie}</h4>
                     <div class="header-status-badge ${statusClass}" id="status-badge-${dev.numero_serie}">
-                        <span class="status-dot ${dotClass}" title="LED: ${led}"></span>
-                        <span>${statusText}</span>
+                        <span class="status-dot ${dotClass}" title="LED: ${translateLed(led)}"></span>
+                        <span>${translatedSt}</span>
                     </div>
                 </div>
 
                 <div class="sensor-gauges-row">
-                    <!-- Manômetro de Temperatura -->
+                    <!-- Temperature Gauge -->
                     <div class="manometro-box">
                         <div class="manometro-canvas-wrapper">
                             <canvas id="gauge-temp-${dev.numero_serie}"></canvas>
                             <div class="manometro-center-info">
                                 <span class="manometro-val" id="temp-val-${dev.numero_serie}" style="color: ${tempColor};">${tempDisplay}</span>
-                                <span class="manometro-label">Temperatura</span>
+                                <span class="manometro-label">Temperature</span>
                             </div>
                         </div>
                         <div class="manometro-scale">
                             <span>0°C</span>
                             <span>50°C</span>
                         </div>
-                        <div class="manometro-ideal-badge">Ideal: 18°C a 26°C</div>
+                        <div class="manometro-ideal-badge">Ideal: 18°C to 26°C</div>
                     </div>
 
-                    <!-- Manômetro de Umidade -->
+                    <!-- Humidity Gauge -->
                     <div class="manometro-box">
                         <div class="manometro-canvas-wrapper">
                             <canvas id="gauge-umid-${dev.numero_serie}"></canvas>
                             <div class="manometro-center-info">
                                 <span class="manometro-val" id="umid-val-${dev.numero_serie}" style="color: ${umidColor};">${umidDisplay}</span>
-                                <span class="manometro-label">Umidade</span>
+                                <span class="manometro-label">Humidity</span>
                             </div>
                         </div>
                         <div class="manometro-scale">
                             <span>0%</span>
                             <span>100%</span>
                         </div>
-                        <div class="manometro-ideal-badge">Ideal: 30% a 60%</div>
+                        <div class="manometro-ideal-badge">Ideal: 30% to 60%</div>
                     </div>
                 </div>
 
@@ -406,7 +438,7 @@ function renderSensorCards(devices) {
                         <strong id="co2-val-${dev.numero_serie}">${co2Text}</strong>
                     </div>
                     <div class="sensor-details-hint">
-                        <span>Ver detalhes</span>
+                        <span>View details</span>
                         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="9 18 15 12 9 6"></polyline></svg>
                     </div>
                 </div>
@@ -414,13 +446,11 @@ function renderSensorCards(devices) {
         `;
     }).join('');
 
-    // Atualiza pílula com total de dispositivos
     const countPill = document.getElementById('devicesCountPill');
     if (countPill) {
-        countPill.innerText = `${devices.length} dispositivo${devices.length !== 1 ? 's' : ''}`;
+        countPill.innerText = `${devices.length} device${devices.length !== 1 ? 's' : ''}`;
     }
 
-    // Inicializa os manômetros para cada dispositivo após inserção no DOM
     devices.forEach(dev => {
         const l = dev.ultima_leitura || {};
         const tempVal = l.temperatura !== null && l.temperatura !== undefined ? Number(l.temperatura) : null;
@@ -433,7 +463,6 @@ function renderSensorCards(devices) {
         initOrUpdateManometroGauge(`gauge-umid-${dev.numero_serie}`, umidVal, 0, 100, umidColor);
     });
 
-    // Atualiza estado e visibilidade das setas e indicadores do carrossel
     setTimeout(updateCarouselState, 50);
 }
 
@@ -446,38 +475,40 @@ function updateDashboardSummary(devices) {
     let countCritico = 0;
 
     devices.forEach(d => {
-        if (d.led === 'Amarelo' || d.status === 'Atenção') countAtencao++;
-        if (d.led === 'Vermelho' || d.status === 'Crítico') countCritico++;
+        const led = d.led;
+        const st = d.status;
+        if (led === 'Amarelo' || led === 'Yellow' || st === 'Atenção' || st === 'Warning') countAtencao++;
+        if (led === 'Vermelho' || led === 'Red' || st === 'Crítico' || st === 'Critical') countCritico++;
     });
 
     if (cardCountAtencao) cardCountAtencao.innerText = countAtencao + countCritico;
 
     if (cardStatusGeral) {
         if (countCritico > 0) {
-            cardStatusGeral.innerText = 'Crítico';
+            cardStatusGeral.innerText = 'Critical';
             cardStatusGeral.style.color = '#dc2626';
-            if (cardStatusGeralSub) cardStatusGeralSub.innerText = `${countCritico} dispositivo(s) em estado crítico!`;
+            if (cardStatusGeralSub) cardStatusGeralSub.innerText = `${countCritico} device(s) in critical state!`;
         } else if (countAtencao > 0) {
-            cardStatusGeral.innerText = 'Atenção';
+            cardStatusGeral.innerText = 'Warning';
             cardStatusGeral.style.color = '#f59e0b';
-            if (cardStatusGeralSub) cardStatusGeralSub.innerText = `${countAtencao} dispositivo(s) fora da faixa ideal`;
+            if (cardStatusGeralSub) cardStatusGeralSub.innerText = `${countAtencao} device(s) outside ideal range`;
         } else {
-            cardStatusGeral.innerText = 'Normal';
+            cardStatusGeral.innerText = 'Operational';
             cardStatusGeral.style.color = '#10b981';
-            if (cardStatusGeralSub) cardStatusGeralSub.innerText = 'Todos os parâmetros dentro do range';
+            if (cardStatusGeralSub) cardStatusGeralSub.innerText = 'All parameters within range';
         }
     }
 }
 
 // ----------------------------------------------------
-// 2. CENTRAL DE AVISOS E ALERTAS NO HEADER
+// 2. WARNINGS & ALERTS IN HEADER
 // ----------------------------------------------------
 async function fetchAlertsFromApi() {
     try {
         const res = await fetch(`${API_BASE}/api/lfg60/alertas?unreadOnly=true`, {
             headers: getAuthHeaders()
         });
-        if (!res.ok) throw new Error('Falha ao buscar alertas.');
+        if (!res.ok) throw new Error('Failed to fetch alerts.');
         const result = await res.json();
 
         if (result.success) {
@@ -489,7 +520,7 @@ async function fetchAlertsFromApi() {
             if (cardCountAlertas) cardCountAlertas.innerText = result.summary ? result.summary.unread : currentAlerts.length;
         }
     } catch (err) {
-        console.warn('[LFG60 Alerts] Erro ao carregar alertas:', err.message);
+        console.warn('[LFG60 Alerts] Error loading alerts:', err.message);
     }
 }
 
@@ -527,30 +558,31 @@ function renderAlertsList() {
 
     let filtered = currentAlerts;
     if (activeAlertFilter === 'Critico') {
-        filtered = currentAlerts.filter(a => a.nivel === 'Critico');
+        filtered = currentAlerts.filter(a => a.nivel === 'Critico' || a.nivel === 'Critical');
     } else if (activeAlertFilter === 'Aviso') {
-        filtered = currentAlerts.filter(a => a.nivel === 'Aviso');
+        filtered = currentAlerts.filter(a => a.nivel === 'Aviso' || a.nivel === 'Warning');
     }
 
     if (filtered.length === 0) {
-        list.innerHTML = `<div class="alerts-empty">Nenhum aviso ou alerta pendente no momento.</div>`;
+        list.innerHTML = `<div class="alerts-empty">No pending warnings or alerts at this time.</div>`;
         return;
     }
 
     list.innerHTML = filtered.map(a => {
-        const isCrit = a.nivel === 'Critico';
-        const dateStr = a.created_at ? new Date(a.created_at).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }) : '';
+        const isCrit = a.nivel === 'Critico' || a.nivel === 'Critical';
+        const levelText = isCrit ? 'Critical' : 'Warning';
+        const dateStr = a.created_at ? new Date(a.created_at).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }) : '';
         
         return `
             <div class="alert-item-card ${isCrit ? 'critico' : ''}">
                 <div class="alert-item-header">
-                    <span class="alert-device-name">Dispositivo: ${a.dispositivo_numero_serie}</span>
-                    <span class="alert-badge-pill ${isCrit ? 'critico' : 'aviso'}">${a.nivel}</span>
+                    <span class="alert-device-name">Device: ${a.dispositivo_numero_serie}</span>
+                    <span class="alert-badge-pill ${isCrit ? 'critico' : 'aviso'}">${levelText}</span>
                 </div>
                 <div class="alert-msg-text"><strong>${a.parametro}:</strong> ${a.mensagem}</div>
                 <div class="alert-item-footer">
                     <span>${dateStr}</span>
-                    <button class="btn-read-alert" onclick="markAlertAsRead(${a.id})">Marcar Lido</button>
+                    <button class="btn-read-alert" onclick="markAlertAsRead(${a.id})">Mark as Read</button>
                 </div>
             </div>
         `;
@@ -567,7 +599,7 @@ async function markAlertAsRead(alertId) {
             fetchAlertsFromApi();
         }
     } catch (e) {
-        console.error('Erro ao marcar alerta como lido:', e);
+        console.error('Error marking alert as read:', e);
     }
 }
 
@@ -581,24 +613,24 @@ async function markAllAlertsAsRead() {
             fetchAlertsFromApi();
         }
     } catch (e) {
-        console.error('Erro ao limpar alertas:', e);
+        console.error('Error clearing alerts:', e);
     }
 }
 
 // ----------------------------------------------------
-// 3. MODAL DE DETALHES DO DISPOSITIVO
+// 3. DEVICE DETAIL MODAL
 // ----------------------------------------------------
 function openDeviceDetailModal(numeroSerie) {
     const dev = currentDevices.find(d => d.numero_serie === numeroSerie);
     if (!dev) return;
 
     const modal = document.getElementById('sensorModal');
-    document.getElementById('modalSensorTitle').innerText = `Transmissor: ${dev.numero_serie}`;
-    document.getElementById('modalLocationText').innerText = `Número de Série: ${dev.numero_serie}`;
+    document.getElementById('modalSensorTitle').innerText = `Transmitter: ${dev.numero_serie}`;
+    document.getElementById('modalLocationText').innerText = `Serial Number: ${dev.numero_serie}`;
 
     const l = dev.ultima_leitura || {};
-    const timestampStr = l.timestamp ? new Date(l.timestamp).toLocaleString('pt-BR') : 'Sem registros de leitura';
-    document.getElementById('modalLastTimestamp').innerText = `Última Leitura: ${timestampStr}`;
+    const timestampStr = l.timestamp ? new Date(l.timestamp).toLocaleString('en-US') : 'No reading records';
+    document.getElementById('modalLastTimestamp').innerText = `Last Reading: ${timestampStr}`;
 
     const led = dev.led || 'Verde';
     const dot = document.getElementById('modalLedDot');
@@ -606,31 +638,31 @@ function openDeviceDetailModal(numeroSerie) {
     const devStatus = document.getElementById('modalDeviceStatus');
 
     if (dot) {
-        dot.style.background = led === 'Vermelho' ? '#dc2626' : (led === 'Amarelo' ? '#f59e0b' : '#10b981');
+        const isRed = led === 'Vermelho' || led === 'Red';
+        const isYellow = led === 'Amarelo' || led === 'Yellow';
+        dot.style.background = isRed ? '#dc2626' : (isYellow ? '#f59e0b' : '#10b981');
     }
-    if (ledText) ledText.innerText = `LED Indicador: ${led}`;
-    if (devStatus) devStatus.innerText = `Status Geral: ${dev.status || 'Operacional'}`;
+    if (ledText) ledText.innerText = `Indicator LED: ${translateLed(led)}`;
+    if (devStatus) devStatus.innerText = `Overall Status: ${translateStatus(dev.status)}`;
 
-    // Render dos 7 Parâmetros
+    // Render 7 Environmental Parameters
     const grid = document.getElementById('modalParamsGrid');
     if (grid) {
         grid.innerHTML = `
-            ${renderParamCard('Temperatura', l.temperatura, '°C', '18.0 - 26.0 °C', l.temperatura < 18 || l.temperatura > 26)}
-            ${renderParamCard('Umidade Relativa', l.umidade, '%', '30.0 - 60.0 %', l.umidade < 30 || l.umidade > 60)}
+            ${renderParamCard('Temperature', l.temperatura, '°C', '18.0 - 26.0 °C', l.temperatura < 18 || l.temperatura > 26)}
+            ${renderParamCard('Relative Humidity', l.umidade, '%', '30.0 - 60.0 %', l.umidade < 30 || l.umidade > 60)}
             ${renderParamCard('CO2', l.co2, 'ppm', '≤ 800 ppm', l.co2 > 800)}
             ${renderParamCard('PM2.5', l.pm25, 'µg/m³', '≤ 15 µg/m³', l.pm25 > 15)}
             ${renderParamCard('PM10', l.pm10, 'µg/m³', '≤ 30 µg/m³', l.pm10 > 30)}
             ${renderParamCard('VOC', l.voc, 'ppm', '≤ 0.20 ppm', l.voc > 0.20)}
-            ${renderParamCard('Formaldeído', l.formaldeido, 'mg/m³', '≤ 0.05 mg/m³', l.formaldeido > 0.05)}
+            ${renderParamCard('Formaldehyde', l.formaldeido, 'mg/m³', '≤ 0.05 mg/m³', l.formaldeido > 0.05)}
         `;
     }
 
-    // Busca histórico de leituras via rota GET /api/sensores/:numeroSerie/leituras
     fetchDeviceHistory(numeroSerie);
 
     modal.classList.add('active');
 
-    // Inicializar mapa Leaflet simulando coordenadas
     const coords = numeroSerie.includes('SP') ? [-23.5505, -46.6333] : (numeroSerie.includes('RJ') ? [-22.9068, -43.1729] : [-19.9167, -43.9345]);
     setTimeout(() => {
         if (!mapInstance) {
@@ -649,39 +681,41 @@ async function fetchDeviceHistory(numeroSerie) {
     const historyContainer = document.getElementById('modalHistoryContainer');
     if (!historyContainer) return;
 
-    historyContainer.innerHTML = `<div style="color: #94a3b8;">Carregando histórico do banco de dados...</div>`;
+    historyContainer.innerHTML = `<div style="color: #94a3b8;">Loading history from database...</div>`;
 
     try {
         const res = await fetch(`${API_BASE}/api/lfg60/${numeroSerie}/leituras`, {
             headers: getAuthHeaders()
         });
-        if (!res.ok) throw new Error('Erro ao buscar histórico de leituras.');
+        if (!res.ok) throw new Error('Error fetching readings history.');
         const result = await res.json();
 
         if (result.success && Array.isArray(result.data) && result.data.length > 0) {
             historyContainer.innerHTML = result.data.map(item => {
-                const time = item.timestamp_leitura ? new Date(item.timestamp_leitura).toLocaleString('pt-BR') : (item.created_at ? new Date(item.created_at).toLocaleString('pt-BR') : 'N/A');
-                const ledColor = item.led === 'Vermelho' ? '#ef4444' : (item.led === 'Amarelo' ? '#f59e0b' : '#10b981');
+                const time = item.timestamp_leitura ? new Date(item.timestamp_leitura).toLocaleString('en-US') : (item.created_at ? new Date(item.created_at).toLocaleString('en-US') : 'N/A');
+                const isRed = item.led === 'Vermelho' || item.led === 'Red';
+                const isYellow = item.led === 'Amarelo' || item.led === 'Yellow';
+                const ledColor = isRed ? '#ef4444' : (isYellow ? '#f59e0b' : '#10b981');
                 return `
                     <div style="padding: 6px 0; border-bottom: 1px dashed #334155; display: flex; justify-content: space-between; align-items: center; gap: 10px;">
                         <div>
-                            <span style="color: ${ledColor}; font-weight: bold;">● [${item.led || 'Verde'}]</span> 
+                            <span style="color: ${ledColor}; font-weight: bold;">● [${translateLed(item.led)}]</span> 
                             <span style="color: #94a3b8;">${time}</span>
                         </div>
                         <div style="text-align: right; color: #e2e8f0;">
                             Temp: <strong>${item.temperatura !== null ? item.temperatura + '°C' : '--'}</strong> | 
-                            Umid: <strong>${item.umidade !== null ? item.umidade + '%' : '--'}</strong> | 
+                            Humidity: <strong>${item.umidade !== null ? item.umidade + '%' : '--'}</strong> | 
                             CO2: <strong>${item.co2 !== null ? item.co2 + ' ppm' : '--'}</strong>
                         </div>
                     </div>
                 `;
             }).join('');
         } else {
-            historyContainer.innerHTML = `<div style="color: #94a3b8;">Nenhum registro histórico encontrado.</div>`;
+            historyContainer.innerHTML = `<div style="color: #94a3b8;">No historical records found.</div>`;
         }
     } catch (err) {
-        console.warn('[LFG60] Erro ao carregar histórico:', err.message);
-        historyContainer.innerHTML = `<div style="color: #ef4444;">Erro ao carregar histórico da API.</div>`;
+        console.warn('[LFG60] Error loading history:', err.message);
+        historyContainer.innerHTML = `<div style="color: #ef4444;">Error loading history from API.</div>`;
     }
 }
 
@@ -703,7 +737,7 @@ function closeSensorModal() {
 }
 
 // ----------------------------------------------------
-// 4. MODAL DE LIMITES E RANGES PRESCRITOS
+// 4. PRESCRIBED RANGES AND LIMITS MODAL
 // ----------------------------------------------------
 async function openPrescribedRangesModal() {
     const modal = document.getElementById('rangesModal');
@@ -712,7 +746,7 @@ async function openPrescribedRangesModal() {
 
     try {
         const res = await fetch(`${API_BASE}/api/lfg60/limites`, { headers: getAuthHeaders() });
-        if (!res.ok) throw new Error('Erro ao buscar limites');
+        if (!res.ok) throw new Error('Error fetching limits');
         const limites = await res.json();
         
         let html = '';
@@ -723,14 +757,15 @@ async function openPrescribedRangesModal() {
             
             const hasMin = l.min_ideal !== undefined;
             const inputStyle = 'width: 50px; background: #0f172a; color: #f8fafc; border: 1px solid #334155; border-radius: 4px; padding: 4px 2px; text-align: center; font-size: 12px; margin: 0 2px;';
+            const translatedLabel = translateParamKey(key);
             
             html += `
             <tr data-param="${key}">
-                <td style="white-space: nowrap;"><strong>${l.label}</strong></td>
+                <td style="white-space: nowrap;"><strong>${translatedLabel}</strong></td>
                 <td>${l.unit}</td>
                 <td style="white-space: nowrap;">
                     ${hasMin ? 
-                        `<input type="number" step="0.1" class="input-limite" data-field="min_ideal" value="${l.min_ideal}" style="${inputStyle}"> a 
+                        `<input type="number" step="0.1" class="input-limite" data-field="min_ideal" value="${l.min_ideal}" style="${inputStyle}"> to 
                          <input type="number" step="0.1" class="input-limite" data-field="max_ideal" value="${l.max_ideal}" style="${inputStyle}">` 
                         : 
                         `&le; <input type="number" step="0.1" class="input-limite" data-field="max_ideal" value="${l.max_ideal}" style="${inputStyle}">`
@@ -738,17 +773,17 @@ async function openPrescribedRangesModal() {
                 </td>
                 <td style="color: #f59e0b; white-space: nowrap; font-size: 12px;">
                     ${hasMin ? 
-                        `Fora do Ideal` 
+                        `Outside Ideal` 
                         : 
-                        `Até <input type="number" step="0.1" class="input-limite" data-field="max_aviso" value="${l.max_aviso}" style="${inputStyle}">`
+                        `Up to <input type="number" step="0.1" class="input-limite" data-field="max_aviso" value="${l.max_aviso}" style="${inputStyle}">`
                     }
                 </td>
                 <td style="color: #ef4444; white-space: nowrap; font-size: 12px;">
                     ${hasMin ? 
-                        `&lt; <input type="number" step="0.1" class="input-limite" data-field="crit_min" value="${l.crit_min}" style="${inputStyle}"> ou 
+                        `&lt; <input type="number" step="0.1" class="input-limite" data-field="crit_min" value="${l.crit_min}" style="${inputStyle}"> or 
                          &gt; <input type="number" step="0.1" class="input-limite" data-field="crit_max" value="${l.crit_max}" style="${inputStyle}">` 
                         : 
-                        `&gt; Aviso Max`
+                        `&gt; Max Warning`
                     }
                 </td>
             </tr>
@@ -758,8 +793,8 @@ async function openPrescribedRangesModal() {
         
         modal.classList.add('active');
     } catch (e) {
-        console.error('Erro ao abrir modal de limites:', e);
-        alert('Erro ao carregar limites do banco de dados.');
+        console.error('Error opening limits modal:', e);
+        alert('Error loading limits from database.');
     }
 }
 
@@ -794,19 +829,18 @@ async function savePrescribedRanges() {
         });
         
         if (res.ok) {
-            alert('Limites atualizados com sucesso!');
+            alert('Limits updated successfully!');
             closeRangesModal();
             loadDashboardData();
         } else {
-            alert('Erro ao atualizar limites.');
+            alert('Error updating limits.');
         }
     } catch (e) {
-        console.error('Erro ao salvar limites:', e);
-        alert('Erro ao conectar com a API.');
+        console.error('Error saving limits:', e);
+        alert('Error connecting to API.');
     }
 }
 
-// Fechar modais ao clicar fora
 document.addEventListener('click', function(e) {
     const sensorModal = document.getElementById('sensorModal');
     const rangesModal = document.getElementById('rangesModal');
@@ -823,7 +857,7 @@ function toggleNavDropdown(btn) {
 }
 
 // ----------------------------------------------------
-// 6. APRESENTAÇÃO UNITÁRIA EM TELA CHEIA (CARROSSEL KIOSK / TV)
+// 6. FULLSCREEN UNITARY PRESENTATION (KIOSK / TV)
 // ----------------------------------------------------
 let fullscreenActiveIndex = 0;
 let fsAutoplayInterval = null;
@@ -855,7 +889,7 @@ function handleFullscreenChange() {
     document.body.classList.toggle('fullscreen-active', isFull);
     
     if (textEl) {
-        textEl.innerText = isFull ? 'Sair da Tela Cheia' : 'Tela Cheia';
+        textEl.innerText = isFull ? 'Exit Fullscreen' : 'Fullscreen';
     }
     if (iconEl) {
         if (isFull) {
@@ -881,7 +915,6 @@ function setupFullscreenPresentation() {
 
     populateFsDeviceSelect();
 
-    // Sincroniza com dispositivo selecionado no header comum se aplicável
     const standardSelect = document.getElementById('lfgDeviceSelect');
     if (standardSelect && standardSelect.value !== 'all' && currentDevices && currentDevices.length > 0) {
         const foundIdx = currentDevices.findIndex(d => d.numero_serie === standardSelect.value);
@@ -896,12 +929,12 @@ function populateFsDeviceSelect() {
     if (!select) return;
 
     if (!currentDevices || currentDevices.length === 0) {
-        select.innerHTML = '<option value="">Nenhum transmissor</option>';
+        select.innerHTML = '<option value="">No transmitters</option>';
         return;
     }
 
     select.innerHTML = currentDevices.map((d, idx) => `
-        <option value="${d.numero_serie}">Transmissor ${d.numero_serie} (${idx + 1}/${currentDevices.length})</option>
+        <option value="${d.numero_serie}">Transmitter ${d.numero_serie} (${idx + 1}/${currentDevices.length})</option>
     `).join('');
 }
 
@@ -936,32 +969,32 @@ function getParamEvaluation(param, val) {
     switch (param) {
         case 'temperatura':
             if (v >= 18 && v <= 26) return { text: 'Ideal', cls: 'ideal' };
-            if ((v >= 15 && v < 18) || (v > 26 && v <= 30)) return { text: 'Aviso', cls: 'aviso' };
-            return { text: 'Crítico', cls: 'critico' };
+            if ((v >= 15 && v < 18) || (v > 26 && v <= 30)) return { text: 'Warning', cls: 'aviso' };
+            return { text: 'Critical', cls: 'critico' };
         case 'umidade':
             if (v >= 30 && v <= 60) return { text: 'Ideal', cls: 'ideal' };
-            if ((v >= 20 && v < 30) || (v > 60 && v <= 75)) return { text: 'Aviso', cls: 'aviso' };
-            return { text: 'Crítico', cls: 'critico' };
+            if ((v >= 20 && v < 30) || (v > 60 && v <= 75)) return { text: 'Warning', cls: 'aviso' };
+            return { text: 'Critical', cls: 'critico' };
         case 'co2':
             if (v <= 800) return { text: 'Normal', cls: 'ideal' };
-            if (v <= 1200) return { text: 'Aviso', cls: 'aviso' };
-            return { text: 'Crítico', cls: 'critico' };
+            if (v <= 1200) return { text: 'Warning', cls: 'aviso' };
+            return { text: 'Critical', cls: 'critico' };
         case 'pm25':
             if (v <= 15) return { text: 'Normal', cls: 'ideal' };
-            if (v <= 25) return { text: 'Aviso', cls: 'aviso' };
-            return { text: 'Crítico', cls: 'critico' };
+            if (v <= 25) return { text: 'Warning', cls: 'aviso' };
+            return { text: 'Critical', cls: 'critico' };
         case 'pm10':
             if (v <= 30) return { text: 'Normal', cls: 'ideal' };
-            if (v <= 50) return { text: 'Aviso', cls: 'aviso' };
-            return { text: 'Crítico', cls: 'critico' };
+            if (v <= 50) return { text: 'Warning', cls: 'aviso' };
+            return { text: 'Critical', cls: 'critico' };
         case 'voc':
             if (v <= 0.20) return { text: 'Normal', cls: 'ideal' };
-            if (v <= 0.50) return { text: 'Aviso', cls: 'aviso' };
-            return { text: 'Crítico', cls: 'critico' };
+            if (v <= 0.50) return { text: 'Warning', cls: 'aviso' };
+            return { text: 'Critical', cls: 'critico' };
         case 'formaldeido':
             if (v <= 0.05) return { text: 'Normal', cls: 'ideal' };
-            if (v <= 0.10) return { text: 'Aviso', cls: 'aviso' };
-            return { text: 'Crítico', cls: 'critico' };
+            if (v <= 0.10) return { text: 'Warning', cls: 'aviso' };
+            return { text: 'Critical', cls: 'critico' };
         default:
             return { text: 'Normal', cls: 'ideal' };
     }
@@ -1019,35 +1052,39 @@ function renderFullscreenDevice(index) {
     const dev = currentDevices[index];
     const l = dev.ultima_leitura || {};
 
-    // 1. Atualizar Header do Dispositivo
+    // 1. Update Device Header
     const titleEl = document.getElementById('fsDeviceTitle');
-    if (titleEl) titleEl.innerText = `Transmissor ${dev.numero_serie}`;
+    if (titleEl) titleEl.innerText = `Transmitter ${dev.numero_serie}`;
 
     const statusPill = document.getElementById('fsStatusPill');
     const statusText = document.getElementById('fsStatusText');
-    const st = dev.status || 'Operacional';
+    const stRaw = dev.status || 'Operacional';
     if (statusPill && statusText) {
-        const statusClass = st === 'Crítico' ? 'critico' : (st === 'Atenção' ? 'atencao' : 'operacional');
+        const isCrit = stRaw === 'Crítico' || stRaw === 'Critical';
+        const isWarn = stRaw === 'Atenção' || stRaw === 'Warning';
+        const statusClass = isCrit ? 'critico' : (isWarn ? 'atencao' : 'operacional');
         statusPill.className = `fs-status-pill ${statusClass}`;
-        statusText.innerText = st;
+        statusText.innerText = translateStatus(stRaw);
     }
 
     const ledDot = document.getElementById('fsLedDot');
     const ledText = document.getElementById('fsLedText');
     const led = dev.led || 'Verde';
     if (ledDot && ledText) {
-        const dotClass = led === 'Vermelho' ? 'red' : (led === 'Amarelo' ? 'yellow' : 'green');
+        const isRed = led === 'Vermelho' || led === 'Red';
+        const isYellow = led === 'Amarelo' || led === 'Yellow';
+        const dotClass = isRed ? 'red' : (isYellow ? 'yellow' : 'green');
         ledDot.className = `fs-led-dot ${dotClass}`;
-        ledText.innerText = `LED: ${led}`;
+        ledText.innerText = `LED: ${translateLed(led)}`;
     }
 
     const lastTimeEl = document.getElementById('fsLastReadingTime');
     if (lastTimeEl) {
-        const timeStr = l.timestamp ? new Date(l.timestamp).toLocaleString('pt-BR') : 'Aguardando primeira leitura';
-        lastTimeEl.innerText = `Última Leitura: ${timeStr}`;
+        const timeStr = l.timestamp ? new Date(l.timestamp).toLocaleString('en-US') : 'Waiting for first reading';
+        lastTimeEl.innerText = `Last Reading: ${timeStr}`;
     }
 
-    // 2. Manômetros de Temperatura e Umidade
+    // 2. Temperature and Humidity Gauges
     const tempVal = (l.temperatura !== null && l.temperatura !== undefined) ? Number(l.temperatura) : null;
     const umidVal = (l.umidade !== null && l.umidade !== undefined) ? Number(l.umidade) : null;
 
@@ -1082,22 +1119,23 @@ function renderFullscreenDevice(index) {
         umidChipEl.innerText = umidEval.text;
     }
 
-    // Atualiza gráficos Chart.js dos manômetros
     fsGaugeTempChart = updateFullscreenGaugeChart(fsGaugeTempChart, 'fsGaugeTempCanvas', tempVal, 0, 50, tempColor);
     fsGaugeUmidChart = updateFullscreenGaugeChart(fsGaugeUmidChart, 'fsGaugeUmidCanvas', umidVal, 0, 100, umidColor);
 
-    // 3. Demais Parâmetros do Modal
+    // 3. Other Environmental Parameters
     updateFsVarCard('co2', l.co2, val => val !== null && val !== undefined ? String(val) : '--', 'co2');
     updateFsVarCard('pm25', l.pm25, val => val !== null && val !== undefined ? Number(val).toFixed(1) : '--', 'pm25');
     updateFsVarCard('pm10', l.pm10, val => val !== null && val !== undefined ? Number(val).toFixed(1) : '--', 'pm10');
     updateFsVarCard('voc', l.voc, val => val !== null && val !== undefined ? Number(val).toFixed(2) : '--', 'voc');
     updateFsVarCard('formaldeido', l.formaldeido, val => val !== null && val !== undefined ? Number(val).toFixed(3) : '--', 'formaldeido');
 
-    // 4. Card de Diagnóstico Geral
+    // 4. Overall Diagnostics Card
     const diagLed = document.getElementById('fsDiagLedVal');
     if (diagLed) {
-        diagLed.innerText = led;
-        diagLed.style.color = led === 'Vermelho' ? '#ef4444' : (led === 'Amarelo' ? '#f59e0b' : '#10b981');
+        diagLed.innerText = translateLed(led);
+        const isRed = led === 'Vermelho' || led === 'Red';
+        const isYellow = led === 'Amarelo' || led === 'Yellow';
+        diagLed.style.color = isRed ? '#ef4444' : (isYellow ? '#f59e0b' : '#10b981');
     }
 
     const diagEval = document.getElementById('fsDiagEvaluation');
@@ -1111,25 +1149,25 @@ function renderFullscreenDevice(index) {
     if (diagEval && diagBadge) {
         if (outCount === 0) {
             diagBadge.className = 'fs-param-status estavel';
-            diagBadge.innerText = 'Estável';
-            diagEval.innerText = 'Todos os 7 parâmetros em conformidade';
+            diagBadge.innerText = 'Stable';
+            diagEval.innerText = 'All 7 parameters in compliance';
             diagEval.style.color = '#059669';
         } else {
             diagBadge.className = 'fs-param-status aviso';
-            diagBadge.innerText = 'Atenção';
-            diagEval.innerText = `${outCount} parâmetro(s) fora da faixa ideal`;
+            diagBadge.innerText = 'Warning';
+            diagEval.innerText = `${outCount} parameter(s) outside ideal range`;
             diagEval.style.color = '#d97706';
         }
     }
 
-    // 5. Atualizar Indicadores (Dots) e Contador
+    // 5. Update Indicators (Dots) and Counter
     renderFsDots();
     const counterEl = document.getElementById('fsDeviceCounterText');
     if (counterEl) {
-        counterEl.innerText = `Dispositivo ${fullscreenActiveIndex + 1} de ${currentDevices.length}`;
+        counterEl.innerText = `Device ${fullscreenActiveIndex + 1} of ${currentDevices.length}`;
     }
 
-    // 6. Sincronizar Select
+    // 6. Synchronize Select
     const select = document.getElementById('fsDeviceSelect');
     if (select && select.value !== dev.numero_serie) {
         select.value = dev.numero_serie;
@@ -1167,14 +1205,13 @@ function renderFsDots() {
     dotsContainer.innerHTML = currentDevices.map((_, idx) => `
         <div class="fs-dot ${idx === fullscreenActiveIndex ? 'active' : ''}" 
              onclick="renderFullscreenDevice(${idx})" 
-             title="Ir para transmissor ${idx + 1}"></div>
+             title="Go to transmitter ${idx + 1}"></div>
     `).join('');
 }
 
 function navigateFullscreenCarousel(direction) {
     renderFullscreenDevice(fullscreenActiveIndex + direction);
 
-    // Se o carrossel automático estiver rodando, reinicia o timer
     if (fsAutoplayInterval) {
         clearInterval(fsAutoplayInterval);
         fsAutoplayInterval = setInterval(() => {
@@ -1201,7 +1238,7 @@ function startFullscreenAutoplay() {
     const text = document.getElementById('fsAutoplayText');
     const icon = document.getElementById('fsAutoplayIcon');
     if (btn) btn.classList.add('active');
-    if (text) text.innerText = 'Pausar (8s)';
+    if (text) text.innerText = 'Pause (8s)';
     if (icon) {
         icon.innerHTML = '<rect x="6" y="4" width="4" height="16"></rect><rect x="14" y="4" width="4" height="16"></rect>';
     }
@@ -1229,7 +1266,7 @@ function updateFullscreenTelemetry() {
 }
 
 // ----------------------------------------------------
-// 7. CONTROLE DO CARROSSEL DE DISPOSITIVOS LFG60
+// 7. LFG60 DEVICES CAROUSEL CONTROLS
 // ----------------------------------------------------
 function scrollCarousel(direction) {
     const container = document.getElementById('sensorListContainer');
@@ -1282,7 +1319,7 @@ function updateCarouselState() {
         cards.forEach((_, idx) => {
             const dot = document.createElement('div');
             dot.className = `indicator-dot ${idx === activeIndex ? 'active' : ''}`;
-            dot.title = `Ir para dispositivo ${idx + 1}`;
+            dot.title = `Go to device ${idx + 1}`;
             dot.onclick = () => scrollCarouselToIndex(idx);
             indicatorsContainer.appendChild(dot);
         });
@@ -1290,4 +1327,3 @@ function updateCarouselState() {
         indicatorsContainer.innerHTML = '';
     }
 }
-

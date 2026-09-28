@@ -16,14 +16,16 @@ const SIMULATED_LFG60_DEVICES = [
         status: 'Operational',
         led: 'Green',
         isSimulated: true,
+        _simTemp: 23.0,
+        _simInc: 0.5,
         ultima_leitura: {
-            temperatura: 22.4,
-            umidade: 48.5,
-            co2: 520,
-            pm25: 8.2,
-            pm10: 16.5,
-            voc: 0.08,
-            formaldeido: 0.015,
+            temperatura: 23.0,
+            umidade: 55.0,
+            co2: 450,
+            pm25: 10.2,
+            pm10: 18.0,
+            voc: 0.15,
+            formaldeido: 0.02,
             timestamp: new Date().toISOString()
         }
     },
@@ -34,14 +36,16 @@ const SIMULATED_LFG60_DEVICES = [
         status: 'Operational',
         led: 'Green',
         isSimulated: true,
+        _simTemp: 28.0,
+        _simInc: 0.5,
         ultima_leitura: {
-            temperatura: 23.8,
-            umidade: 52.0,
-            co2: 640,
-            pm25: 10.4,
-            pm10: 21.2,
-            voc: 0.11,
-            formaldeido: 0.022,
+            temperatura: 28.0,
+            umidade: 55.0,
+            co2: 450,
+            pm25: 10.2,
+            pm10: 18.0,
+            voc: 0.15,
+            formaldeido: 0.02,
             timestamp: new Date().toISOString()
         }
     }
@@ -119,8 +123,8 @@ document.addEventListener('DOMContentLoaded', function() {
     // 1. Load Sensors and Alerts from API / Mock
     loadDashboardData();
 
-    // Variação dos dispositivos simulados a cada 3 segundos
-    setInterval(simulateLiveLfg60Step, 3000);
+    // Variação dos dispositivos simulados a cada 300ms (conforme script time.sleep(0.3))
+    setInterval(simulateLiveLfg60Step, 300);
 
     // Connect via Socket.IO for real-time updates with debounce
     let updateDebounceTimer = null;
@@ -247,8 +251,9 @@ async function fetchDevicesFromApi() {
 }
 
 /**
- * Simulação sequencial dos valores de telemetria:
- * Varia a temperatura de 18°C a 36°C pulando de 1 em 1 a cada 3s, invertendo o sentido nos limites.
+ * Simulação dos valores de telemetria baseada na lógica:
+ * Temperatura variando de 23.0°C até 35.0°C com incremento de 0.5 a cada 300ms,
+ * invertendo nos limites e mantendo valores estáticos dos demais parâmetros.
  */
 function simulateLiveLfg60Step() {
     if (!currentDevices || currentDevices.length === 0) return;
@@ -263,33 +268,33 @@ function simulateLiveLfg60Step() {
                 dev.ultima_leitura = {};
             }
 
-            // Inicializa estado sequencial (SIM-01 inicia em 18°C subindo; SIM-02 inicia em 24°C subindo)
+            // Inicializa estado (SIM-01 em 23.0°C, SIM-02 em 28.0°C para variação balanceada)
             if (typeof dev._simTemp === 'undefined') {
-                dev._simTemp = idx === 0 ? 18 : 24;
-                dev._simDir = 1;
-            } else {
-                dev._simTemp += dev._simDir * 1;
-                if (dev._simTemp >= 36) {
-                    dev._simTemp = 36;
-                    dev._simDir = -1;
-                } else if (dev._simTemp <= 18) {
-                    dev._simTemp = 18;
-                    dev._simDir = 1;
-                }
+                dev._simTemp = idx === 0 ? 23.0 : 28.0;
+                dev._simInc = 0.5;
             }
 
             const l = dev.ultima_leitura;
-            l.temperatura = dev._simTemp;
-
-            // Parâmetros coerentes com a evolução da temperatura
-            const tempOffset = (dev._simTemp - 18) / 18; // 0.0 a 1.0
-            l.umidade = Number((58.0 - tempOffset * 18.0 + (idx === 1 ? 2.5 : 0)).toFixed(1));
-            l.co2 = Math.round(480 + tempOffset * 420 + (idx === 1 ? 80 : 0));
-            l.pm25 = Number((7.0 + tempOffset * 8.5).toFixed(1));
-            l.pm10 = Number((14.0 + tempOffset * 16.0).toFixed(1));
-            l.voc = Number((0.06 + tempOffset * 0.12).toFixed(2));
-            l.formaldeido = Number((0.012 + tempOffset * 0.025).toFixed(3));
+            l.temperatura = Number(dev._simTemp.toFixed(1));
+            l.umidade = 55.0;
+            l.co2 = 450;
+            l.pm25 = 10.2;
+            l.pm10 = 18.0;
+            l.voc = 0.15;
+            l.formaldeido = 0.02;
             l.timestamp = new Date().toISOString();
+
+            // Atualiza temperatura
+            dev._simTemp += dev._simInc;
+
+            // Inverte direção ao chegar nos limites
+            if (dev._simTemp >= 35.0) {
+                dev._simTemp = 35.0;
+                dev._simInc = -0.5;
+            } else if (dev._simTemp <= 23.0) {
+                dev._simTemp = 23.0;
+                dev._simInc = 0.5;
+            }
 
             // Status e LED reativos
             const isCrit = l.temperatura < 15 || l.temperatura > 30 || l.umidade < 20 || l.umidade > 75 || l.co2 > 1200;
@@ -883,11 +888,11 @@ async function fetchDeviceHistory(numeroSerie) {
         const now = Date.now();
         for (let i = 0; i < 15; i++) {
             const t = new Date(now - i * 60000);
-            const temp = Number((27.0 + Math.sin(i * 0.6) * 8.5).toFixed(1));
-            const umid = Number((48.5 + Math.cos(i * 0.4) * 6.5).toFixed(1));
-            const co2 = Math.round(580 + Math.sin(i * 0.5) * 120);
-            const isWarn = temp < 18 || temp > 26 || umid < 30 || umid > 60 || co2 > 800;
-            const isCrit = temp < 15 || temp > 30 || umid < 20 || umid > 75 || co2 > 1200;
+            const temp = Number((23.0 + (i * 0.8) % 12.0).toFixed(1));
+            const umid = 55.0;
+            const co2 = 450;
+            const isWarn = temp < 18 || temp > 26;
+            const isCrit = temp < 15 || temp > 30;
             const itemLed = isCrit ? 'Red' : (isWarn ? 'Yellow' : 'Green');
             mockHistory.push({
                 timestamp_leitura: t.toISOString(),

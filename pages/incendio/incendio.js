@@ -11,75 +11,6 @@ let registrosCurrentPage = 1;
 let registrosTotalPages = 1;
 const registrosPageLimit = 20;
 let isFetchingRegistros = false;
-let mockRegistrosCache = null;
-
-// Fallback de dados para exibição imediata antes da rota do backend ser criada
-const MOCK_INCENDIO_DEVICES = [
-    {
-        numero_serie: 'INC-101',
-        nome: 'Central Bloco A - Sprinklers',
-        cliente: 'Edifício Corporativo Horizon',
-        status: 'Normal',
-        ultima_leitura: {
-            sensor1: 118.40,
-            rele1_on: 85.0,
-            rele1_off: 125.0,
-            rele1_acionamentos: 2,
-            rele2_on: 95.0,
-            rele2_off: 120.0,
-            rele2_acionamentos: 14,
-            timestamp: new Date().toISOString()
-        }
-    },
-    {
-        numero_serie: 'INC-102',
-        nome: 'Central Bloco B - Hidrantes',
-        cliente: 'Complexo Logístico Alpha',
-        status: 'Normal',
-        ultima_leitura: {
-            sensor1: 114.20,
-            rele1_on: 80.0,
-            rele1_off: 125.0,
-            rele1_acionamentos: 1,
-            rele2_on: 92.0,
-            rele2_off: 118.0,
-            rele2_acionamentos: 9,
-            timestamp: new Date(Date.now() - 30000).toISOString()
-        }
-    },
-    {
-        numero_serie: 'INC-103',
-        nome: 'Central Bloco C - Galpão Principal',
-        cliente: 'Indústria Metalúrgica Sul',
-        status: 'Normal',
-        ultima_leitura: {
-            sensor1: 121.80,
-            rele1_on: 85.0,
-            rele1_off: 130.0,
-            rele1_acionamentos: 0,
-            rele2_on: 95.0,
-            rele2_off: 122.0,
-            rele2_acionamentos: 6,
-            timestamp: new Date(Date.now() - 45000).toISOString()
-        }
-    },
-    {
-        numero_serie: 'INC-104',
-        nome: 'Central Bloco D - Subsolo Garagem',
-        cliente: 'Shopping Center Plaza',
-        status: 'Atenção',
-        ultima_leitura: {
-            sensor1: 94.60,
-            rele1_on: 85.0,
-            rele1_off: 125.0,
-            rele1_acionamentos: 3,
-            rele2_on: 95.0,
-            rele2_off: 120.0,
-            rele2_acionamentos: 28,
-            timestamp: new Date(Date.now() - 15000).toISOString()
-        }
-    }
-];
 
 /**
  * Atualiza o estado da badge de transmissão (Verde pulsante se ao vivo, Cinza se sem dados)
@@ -119,15 +50,10 @@ document.addEventListener('DOMContentLoaded', function() {
     initRealtimeConnection();
     loadIncendioData();
 
-    // Sincronização periódica da telemetria
+    // Sincronização periódica da telemetria a cada 1.5s
     setInterval(() => {
         loadIncendioData(true);
     }, 1500);
-
-    // Simulação contínua e suave para o modo de apresentação sem backend
-    setInterval(() => {
-        simulateLiveTelemetryStep();
-    }, 300);
 
     // Monitora mudanças de tela cheia para atualizar botão
     document.addEventListener('fullscreenchange', handleFullscreenChange);
@@ -187,7 +113,7 @@ function getAuthHeaders() {
 }
 
 /**
- * Carrega dados das centrais de incêndio via API ou recorre ao fallback preparado
+ * Carrega dados das centrais de incêndio via API
  */
 async function loadIncendioData(silent = false) {
     if (isUpdatingDashboard) return;
@@ -202,31 +128,27 @@ async function loadIncendioData(silent = false) {
             });
             if (res.ok) {
                 const result = await res.json();
-                if (result.success && Array.isArray(result.data) && result.data.length > 0) {
+                if (result.success && Array.isArray(result.data)) {
                     loadedData = result.data;
                 }
             }
         } catch (apiErr) {
-            // Rota ainda não implementada no backend, usa fallback
+            if (!silent) console.warn('[Incêndio] Falha ao consultar API:', apiErr.message);
         }
 
-        // Se a API ainda não respondeu, utiliza os dados mock estruturados
-        if (!loadedData) {
-            if (currentIncendios.length === 0) {
-                loadedData = JSON.parse(JSON.stringify(MOCK_INCENDIO_DEVICES));
-            } else {
-                loadedData = currentIncendios;
-            }
+        if (loadedData !== null) {
+            currentIncendios = loadedData;
         }
 
-        currentIncendios = loadedData;
         populateIncendioSelect(currentIncendios);
         renderIncendioGrid(currentIncendios);
         updateExecutiveSummary(currentIncendios);
 
-        const hasData = currentIncendios.length > 0 && currentIncendios.some(d => d.ultima_leitura && d.ultima_leitura.sensor1 !== null);
+        const hasData = currentIncendios.length > 0 && currentIncendios.some(d => d.ultima_leitura && d.ultima_leitura.sensor1 !== null && d.ultima_leitura.sensor1 !== undefined);
         if (hasData) {
             setLiveBadgeState(true);
+        } else if (currentIncendios.length === 0) {
+            setLiveBadgeState(false);
         }
 
         if (selectedDeviceSerial && !fluidTelemetry) {
@@ -247,36 +169,12 @@ async function loadIncendioData(silent = false) {
         }
     } catch (err) {
         if (!silent) console.warn('[Incêndio] Erro ao sincronizar:', err.message);
+        if (currentIncendios.length === 0) {
+            setLiveBadgeState(false);
+        }
     } finally {
         isUpdatingDashboard = false;
     }
-}
-
-/**
- * Simula pequenas flutuações realistas de pressão hidráulica caso ainda não haja backend ativo
- */
-function simulateLiveTelemetryStep() {
-    if (!selectedDeviceSerial || currentIncendios.length === 0) return;
-    const dev = currentIncendios.find(d => d.numero_serie === selectedDeviceSerial);
-    if (!dev || !dev.ultima_leitura) return;
-
-    // Variação micro-hidráulica suave em torno da pressão da rede (+- 0.3 psi)
-    const delta = (Math.random() - 0.49) * 0.35;
-    let newPress = Number(dev.ultima_leitura.sensor1) + delta;
-
-    // Se cair abaixo do setpoint da Jockey, ela liga e restabelece a pressão
-    if (newPress < (dev.ultima_leitura.rele2_on || 95.0)) {
-        newPress += 0.8;
-    }
-    // Mantém entre 90 e 130 psi
-    newPress = Math.max(88, Math.min(132, newPress));
-    dev.ultima_leitura.sensor1 = Number(newPress.toFixed(2));
-    dev.ultima_leitura.timestamp = new Date().toISOString();
-
-    handleLiveIncendioReading({
-        numeroSerie: dev.numero_serie,
-        ...dev.ultima_leitura
-    });
 }
 
 /**
@@ -1012,13 +910,16 @@ function getFluidTelemetryEngine() {
  */
 async function loadIncendioChart(forcedSerial = null, forceRedraw = false) {
     const serial = forcedSerial || selectedDeviceSerial;
-    if (!serial) return;
+    if (!serial) {
+        renderIncendioChart([], '', '', forceRedraw);
+        return;
+    }
 
     const periodSelect = document.getElementById('incendioPeriodSelect');
     const periodo = periodSelect ? periodSelect.value : 'all';
 
     try {
-        let chartData = null;
+        let chartData = [];
         try {
             const res = await fetch(`${API_BASE}/api/incendio/${serial}/leituras?periodo=${periodo}`, {
                 headers: getAuthHeaders()
@@ -1029,11 +930,8 @@ async function loadIncendioChart(forcedSerial = null, forceRedraw = false) {
                     chartData = result.data.slice().reverse();
                 }
             }
-        } catch (e) {}
-
-        // Fallback realista caso a rota do backend ainda não exista
-        if (!chartData) {
-            chartData = generateMockHistory(serial, periodo);
+        } catch (e) {
+            console.warn('[Incêndio Chart] Falha ao consultar API:', e.message);
         }
 
         if (periodo === 'all' && chartData.length > 30) {
@@ -1044,28 +942,6 @@ async function loadIncendioChart(forcedSerial = null, forceRedraw = false) {
     } catch (err) {
         console.warn('[Incêndio Chart] Erro:', err.message);
     }
-}
-
-function generateMockHistory(serial, periodo) {
-    const pointsCount = periodo === '24h' ? 48 : (periodo === '6h' ? 36 : 30);
-    const result = [];
-    const baseDev = currentIncendios.find(d => d.numero_serie === serial) || MOCK_INCENDIO_DEVICES[0];
-    const baseP = baseDev.ultima_leitura?.sensor1 || 116.0;
-    const now = Date.now();
-
-    for (let i = pointsCount; i >= 0; i--) {
-        const t = new Date(now - i * 60000);
-        const noise = (Math.sin(i * 0.4) * 3) + (Math.random() - 0.5) * 1.5;
-        result.push({
-            numero_serie: serial,
-            sensor1: Number((baseP + noise).toFixed(2)),
-            rele1_on: baseDev.ultima_leitura?.rele1_on || 85.0,
-            rele1_off: baseDev.ultima_leitura?.rele1_off || 125.0,
-            rele2_on: baseDev.ultima_leitura?.rele2_on || 95.0,
-            timestamp: t.toISOString()
-        });
-    }
-    return result;
 }
 
 function renderIncendioChart(data, serial = '', periodo = '', forceRedraw = false) {
@@ -1220,11 +1096,12 @@ async function carregarRegistrosModal(page = 1) {
             if (res.ok) {
                 recordsResult = await res.json();
             }
-        } catch (apiErr) {}
+        } catch (apiErr) {
+            console.warn('[Incêndio Registros] Erro na API:', apiErr.message);
+        }
 
-        // Fallback com dados de telemetria simulados estruturados
         if (!recordsResult || !recordsResult.success) {
-            recordsResult = generateMockRegistros(filterDev, dataInicio, dataFim, page, registrosPageLimit);
+            recordsResult = { success: true, data: [], total: 0, totalPages: 1 };
         }
 
         registrosTotalPages = recordsResult.totalPages || 1;
@@ -1280,56 +1157,6 @@ async function carregarRegistrosModal(page = 1) {
     } finally {
         isFetchingRegistros = false;
     }
-}
-
-function generateMockRegistros(filterDev, dataInicio, dataFim, page, limit) {
-    if (!mockRegistrosCache) {
-        mockRegistrosCache = [];
-        const baseDevices = currentIncendios.length > 0 ? currentIncendios : MOCK_INCENDIO_DEVICES;
-        const now = Date.now();
-        
-        for (let i = 0; i < 80; i++) {
-            const dev = baseDevices[i % baseDevices.length];
-            const t = new Date(now - i * 15 * 60000);
-            mockRegistrosCache.push({
-                numero_serie: dev.numero_serie,
-                cliente: dev.cliente,
-                timestamp: t.toISOString(),
-                sensor1: Number((112 + (Math.sin(i * 0.5) * 6)).toFixed(2)),
-                rele1_on: dev.ultima_leitura?.rele1_on || 85.0,
-                rele1_off: dev.ultima_leitura?.rele1_off || 125.0,
-                rele1_acionamentos: Math.floor(i / 10),
-                rele2_on: dev.ultima_leitura?.rele2_on || 95.0,
-                rele2_off: dev.ultima_leitura?.rele2_off || 120.0,
-                rele2_acionamentos: i * 2
-            });
-        }
-    }
-
-    let filtered = mockRegistrosCache.slice();
-    if (filterDev && filterDev !== 'todos') {
-        filtered = filtered.filter(r => r.numero_serie === filterDev);
-    }
-    if (dataInicio) {
-        const start = new Date(dataInicio).getTime();
-        filtered = filtered.filter(r => new Date(r.timestamp).getTime() >= start);
-    }
-    if (dataFim) {
-        const end = new Date(dataFim).getTime();
-        filtered = filtered.filter(r => new Date(r.timestamp).getTime() <= end);
-    }
-
-    const total = filtered.length;
-    const totalPages = Math.ceil(total / limit) || 1;
-    const offset = (page - 1) * limit;
-    const paged = filtered.slice(offset, offset + limit);
-
-    return {
-        success: true,
-        data: paged,
-        total: total,
-        totalPages: totalPages
-    };
 }
 
 function mudarPaginaRegistros(delta) {
@@ -1398,7 +1225,7 @@ async function exportarRegistrosCSV() {
         const dataInicio = document.getElementById('filterModalDataInicio')?.value || '';
         const dataFim = document.getElementById('filterModalDataFim')?.value || '';
 
-        let exportData = null;
+        let exportData = [];
         try {
             const params = new URLSearchParams({
                 limit: 2000,
@@ -1415,10 +1242,8 @@ async function exportarRegistrosCSV() {
                     exportData = resJson.data;
                 }
             }
-        } catch (e) {}
-
-        if (!exportData) {
-            exportData = generateMockRegistros(filterDev, dataInicio, dataFim, 1, 2000).data;
+        } catch (e) {
+            console.warn('[Incêndio Export] Erro:', e.message);
         }
 
         if (exportData.length === 0) {
@@ -1513,27 +1338,14 @@ async function executarExclusaoRegistros() {
         const dataInicio = document.getElementById('filterModalDataInicio')?.value || '';
         const dataFim = document.getElementById('filterModalDataFim')?.value || '';
 
-        try {
-            await fetch(`${API_BASE}/api/incendio/registros`, {
-                method: 'DELETE',
-                headers: {
-                    ...getAuthHeaders(),
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({ numeroSerie: filterDev, dataInicio, dataFim })
-            });
-        } catch (e) {}
-
-        // Limpa no cache mock se estiver em modo fallback
-        if (mockRegistrosCache) {
-            mockRegistrosCache = mockRegistrosCache.filter(r => {
-                if (filterDev !== 'todos' && r.numero_serie !== filterDev) return true;
-                const t = new Date(r.timestamp).getTime();
-                if (dataInicio && t < new Date(dataInicio).getTime()) return true;
-                if (dataFim && t > new Date(dataFim).getTime()) return true;
-                return false;
-            });
-        }
+        await fetch(`${API_BASE}/api/incendio/registros`, {
+            method: 'DELETE',
+            headers: {
+                ...getAuthHeaders(),
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ numeroSerie: filterDev, dataInicio, dataFim })
+        });
 
         fecharConfirmacaoExclusao();
         mostrarFeedbackModal('Registros no período selecionado foram apagados com sucesso.', 'success');

@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sensimonitor - Relatórios & Análise de IA</title>
+    <link rel="icon" type="image/png" href="../img/logo_head.png">
+    <link rel="stylesheet" href="../home/home.css">
+    <link rel="stylesheet" href="admin.css">
+    <link rel="stylesheet" href="relatorios.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <script src="../config.js"></script>
+</head>
+<body>
+    <div id="toast" class="toast-feedback"></div>
+    <div class="app-layout">
+        <!-- Sidebar Navigation -->
+        <aside class="sidebar">
+            <div class="logo-container">
+                <img src="../img/logo_sensimonitor.png" alt="SensiMonitor Admin" class="sidebar-logo">
+                <span class="admin-badge">Admin</span>
+            </div>
+            <nav>
+                <a href="index.html" class="nav-item">Cadastrar</a>
+                <a href="dispositivos.html" class="nav-item">Gerenciar Dispositivos</a>
+                <a href="relatorios.html" class="nav-item active">Relatórios</a>
+            </nav>
+            <div class="user-info">
+                <a href="../login/index.html" class="logout-btn" onclick="localStorage.removeItem('sensorium_user'); localStorage.removeItem('sensorium_token');">Sair</a>
+            </div>
+        </aside>
+
+        <!-- Main Content -->
+        <main class="main-content">
+            <header>
+                <h1>Relatórios & Análise de IA</h1>
+                <p>Pareceres técnicos automatizados, análise de telemetria ambiental (LFG60), exportação em PDF e agendamentos por e-mail</p>
+            </header>
+
+            <div class="relatorios-container">
+                <!-- Cabeçalho do Chat -->
+                <div class="relatorios-chat-header">
+                    <div class="chat-title-group">
+                        <span class="chat-title">Assistente Ambiental</span>
+                        <span class="chat-tag">LFG60 / LLM</span>
+                    </div>
+                    <div class="relatorios-header-actions">
+                        <button type="button" id="btn-quick-lfg60" class="btn-chat-action btn-chat-primary">
+                            Analisar Sensor LFG60
+                        </button>
+                        <button type="button" id="btn-open-schedule" class="btn-chat-action">
+                            Agendamento E-mail
+                        </button>
+                        <span class="status-pill-online">
+                            <span class="status-dot-green"></span>
+                            Online
+                        </span>
+                        <button type="button" id="btn-clear" class="btn-chat-action">
+                            Limpar Histórico
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Área de Mensagens -->
+                <div class="relatorios-chat-body" id="chat-messages">
+                    <div class="welcome-card-box">
+                        <h2>Assistente de Análise Ambiental & Sensor LFG60</h2>
+                        <p>Envie dados de telemetria ou realize consultas sobre conformidade, parâmetros ambientais e relatórios técnicos em PDF com agendamento automático por e-mail.</p>
+                        
+                        <div class="quick-prompts-row" id="quick-suggestions">
+                            <button type="button" class="prompt-chip" data-text='{"temperatura":37.5,"umidade":55.0,"co2":450,"pm25":10.2,"pm10":18.0,"voc":0.15,"formaldeido":0.02}'>
+                                Telemetria LFG60 (Exemplo Real)
+                            </button>
+                            <button type="button" class="prompt-chip" data-text="Quais são os limites recomendados de PM2.5 e PM10 segundo as normas vigentes?">
+                                Limites de PM2.5 e PM10
+                            </button>
+                            <button type="button" class="prompt-chip" data-text="Qual a concentração segura de CO2 e Formaldeído em ambientes fechados?">
+                                Parâmetros de CO2 e Formaldeído
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Barra de Entrada / Footer -->
+                <div class="relatorios-chat-footer">
+                    <form id="chat-form">
+                        <div class="relatorios-input-box">
+                            <textarea 
+                                id="message-input" 
+                                placeholder="Digite sua mensagem ou JSON de dados do sensor LFG60..." 
+                                rows="1"
+                                required
+                            ></textarea>
+                            <button type="submit" id="btn-send" class="btn-chat-action btn-chat-primary" style="padding: 7px 18px;">
+                                Enviar
+                            </button>
+                        </div>
+                    </form>
+                    <span class="relatorios-footer-hint">Pressione Enter para enviar, Shift + Enter para quebra de linha</span>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- Modal de Envio Rápido por E-mail -->
+    <div id="email-modal" class="relatorios-modal-backdrop" style="display: none;">
+        <div class="relatorios-modal-card">
+            <div class="relatorios-modal-header">
+                <h3>Enviar Relatório por E-mail</h3>
+                <button type="button" id="btn-close-email-modal" class="relatorios-modal-close">&times;</button>
+            </div>
+            <div class="relatorios-modal-body">
+                <p style="font-size: 12.5px; color: #64748b; margin-bottom: 14px;">
+                    Informe o e-mail de destino para envio imediato do parecer técnico com o arquivo PDF anexado.
+                </p>
+
+                <div class="form-group">
+                    <label for="instant-email-recipient">E-mail de Destino:</label>
+                    <input type="email" id="instant-email-recipient" required placeholder="exemplo: contato@empresa.com">
+                </div>
+
+                <div class="form-group">
+                    <label for="instant-email-subject">Assunto (Opcional):</label>
+                    <input type="text" id="instant-email-subject" placeholder="[SensiMonitor] Relatório Técnico Ambiental LFG60">
+                </div>
+
+                <div id="instant-email-feedback" style="display: none; padding: 10px; border-radius: 6px; font-size: 12px; margin-top: 10px;"></div>
+            </div>
+            <div class="relatorios-modal-footer">
+                <button type="button" id="btn-cancel-email" class="btn-chat-action">
+                    Cancelar
+                </button>
+                <button type="button" id="btn-confirm-send-email" class="btn-chat-action btn-chat-primary">
+                    Enviar Relatório
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal de Configuração de Agendamento e E-mail -->
+    <div id="schedule-modal" class="relatorios-modal-backdrop" style="display: none;">
+        <div class="relatorios-modal-card">
+            <div class="relatorios-modal-header">
+                <h3>Agendamento de Relatório por E-mail</h3>
+                <button type="button" id="btn-close-modal" class="relatorios-modal-close">&times;</button>
+            </div>
+            <div class="relatorios-modal-body">
+                <p style="font-size: 12.5px; color: #64748b; margin-bottom: 14px;">
+                    Configure o envio periódico automatizado do parecer técnico e do arquivo PDF para a equipe de gestão ambiental.
+                </p>
+
+                <div class="form-group">
+                    <label for="schedule-recipient">E-mail Destinatário:</label>
+                    <input type="email" id="schedule-recipient" placeholder="exemplo: gestao@empresa.com">
+                </div>
+
+                <div class="form-group">
+                    <label for="schedule-time">Horário de Envio Diário:</label>
+                    <input type="time" id="schedule-time" value="08:00">
+                </div>
+
+                <div style="margin-bottom: 14px;">
+                    <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; color: #1e293b; font-size: 12.5px; font-weight: 500;">
+                        <input type="checkbox" id="schedule-active" checked style="width: auto;">
+                        Ativar rotina de disparo automático
+                    </label>
+                </div>
+
+                <div id="schedule-status-info" class="schedule-status-box">
+                    Carregando status do agendamento...
+                </div>
+            </div>
+            <div class="relatorios-modal-footer">
+                <button type="button" id="btn-trigger-now" class="btn-chat-action">
+                    Disparar Agora
+                </button>
+                <button type="button" id="btn-save-schedule" class="btn-chat-action btn-chat-primary">
+                    Salvar Configurações
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <script src="relatorios.js"></script>
+</body>
+</html>

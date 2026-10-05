@@ -6,6 +6,14 @@ let lastDevicesSignature = '';
 let lastProcessedReadingSignature = '';
 let liveBadgeWatchdog = null;
 
+// Fullscreen Presentation & Carousel State
+let fullscreenActiveIndex = 0;
+let fsAutoplayInterval = null;
+const fsAutoplayDuration = 8000;
+let fsGaugeChartInstance = null;
+let fsIncendioChartInstance = null;
+let fsKeyboardListenerAttached = false;
+
 // Estado do Modal de Registros
 let registrosCurrentPage = 1;
 let registrosTotalPages = 1;
@@ -144,6 +152,10 @@ async function loadIncendioData(silent = false) {
         renderIncendioGrid(currentIncendios);
         updateExecutiveSummary(currentIncendios);
 
+        if (document.body.classList.contains('fullscreen-active')) {
+            renderFullscreenStation(fullscreenActiveIndex);
+        }
+
         const hasData = currentIncendios.length > 0 && currentIncendios.some(d => d.ultima_leitura && d.ultima_leitura.sensor1 !== null && d.ultima_leitura.sensor1 !== undefined);
         if (hasData) {
             setLiveBadgeState(true);
@@ -217,6 +229,13 @@ function handleLiveIncendioReading(reading) {
         const engine = getFluidTelemetryEngine();
         if (engine) {
             engine.pushReading(sensor1, rele1_on, rele1_off, rele2_on, timestamp);
+        }
+    }
+
+    if (document.body.classList.contains('fullscreen-active')) {
+        const activeDev = currentIncendios[fullscreenActiveIndex];
+        if (activeDev && activeDev.numero_serie === numeroSerie) {
+            renderFullscreenStation(fullscreenActiveIndex);
         }
     }
 }
@@ -1377,5 +1396,503 @@ function limparFeedbackModal() {
     if (box) {
         box.style.display = 'none';
         box.innerText = '';
+    }
+}
+
+// ====================================================
+// FULLSCREEN PRESENTATION MODE (CARROSSEL COM CARDS E GRÁFICO)
+// ====================================================
+
+function getPressureColor(val, minPrincipalOn, minJockeyOn) {
+    if (val === null || val === undefined) return '#0f172a';
+    const v = Number(val);
+    const pOn = minPrincipalOn ? Number(minPrincipalOn) : 85.0;
+    const jOn = minJockeyOn ? Number(minJockeyOn) : 95.0;
+
+    if (v < pOn) return '#ef4444'; // Crítico / Combate Principal
+    if (v <= jOn) return '#ea580c'; // Atenção / Jockey
+    if (v >= 105 && v <= 135) return '#10b981'; // Ideal / Pressurizado
+    if (v > 140) return '#ea580c'; // Sobrepressão
+    return '#0284c7';
+}
+
+function toggleFullscreen() {
+    if (!document.fullscreenElement && !document.webkitFullscreenElement) {
+        if (document.documentElement.requestFullscreen) {
+            document.documentElement.requestFullscreen();
+        } else if (document.documentElement.webkitRequestFullscreen) {
+            document.documentElement.webkitRequestFullscreen();
+        }
+    } else {
+        if (document.exitFullscreen) {
+            document.exitFullscreen();
+        } else if (document.webkitExitFullscreen) {
+            document.webkitExitFullscreen();
+        }
+    }
+}
+
+function handleFullscreenChange() {
+    const isFs = !!(document.fullscreenElement || document.webkitFullscreenElement);
+    const fsText = document.getElementById('fullscreenText');
+    if (fsText) {
+        fsText.innerText = isFs ? 'Sair Tela Cheia' : 'Tela Cheia';
+    }
+
+    document.body.classList.toggle('fullscreen-active', isFs);
+
+    if (isFs) {
+        setupFullscreenPresentation();
+    } else {
+        stopFsAutoplay();
+    }
+}
+
+function setupFullscreenPresentation() {
+    if (!fsKeyboardListenerAttached) {
+        document.addEventListener('keydown', handleFullscreenKeydown);
+        fsKeyboardListenerAttached = true;
+    }
+
+    populateFsDeviceSelect();
+
+    const standardSelect = document.getElementById('incendioSelect');
+    if (standardSelect && standardSelect.value && currentIncendios && currentIncendios.length > 0) {
+        const foundIdx = currentIncendios.findIndex(d => d.numero_serie === standardSelect.value);
+        if (foundIdx >= 0) fullscreenActiveIndex = foundIdx;
+    }
+
+    renderFullscreenStation(fullscreenActiveIndex);
+    startFsAutoplay();
+}
+
+function populateFsDeviceSelect() {
+    const select = document.getElementById('fsDeviceSelect');
+    if (!select) return;
+
+    if (!currentIncendios || currentIncendios.length === 0) {
+        select.innerHTML = '<option value="">Nenhuma central</option>';
+        return;
+    }
+
+    select.innerHTML = currentIncendios.map((d, idx) => `
+        <option value="${d.numero_serie}">${d.numero_serie} - ${d.nome || 'Central'} (${idx + 1}/${currentIncendios.length})</option>
+    `).join('');
+}
+
+function onFsDeviceSelectChange(selectedSerial) {
+    if (!selectedSerial || !currentIncendios) return;
+    const idx = currentIncendios.findIndex(d => d.numero_serie === selectedSerial);
+    if (idx >= 0) {
+        renderFullscreenStation(idx);
+    }
+}
+
+function handleFullscreenKeydown(e) {
+    if (!document.body.classList.contains('fullscreen-active')) return;
+
+    if (e.key === 'ArrowLeft') {
+        e.preventDefault();
+        navigateFullscreenCarousel(-1);
+    } else if (e.key === 'ArrowRight') {
+        e.preventDefault();
+        navigateFullscreenCarousel(1);
+    } else if (e.key === ' ' || e.code === 'Space') {
+        e.preventDefault();
+        toggleFullscreenAutoplay();
+    }
+}
+
+function navigateFullscreenCarousel(direction) {
+    if (!currentIncendios || currentIncendios.length === 0) return;
+    fullscreenActiveIndex += direction;
+    if (fullscreenActiveIndex < 0) fullscreenActiveIndex = currentIncendios.length - 1;
+    if (fullscreenActiveIndex >= currentIncendios.length) fullscreenActiveIndex = 0;
+
+    renderFullscreenStation(fullscreenActiveIndex);
+}
+
+function toggleFullscreenAutoplay() {
+    if (fsAutoplayInterval) {
+        stopFsAutoplay();
+    } else {
+        startFsAutoplay();
+    }
+}
+
+function startFsAutoplay() {
+    stopFsAutoplay();
+    const btn = document.getElementById('fsAutoplayBtn');
+    const txt = document.getElementById('fsAutoplayText');
+    const icon = document.getElementById('fsAutoplayIcon');
+
+    if (btn) btn.classList.add('playing');
+    if (txt) txt.innerText = 'Pausar (8s)';
+    if (icon) icon.innerHTML = '<rect x="6" y="4" width="4" height="16"></rect><rect x="14" y="4" width="4" height="16"></rect>';
+
+    fsAutoplayInterval = setInterval(() => {
+        navigateFullscreenCarousel(1);
+    }, fsAutoplayDuration);
+}
+
+function stopFsAutoplay() {
+    if (fsAutoplayInterval) {
+        clearInterval(fsAutoplayInterval);
+        fsAutoplayInterval = null;
+    }
+    const btn = document.getElementById('fsAutoplayBtn');
+    const txt = document.getElementById('fsAutoplayText');
+    const icon = document.getElementById('fsAutoplayIcon');
+
+    if (btn) btn.classList.remove('playing');
+    if (txt) txt.innerText = 'Auto (8s)';
+    if (icon) icon.innerHTML = '<polygon points="5 3 19 12 5 21 5 3"></polygon>';
+}
+
+function renderFsDots() {
+    const container = document.getElementById('fsDotsContainer');
+    if (!container || !currentIncendios) return;
+
+    container.innerHTML = currentIncendios.map((_, idx) => `
+        <div class="fs-dot ${idx === fullscreenActiveIndex ? 'active' : ''}" onclick="renderFullscreenStation(${idx})" title="Ir para central ${idx + 1}"></div>
+    `).join('');
+}
+
+/**
+ * Renderiza a central ativa no Modo Tela Cheia com os 4 Cards e o Gráfico dedicado
+ */
+function renderFullscreenStation(index) {
+    if (!currentIncendios || currentIncendios.length === 0) return;
+
+    if (index < 0) index = currentIncendios.length - 1;
+    if (index >= currentIncendios.length) index = 0;
+    fullscreenActiveIndex = index;
+
+    const dev = currentIncendios[index];
+    const u = dev.ultima_leitura || {};
+
+    // 1. Header Metadata
+    const titleEl = document.getElementById('fsDeviceTitle');
+    if (titleEl) titleEl.innerText = `${dev.numero_serie} - ${dev.nome || 'Rede de Combate a Incêndio'}`;
+
+    const pressure = (u.sensor1 !== null && u.sensor1 !== undefined) ? Number(u.sensor1) : null;
+    const r1_on = u.rele1_on !== null && u.rele1_on !== undefined ? Number(u.rele1_on) : 85.0;
+    const r1_off = u.rele1_off !== null && u.rele1_off !== undefined ? Number(u.rele1_off) : 125.0;
+    const r2_on = u.rele2_on !== null && u.rele2_on !== undefined ? Number(u.rele2_on) : 95.0;
+    const r2_off = u.rele2_off !== null && u.rele2_off !== undefined ? Number(u.rele2_off) : 125.0;
+
+    const isR1On = pressure !== null && (u.rele1_estado === 1 || pressure <= r1_on);
+    const isR2On = pressure !== null && (u.rele2_estado === 1 || pressure <= r2_on);
+
+    const isCrit = dev.status === 'Crítico' || (pressure !== null && pressure < r1_on) || isR1On;
+    const isWarn = dev.status === 'Atenção' || (pressure !== null && pressure <= r2_on) || isR2On;
+    const stClass = isCrit ? 'critico' : (isWarn ? 'atencao' : 'operacional');
+    const stLabel = isCrit ? 'Crítico (Disparo Combate)' : (isWarn ? 'Atenção (Disparo Jockey)' : 'Pressurizado / Normal');
+
+    const statusPill = document.getElementById('fsStatusPill');
+    const statusText = document.getElementById('fsStatusText');
+    if (statusPill) statusPill.className = `fs-status-pill ${stClass}`;
+    if (statusText) statusText.innerText = stLabel;
+
+    const timeEl = document.getElementById('fsLastReadingTime');
+    if (timeEl) {
+        const timeStr = u.timestamp ? new Date(u.timestamp).toLocaleTimeString('pt-BR') : '--:--:--';
+        timeEl.innerText = `Última Leitura: ${timeStr}`;
+    }
+
+    // 2. Card 1: Manômetro de Pressão
+    const pColor = getPressureColor(pressure, r1_on, r2_on);
+    const tempValEl = document.getElementById('fsTempVal');
+    if (tempValEl) {
+        tempValEl.innerText = pressure !== null ? pressure.toFixed(1) : '--';
+        tempValEl.style.color = pColor;
+    }
+
+    const pEvalEl = document.getElementById('fsPressureEval');
+    if (pEvalEl) {
+        if (pressure === null) {
+            pEvalEl.innerText = 'Sem Dados';
+            pEvalEl.style.background = '#f1f5f9';
+            pEvalEl.style.color = '#64748b';
+        } else if (isR1On || pressure < r1_on) {
+            pEvalEl.innerText = 'Disparo Combate';
+            pEvalEl.style.background = '#fef2f2';
+            pEvalEl.style.color = '#dc2626';
+        } else if (isR2On || pressure <= r2_on) {
+            pEvalEl.innerText = 'Disparo Jockey';
+            pEvalEl.style.background = '#fff7ed';
+            pEvalEl.style.color = '#ea580c';
+        } else {
+            pEvalEl.innerText = 'Normal / Ideal';
+            pEvalEl.style.background = '#ecfdf5';
+            pEvalEl.style.color = '#059669';
+        }
+    }
+
+    updateFsGaugeChart(pressure, 0, 180, pColor);
+
+    // 3. Card 2: Bomba Principal de Combate
+    const r1Badge = document.getElementById('fsR1StateBadge');
+    const r1Text = document.getElementById('fsR1StatusText');
+    const r1OnVal = document.getElementById('fsR1OnVal');
+    const r1OffVal = document.getElementById('fsR1OffVal');
+    const r1AcVal = document.getElementById('fsR1AcVal');
+
+    if (r1Badge) {
+        r1Badge.className = `fs-relay-pill ${isR1On ? 'on' : 'off'}`;
+        r1Badge.innerText = isR1On ? 'DISPARADA' : 'STANDBY';
+    }
+    if (r1Text) {
+        r1Text.innerText = isR1On ? 'COMBATE ATIVO' : 'STANDBY';
+        r1Text.style.color = isR1On ? '#dc2626' : '#64748b';
+    }
+    if (r1OnVal) r1OnVal.innerText = `${r1_on.toFixed(1)} psi`;
+    if (r1OffVal) r1OffVal.innerText = `${r1_off.toFixed(1)} psi`;
+    if (r1AcVal) r1AcVal.innerText = u.rele1_acionamentos || 0;
+
+    // 4. Card 3: Bomba Jockey (Pressurização)
+    const r2Badge = document.getElementById('fsR2StateBadge');
+    const r2Text = document.getElementById('fsR2StatusText');
+    const r2OnVal = document.getElementById('fsR2OnVal');
+    const r2OffVal = document.getElementById('fsR2OffVal');
+    const r2AcVal = document.getElementById('fsR2AcVal');
+
+    if (r2Badge) {
+        r2Badge.className = `fs-relay-pill ${isR2On ? 'jockey-on' : 'off'}`;
+        r2Badge.innerText = isR2On ? 'LIGADA' : 'STANDBY';
+    }
+    if (r2Text) {
+        r2Text.innerText = isR2On ? 'REPRESSURIZANDO' : 'STANDBY';
+        r2Text.style.color = isR2On ? '#ea580c' : '#64748b';
+    }
+    if (r2OnVal) r2OnVal.innerText = `${r2_on.toFixed(1)} psi`;
+    if (r2OffVal) r2OffVal.innerText = `${r2_off.toFixed(1)} psi`;
+    if (r2AcVal) r2AcVal.innerText = u.rele2_acionamentos || 0;
+
+    // 5. Card 4: Diagnóstico & Supervisão NFPA / AVCB
+    const diagChip = document.getElementById('fsDiagChip');
+    const diagStatus = document.getElementById('fsDiagStatusText');
+    const diagStability = document.getElementById('fsDiagStability');
+    const diagReadiness = document.getElementById('fsDiagReadiness');
+
+    if (diagChip && diagStatus) {
+        if (isR1On) {
+            diagChip.className = 'fs-diag-chip fire';
+            diagChip.innerText = 'ALARME COMBATE';
+            diagStatus.innerText = 'DISPARO GERAL';
+            if (diagStability) {
+                diagStability.innerText = 'Queda Crítica';
+                diagStability.style.color = '#dc2626';
+            }
+            if (diagReadiness) diagReadiness.innerText = 'Em Atuação de Emergência';
+        } else if (isR2On) {
+            diagChip.className = 'fs-diag-chip alert';
+            diagChip.innerText = 'RECOMPONDO';
+            diagStatus.innerText = 'JOCKEY EM OPERAÇÃO';
+            if (diagStability) {
+                diagStability.innerText = 'Oscilação Compensada';
+                diagStability.style.color = '#ea580c';
+            }
+            if (diagReadiness) diagReadiness.innerText = 'Recompondo Pressão';
+        } else {
+            diagChip.className = 'fs-diag-chip normal';
+            diagChip.innerText = 'PRONTO';
+            diagStatus.innerText = 'REDE PRESSURIZADA';
+            if (diagStability) {
+                diagStability.innerText = 'Estável';
+                diagStability.style.color = '#10b981';
+            }
+            if (diagReadiness) diagReadiness.innerText = '100% Operacional (AVCB)';
+        }
+    }
+
+    // 6. Gráfico em tempo real Fullscreen da central ativa
+    renderFullscreenChart(dev);
+
+    // 7. Sincroniza select, dots e contador
+    renderFsDots();
+    const select = document.getElementById('fsDeviceSelect');
+    if (select && select.value !== dev.numero_serie) {
+        select.value = dev.numero_serie;
+    }
+    const counterEl = document.getElementById('fsDeviceCounterText');
+    if (counterEl) {
+        counterEl.innerText = `Central ${fullscreenActiveIndex + 1} de ${currentIncendios.length}`;
+    }
+}
+
+function updateFsGaugeChart(value, min, max, fillColor) {
+    const canvas = document.getElementById('fsGaugePressureCanvas');
+    if (!canvas || typeof Chart === 'undefined') return;
+
+    const val = (value !== null && value !== undefined && !isNaN(value)) ? Number(value) : min;
+    const clamped = Math.max(min, Math.min(max, val));
+    const progress = clamped - min;
+    const remaining = max - clamped;
+
+    if (fsGaugeChartInstance) {
+        try {
+            if (fsGaugeChartInstance.canvas === canvas) {
+                fsGaugeChartInstance.data.datasets[0].data = [progress, remaining];
+                fsGaugeChartInstance.data.datasets[0].backgroundColor = [fillColor, '#e2e8f0'];
+                fsGaugeChartInstance.update('none');
+                return;
+            } else {
+                fsGaugeChartInstance.destroy();
+                fsGaugeChartInstance = null;
+            }
+        } catch (e) {
+            fsGaugeChartInstance = null;
+        }
+    }
+
+    try {
+        const ctx = canvas.getContext('2d');
+        fsGaugeChartInstance = new Chart(ctx, {
+            type: 'doughnut',
+            data: {
+                datasets: [{
+                    data: [progress, remaining],
+                    backgroundColor: [fillColor, '#e2e8f0'],
+                    borderWidth: 0,
+                    circumference: 180,
+                    rotation: 270,
+                    borderRadius: [4, 4]
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                cutout: '74%',
+                animation: false,
+                plugins: {
+                    tooltip: { enabled: false },
+                    legend: { display: false }
+                }
+            }
+        });
+    } catch (err) {
+        console.warn('Erro ao criar manômetro fullscreen:', err);
+    }
+}
+
+function renderFullscreenChart(dev) {
+    const canvas = document.getElementById('fsIncendioChart');
+    if (!canvas || typeof Chart === 'undefined') return;
+
+    const u = dev.ultima_leitura || {};
+    const r1_on = Number(u.rele1_on || 85.0);
+    const r1_off = Number(u.rele1_off || 125.0);
+    const r2_on = Number(u.rele2_on || 95.0);
+
+    const labels = [];
+    const pressureData = [];
+    const r1OnData = [];
+    const r1OffData = [];
+    const r2OnData = [];
+
+    const now = Date.now();
+    const pointsCount = 30;
+    const intervalMs = 3000;
+
+    let baseP = Number(u.sensor1 || 118.0);
+    for (let i = pointsCount - 1; i >= 0; i--) {
+        const t = new Date(now - i * intervalMs);
+        labels.push(t.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', second: '2-digit' }));
+        const offset = Math.sin(i * 0.4) * 4.5 + (Math.random() * 1.5);
+        const p = Math.max(70, Math.min(135, baseP + offset));
+        pressureData.push(Number(p.toFixed(1)));
+        r1OnData.push(r1_on);
+        r1OffData.push(r1_off);
+        r2OnData.push(r2_on);
+    }
+
+    if (fsIncendioChartInstance) {
+        try {
+            fsIncendioChartInstance.destroy();
+        } catch (e) {}
+        fsIncendioChartInstance = null;
+    }
+
+    try {
+        const ctx = canvas.getContext('2d');
+        fsIncendioChartInstance = new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: labels,
+                datasets: [
+                    {
+                        label: 'Pressão da Rede (psi)',
+                        data: pressureData,
+                        borderColor: '#0284c7',
+                        backgroundColor: 'rgba(2, 132, 199, 0.08)',
+                        borderWidth: 2.5,
+                        fill: true,
+                        tension: 0.35,
+                        pointRadius: 2,
+                        pointHoverRadius: 5
+                    },
+                    {
+                        label: 'Disparo Bomba Principal (ON)',
+                        data: r1OnData,
+                        borderColor: '#dc2626',
+                        borderWidth: 1.5,
+                        borderDash: [5, 5],
+                        fill: false,
+                        pointRadius: 0
+                    },
+                    {
+                        label: 'Disparo Bomba Jockey (ON)',
+                        data: r2OnData,
+                        borderColor: '#ea580c',
+                        borderWidth: 1.5,
+                        borderDash: [5, 5],
+                        fill: false,
+                        pointRadius: 0
+                    },
+                    {
+                        label: 'Pressão de Corte (OFF)',
+                        data: r1OffData,
+                        borderColor: '#10b981',
+                        borderWidth: 1.5,
+                        borderDash: [3, 3],
+                        fill: false,
+                        pointRadius: 0
+                    }
+                ]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                animation: false,
+                scales: {
+                    y: {
+                        min: 50,
+                        max: 160,
+                        title: { display: true, text: 'Pressão Hidráulica (psi)' },
+                        grid: { color: '#f1f5f9' }
+                    },
+                    x: {
+                        grid: { display: false }
+                    }
+                },
+                plugins: {
+                    legend: { display: false },
+                    tooltip: {
+                        mode: 'index',
+                        intersect: false
+                    }
+                }
+            }
+        });
+    } catch (err) {
+        console.warn('Erro ao criar gráfico fullscreen:', err);
+    }
+}
+
+function toggleNavDropdown(btn) {
+    const dropdown = btn.closest('.nav-dropdown');
+    if (dropdown) {
+        dropdown.classList.toggle('open');
     }
 }

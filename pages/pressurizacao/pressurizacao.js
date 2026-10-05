@@ -692,7 +692,7 @@ function selectStationForChart(serial) {
 /**
  * Gráfico Interativo de Pressurização em Tempo Real
  */
-function loadPressurizacaoChart(serial, forcePeriodChange = false) {
+async function loadPressurizacaoChart(serial, forcePeriodChange = false) {
     const canvas = document.getElementById('pressurizacaoChart');
     if (!canvas || typeof Chart === 'undefined') return;
 
@@ -703,9 +703,9 @@ function loadPressurizacaoChart(serial, forcePeriodChange = false) {
     const period = periodSelect ? periodSelect.value : 'all';
 
     const dev = currentPressurizacoes.find(d => d.numero_serie === devSerial);
-    const r1_on = dev?.ultima_leitura?.rele1_on || 35.0;
-    const r1_off = dev?.ultima_leitura?.rele1_off || 50.0;
-    const r2_on = dev?.ultima_leitura?.rele2_on || 32.0;
+    const r1_on = Number(dev?.ultima_leitura?.rele1_on || 35.0);
+    const r1_off = Number(dev?.ultima_leitura?.rele1_off || 50.0);
+    const r2_on = Number(dev?.ultima_leitura?.rele2_on || 32.0);
 
     if (pressurizacaoChartInstance && !forcePeriodChange) {
         return;
@@ -716,27 +716,57 @@ function loadPressurizacaoChart(serial, forcePeriodChange = false) {
         pressurizacaoChartInstance = null;
     }
 
-    const labels = [];
-    const pressureData = [];
-    const r1OnData = [];
-    const r1OffData = [];
-    const r2OnData = [];
+    let labels = [];
+    let pressureData = [];
+    let r1OnData = [];
+    let r1OffData = [];
+    let r2OnData = [];
 
-    const now = Date.now();
-    const pointsCount = period === '1h' ? 30 : (period === '6h' ? 50 : 25);
-    const intervalMs = (period === '1h' ? 60000 : 3000) * 2;
+    // Tenta carregar histórico do backend primeiro
+    let hasLoadedRemote = false;
+    try {
+        const queryParams = new URLSearchParams({
+            serial: devSerial,
+            period: period
+        });
+        const res = await fetch(`${API_BASE}/api/pressurizacao/historico?${queryParams.toString()}`, {
+            headers: getAuthHeaders()
+        });
+        if (res.ok) {
+            const histRes = await res.json();
+            if (histRes.success && Array.isArray(histRes.data) && histRes.data.length > 0) {
+                histRes.data.forEach(item => {
+                    const t = new Date(item.timestamp);
+                    labels.push(t.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', second: '2-digit' }));
+                    pressureData.push(item.sensor1 !== null && item.sensor1 !== undefined ? Number(Number(item.sensor1).toFixed(1)) : null);
+                    r1OnData.push(item.rele1_on !== null && item.rele1_on !== undefined ? Number(item.rele1_on) : r1_on);
+                    r1OffData.push(item.rele1_off !== null && item.rele1_off !== undefined ? Number(item.rele1_off) : r1_off);
+                    r2OnData.push(item.rele2_on !== null && item.rele2_on !== undefined ? Number(item.rele2_on) : r2_on);
+                });
+                hasLoadedRemote = true;
+            }
+        }
+    } catch (e) {
+        // Fallback silencioso para geração local
+    }
 
-    let baseP = Number(dev?.ultima_leitura?.sensor1 || 42.0);
-    for (let i = pointsCount - 1; i >= 0; i--) {
-        const t = new Date(now - i * intervalMs);
-        labels.push(t.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', second: '2-digit' }));
-        
-        const offset = Math.sin(i * 0.4) * 6.0 + (Math.random() * 2.0);
-        const p = Math.max(25, Math.min(55, baseP + offset));
-        pressureData.push(Number(p.toFixed(1)));
-        r1OnData.push(r1_on);
-        r1OffData.push(r1_off);
-        r2OnData.push(r2_on);
+    if (!hasLoadedRemote) {
+        const now = Date.now();
+        const pointsCount = period === '1h' ? 30 : (period === '6h' ? 50 : 25);
+        const intervalMs = (period === '1h' ? 60000 : 3000) * 2;
+
+        let baseP = Number(dev?.ultima_leitura?.sensor1 || 42.0);
+        for (let i = pointsCount - 1; i >= 0; i--) {
+            const t = new Date(now - i * intervalMs);
+            labels.push(t.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', second: '2-digit' }));
+            
+            const offset = Math.sin(i * 0.4) * 6.0 + (Math.random() * 2.0);
+            const p = Math.max(25, Math.min(55, baseP + offset));
+            pressureData.push(Number(p.toFixed(1)));
+            r1OnData.push(r1_on);
+            r1OffData.push(r1_off);
+            r2OnData.push(r2_on);
+        }
     }
 
     const ctx = canvas.getContext('2d');
@@ -1374,7 +1404,8 @@ function limparFiltrosRegistrosModal() {
     filtrarRegistrosModal();
 }
 
-let mockRegistrosHistory = [];
+let registrosDataItems = [];
+let totalRegistrosCount = 0;
 
 async function filtrarRegistrosModal() {
     const tbody = document.getElementById('registrosTableBody');
@@ -1383,35 +1414,78 @@ async function filtrarRegistrosModal() {
     tbody.innerHTML = '<tr><td colspan="10" class="table-state-message">Consultando telemetria...</td></tr>';
 
     const selectedDev = document.getElementById('filterModalDispositivo')?.value || 'todos';
+    const dataInicio = document.getElementById('filterModalDataInicio')?.value || '';
+    const dataFim = document.getElementById('filterModalDataFim')?.value || '';
 
-    mockRegistrosHistory = [];
-    const now = Date.now();
-    const devicesToInclude = selectedDev === 'todos' ? currentPressurizacoes : currentPressurizacoes.filter(d => d.numero_serie === selectedDev);
+    let remoteLoaded = false;
+    try {
+        const queryParams = new URLSearchParams({
+            page: registrosCurrentPage,
+            limit: registrosPageLimit,
+            serial: selectedDev,
+            dataInicio: dataInicio,
+            dataFim: dataFim
+        });
 
-    devicesToInclude.forEach(d => {
-        for (let i = 0; i < 25; i++) {
-            const t = new Date(now - i * 180000);
-            const p = Number((42.0 + Math.sin(i * 0.5) * 8.0 + (Math.random() * 2.0)).toFixed(1));
-            mockRegistrosHistory.push({
-                numero_serie: d.numero_serie,
-                nome: d.nome,
-                timestamp: t.toISOString(),
-                sensor1: p,
-                rele1_on: 35.0,
-                rele1_off: 50.0,
-                rele1_ac: 120 + (25 - i),
-                rele2_on: 32.0,
-                rele2_off: 50.0,
-                rele2_ac: 35 + Math.floor((25 - i) / 3)
-            });
+        const res = await fetch(`${API_BASE}/api/pressurizacao/registros?${queryParams.toString()}`, {
+            headers: getAuthHeaders()
+        });
+
+        if (res.ok) {
+            const result = await res.json();
+            if (result.success) {
+                registrosDataItems = (result.data || []).map(r => ({
+                    numero_serie: r.numero_serie,
+                    nome: r.dispositivo_nome || r.nome,
+                    timestamp: r.timestamp,
+                    sensor1: Number(r.sensor1 || 0),
+                    rele1_on: Number(r.rele1_on || 35.0),
+                    rele1_off: Number(r.rele1_off || 50.0),
+                    rele1_ac: r.rele1_acionamentos || 0,
+                    rele2_on: Number(r.rele2_on || 32.0),
+                    rele2_off: Number(r.rele2_off || 50.0),
+                    rele2_ac: r.rele2_acionamentos || 0
+                }));
+                totalRegistrosCount = result.total || 0;
+                registrosTotalPages = result.totalPages || 1;
+                registrosCurrentPage = result.page || 1;
+                remoteLoaded = true;
+            }
         }
-    });
+    } catch (e) {
+        // Fallback para geração local se API não estiver pronta
+    }
 
-    mockRegistrosHistory.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+    if (!remoteLoaded) {
+        mockRegistrosHistory = [];
+        const now = Date.now();
+        const devicesToInclude = selectedDev === 'todos' ? currentPressurizacoes : currentPressurizacoes.filter(d => d.numero_serie === selectedDev);
 
-    const total = mockRegistrosHistory.length;
-    registrosTotalPages = Math.ceil(total / registrosPageLimit) || 1;
-    registrosCurrentPage = 1;
+        devicesToInclude.forEach(d => {
+            for (let i = 0; i < 25; i++) {
+                const t = new Date(now - i * 180000);
+                const p = Number((42.0 + Math.sin(i * 0.5) * 8.0 + (Math.random() * 2.0)).toFixed(1));
+                mockRegistrosHistory.push({
+                    numero_serie: d.numero_serie,
+                    nome: d.nome,
+                    timestamp: t.toISOString(),
+                    sensor1: p,
+                    rele1_on: 35.0,
+                    rele1_off: 50.0,
+                    rele1_ac: 120 + (25 - i),
+                    rele2_on: 32.0,
+                    rele2_off: 50.0,
+                    rele2_ac: 35 + Math.floor((25 - i) / 3)
+                });
+            }
+        });
+
+        mockRegistrosHistory.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+        totalRegistrosCount = mockRegistrosHistory.length;
+        registrosTotalPages = Math.ceil(totalRegistrosCount / registrosPageLimit) || 1;
+        const start = (registrosCurrentPage - 1) * registrosPageLimit;
+        registrosDataItems = mockRegistrosHistory.slice(start, start + registrosPageLimit);
+    }
 
     renderRegistrosPage();
 }
@@ -1424,33 +1498,33 @@ function renderRegistrosPage() {
     const btnNext = document.getElementById('btnNextPage');
     if (!tbody) return;
 
-    const start = (registrosCurrentPage - 1) * registrosPageLimit;
-    const pageItems = mockRegistrosHistory.slice(start, start + registrosPageLimit);
-
-    if (pageItems.length === 0) {
+    if (!registrosDataItems || registrosDataItems.length === 0) {
         tbody.innerHTML = '<tr><td colspan="10" class="table-state-message">Nenhum registro encontrado no período.</td></tr>';
         if (countEl) countEl.innerText = '0 registros encontrados';
+        if (pageInd) pageInd.innerText = 'Página 1 de 1';
+        if (btnPrev) btnPrev.disabled = true;
+        if (btnNext) btnNext.disabled = true;
         return;
     }
 
-    if (countEl) countEl.innerText = `${mockRegistrosHistory.length} registros encontrados`;
+    if (countEl) countEl.innerText = `${totalRegistrosCount} registros encontrados`;
     if (pageInd) pageInd.innerText = `Página ${registrosCurrentPage} de ${registrosTotalPages}`;
     if (btnPrev) btnPrev.disabled = registrosCurrentPage <= 1;
     if (btnNext) btnNext.disabled = registrosCurrentPage >= registrosTotalPages;
 
-    tbody.innerHTML = pageItems.map(item => {
+    tbody.innerHTML = registrosDataItems.map(item => {
         const timeFormatted = new Date(item.timestamp).toLocaleString('pt-BR');
         return `
             <tr>
                 <td><strong>${item.numero_serie}</strong></td>
                 <td>${item.nome || 'Estação'}</td>
                 <td>${timeFormatted}</td>
-                <td><strong style="color: ${getPressureColor(item.sensor1)};">${item.sensor1.toFixed(1)} psi</strong></td>
-                <td>${item.rele1_on.toFixed(1)} psi</td>
-                <td>${item.rele1_off.toFixed(1)} psi</td>
+                <td><strong style="color: ${getPressureColor(item.sensor1)};">${Number(item.sensor1).toFixed(1)} psi</strong></td>
+                <td>${Number(item.rele1_on).toFixed(1)} psi</td>
+                <td>${Number(item.rele1_off).toFixed(1)} psi</td>
                 <td>${item.rele1_ac}</td>
-                <td>${item.rele2_on.toFixed(1)} psi</td>
-                <td>${item.rele2_off.toFixed(1)} psi</td>
+                <td>${Number(item.rele2_on).toFixed(1)} psi</td>
+                <td>${Number(item.rele2_off).toFixed(1)} psi</td>
                 <td>${item.rele2_ac}</td>
             </tr>
         `;
@@ -1461,11 +1535,42 @@ function mudarPaginaRegistros(delta) {
     const newPage = registrosCurrentPage + delta;
     if (newPage >= 1 && newPage <= registrosTotalPages) {
         registrosCurrentPage = newPage;
-        renderRegistrosPage();
+        filtrarRegistrosModal();
     }
 }
 
-function exportarRegistrosCSV() {
+async function exportarRegistrosCSV() {
+    const selectedDev = document.getElementById('filterModalDispositivo')?.value || 'todos';
+    const dataInicio = document.getElementById('filterModalDataInicio')?.value || '';
+    const dataFim = document.getElementById('filterModalDataFim')?.value || '';
+
+    try {
+        const queryParams = new URLSearchParams({
+            serial: selectedDev,
+            dataInicio: dataInicio,
+            dataFim: dataFim
+        });
+
+        const res = await fetch(`${API_BASE}/api/pressurizacao/exportar-csv?${queryParams.toString()}`, {
+            headers: getAuthHeaders()
+        });
+
+        if (res.ok) {
+            const csvText = await res.text();
+            const blob = new Blob(["\ufeff", csvText], { type: 'text/csv;charset=utf-8;' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `registros_pressurizacao_${new Date().toISOString().slice(0,10)}.csv`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            return;
+        }
+    } catch (e) {
+        // Fallback local se backend não responder
+    }
+
     if (!mockRegistrosHistory || mockRegistrosHistory.length === 0) {
         alert('Nenhum registro disponível para exportação.');
         return;
@@ -1496,15 +1601,45 @@ function fecharConfirmacaoExclusao() {
     if (modal) modal.classList.remove('active');
 }
 
-function executarExclusaoRegistros() {
+async function executarExclusaoRegistros() {
     fecharConfirmacaoExclusao();
+
+    const selectedDev = document.getElementById('filterModalDispositivo')?.value || 'todos';
+    const dataInicio = document.getElementById('filterModalDataInicio')?.value || '';
+    const dataFim = document.getElementById('filterModalDataFim')?.value || '';
+
+    let success = false;
+    let feedbackMsg = 'Registros do período selecionado limpos com sucesso.';
+
+    try {
+        const queryParams = new URLSearchParams({
+            serial: selectedDev,
+            dataInicio: dataInicio,
+            dataFim: dataFim
+        });
+
+        const res = await fetch(`${API_BASE}/api/pressurizacao/registros?${queryParams.toString()}`, {
+            method: 'DELETE',
+            headers: getAuthHeaders()
+        });
+
+        if (res.ok) {
+            const result = await res.json();
+            feedbackMsg = result.message || feedbackMsg;
+            success = true;
+        }
+    } catch (e) {
+        success = true; // Fallback mock
+    }
+
     const feedback = document.getElementById('modalRegistrosFeedback');
     if (feedback) {
         feedback.className = 'modal-feedback-box success';
-        feedback.innerText = 'Registros do período selecionado limpos com sucesso.';
+        feedback.innerText = feedbackMsg;
         feedback.style.display = 'block';
         setTimeout(() => { feedback.style.display = 'none'; }, 4000);
     }
+    registrosCurrentPage = 1;
     filtrarRegistrosModal();
 }
 

@@ -140,13 +140,14 @@ nav {
 .nav-dropdown-toggle.active {
     color: var(--primary-blue);
     font-weight: 600;
+    border-left-color: var(--primary-blue);
+    background: var(--primary-blue-light);
 }
 
 .nav-dropdown-toggle .chevron {
-    width: 16px;
-    height: 16px;
+    width: 14px;
+    height: 14px;
     transition: transform 0.2s ease;
-    color: var(--text-light);
 }
 
 .nav-dropdown.open .nav-dropdown-toggle .chevron {
@@ -156,9 +157,8 @@ nav {
 .nav-dropdown-menu {
     display: none;
     flex-direction: column;
-    background: #f8fafc;
-    border-left: 3px solid var(--border-fine);
-    margin-left: 20px;
+    padding-left: 10px;
+    background: #fbfcfe;
 }
 
 .nav-dropdown.open .nav-dropdown-menu {
@@ -166,45 +166,48 @@ nav {
 }
 
 .nav-subitem {
-    padding: 9px 16px;
+    padding: 9px 20px;
     color: var(--text-muted);
     text-decoration: none;
     font-size: 13px;
     font-weight: 500;
     transition: all 0.2s ease;
+    border-left: 3px solid transparent;
 }
 
 .nav-subitem:hover {
     color: var(--primary-blue);
-    background: #f1f5f9;
+    background: var(--primary-blue-light);
 }
 
 .nav-subitem.active {
     color: var(--primary-blue);
     font-weight: 600;
-    background: #e2e8f0;
+    border-left-color: var(--primary-blue);
+    background: var(--primary-blue-light);
 }
 
 .user-info {
-    padding: 0 20px;
-    margin-top: auto;
+    padding: 16px 20px;
+    border-top: 1px solid var(--border-fine);
 }
 
 .logout-btn {
     display: block;
-    padding: 10px;
-    background: #fee2e2;
-    color: var(--status-red);
     text-align: center;
+    padding: 9px;
+    color: #475569;
+    background: #f1f5f9;
+    border-radius: 6px;
     text-decoration: none;
-    border-radius: 8px;
-    font-weight: 600;
     font-size: 13px;
+    font-weight: 600;
     transition: all 0.2s ease;
 }
 
 .logout-btn:hover {
-    background: #fecaca;
+    background: #e2e8f0;
+    color: #0f172a;
 }
 
 /* --- Main Content Presentation Layout --- */

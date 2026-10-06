@@ -269,18 +269,18 @@ function updateActiveExecutiveCard(reading) {
 
     if (r1OnEl) r1OnEl.innerText = reading.rele1_on !== null && reading.rele1_on !== undefined ? Number(reading.rele1_on).toFixed(1) : '--';
     if (r1OffEl) r1OffEl.innerText = reading.rele1_off !== null && reading.rele1_off !== undefined ? Number(reading.rele1_off).toFixed(1) : '--';
-    if (r1AcEl) r1AcEl.innerText = reading.rele1_acionamentos ?? '--';
+    if (r1AcEl) r1AcEl.innerText = (reading.rele1_acionamentos !== null && reading.rele1_acionamentos !== undefined) ? reading.rele1_acionamentos : '--';
     if (r1StatusEl) {
-        const isActive = (reading.rele1_on !== null && reading.sensor1 !== null && reading.sensor1 >= reading.rele1_on);
+        const isActive = (reading.rele1_estado === 1) || (reading.rele1_on !== null && reading.sensor1 !== null && Number(reading.sensor1) >= Number(reading.rele1_on));
         r1StatusEl.innerText = isActive ? 'ATIVO (ON)' : 'DESLIGADO (OFF)';
         r1StatusEl.style.color = isActive ? '#10b981' : '#64748b';
     }
 
     if (r2OnEl) r2OnEl.innerText = reading.rele2_on !== null && reading.rele2_on !== undefined ? Number(reading.rele2_on).toFixed(1) : '--';
     if (r2OffEl) r2OffEl.innerText = reading.rele2_off !== null && reading.rele2_off !== undefined ? Number(reading.rele2_off).toFixed(1) : '--';
-    if (r2AcEl) r2AcEl.innerText = reading.rele2_acionamentos ?? '--';
+    if (r2AcEl) r2AcEl.innerText = (reading.rele2_acionamentos !== null && reading.rele2_acionamentos !== undefined) ? reading.rele2_acionamentos : '--';
     if (r2StatusEl) {
-        const isActive = (reading.rele2_on !== null && reading.sensor1 !== null && reading.sensor1 >= reading.rele2_on);
+        const isActive = (reading.rele2_estado === 1) || (reading.rele2_on !== null && reading.sensor1 !== null && Number(reading.sensor1) >= Number(reading.rele2_on));
         r2StatusEl.innerText = isActive ? 'ATIVO (ON)' : 'DESLIGADO (OFF)';
         r2StatusEl.style.color = isActive ? '#10b981' : '#64748b';
     }
@@ -1155,13 +1155,18 @@ function renderFullscreenStation(index) {
     if (titleEl) titleEl.innerText = `Chopeira #${dev.numero_serie}`;
 
     const pressure = (u.sensor1 !== null && u.sensor1 !== undefined) ? Number(u.sensor1) : null;
-    const r1_on = u.rele1_on !== null && u.rele1_on !== undefined ? Number(u.rele1_on) : 30.0;
-    const r1_off = u.rele1_off !== null && u.rele1_off !== undefined ? Number(u.rele1_off) : 50.0;
-    const r2_on = u.rele2_on !== null && u.rele2_on !== undefined ? Number(u.rele2_on) : 28.0;
-    const r2_off = u.rele2_off !== null && u.rele2_off !== undefined ? Number(u.rele2_off) : 50.0;
+    const hasR1On = u.rele1_on !== null && u.rele1_on !== undefined;
+    const hasR1Off = u.rele1_off !== null && u.rele1_off !== undefined;
+    const r1_on = hasR1On ? Number(u.rele1_on) : null;
+    const r1_off = hasR1Off ? Number(u.rele1_off) : null;
 
-    const isR1On = pressure !== null && (u.rele1_estado === 1 || pressure <= r1_on);
-    const isR2On = pressure !== null && (u.rele2_estado === 1 || pressure <= r2_on);
+    const hasR2On = u.rele2_on !== null && u.rele2_on !== undefined;
+    const hasR2Off = u.rele2_off !== null && u.rele2_off !== undefined;
+    const r2_on = hasR2On ? Number(u.rele2_on) : null;
+    const r2_off = hasR2Off ? Number(u.rele2_off) : null;
+
+    const isR1On = (u.rele1_estado === 1) || (r1_on !== null && pressure !== null && pressure >= r1_on);
+    const isR2On = (u.rele2_estado === 1) || (r2_on !== null && pressure !== null && pressure >= r2_on);
 
     const isCrit = dev.status === 'Crítico' || (pressure !== null && pressure < 20);
     const isWarn = dev.status === 'Atenção' || (pressure !== null && pressure > 65);
@@ -1210,7 +1215,7 @@ function renderFullscreenStation(index) {
 
     updateFsGaugeChart(pressure, 0, 80, pColor);
 
-    // 3. Card 2: Relé 1 (Linha de Chopp)
+    // 3. Card 2: Relé 1
     const r1Badge = document.getElementById('fsR1StateBadge');
     const r1Text = document.getElementById('fsR1StatusText');
     const r1OnVal = document.getElementById('fsR1OnVal');
@@ -1219,17 +1224,17 @@ function renderFullscreenStation(index) {
 
     if (r1Badge) {
         r1Badge.className = `fs-relay-pill ${isR1On ? 'on' : 'off'}`;
-        r1Badge.innerText = isR1On ? 'LIGADO' : 'STANDBY';
+        r1Badge.innerText = isR1On ? 'LIGADO' : 'DESLIGADO';
     }
     if (r1Text) {
-        r1Text.innerText = isR1On ? 'ATIVO (ON)' : 'STANDBY';
-        r1Text.style.color = isR1On ? '#059669' : '#64748b';
+        r1Text.innerText = isR1On ? 'ATIVO (ON)' : 'DESLIGADO (OFF)';
+        r1Text.style.color = isR1On ? '#10b981' : '#64748b';
     }
-    if (r1OnVal) r1OnVal.innerText = `${r1_on.toFixed(1)} psi`;
-    if (r1OffVal) r1OffVal.innerText = `${r1_off.toFixed(1)} psi`;
-    if (r1AcVal) r1AcVal.innerText = u.rele1_acionamentos || 0;
+    if (r1OnVal) r1OnVal.innerText = r1_on !== null ? `${r1_on.toFixed(1)} psi` : '--';
+    if (r1OffVal) r1OffVal.innerText = r1_off !== null ? `${r1_off.toFixed(1)} psi` : '--';
+    if (r1AcVal) r1AcVal.innerText = (u.rele1_acionamentos !== null && u.rele1_acionamentos !== undefined) ? u.rele1_acionamentos : '--';
 
-    // 4. Card 3: Relé 2 (Refrigeração)
+    // 4. Card 3: Relé 2
     const r2Badge = document.getElementById('fsR2StateBadge');
     const r2Text = document.getElementById('fsR2StatusText');
     const r2OnVal = document.getElementById('fsR2OnVal');
@@ -1238,15 +1243,15 @@ function renderFullscreenStation(index) {
 
     if (r2Badge) {
         r2Badge.className = `fs-relay-pill ${isR2On ? 'on' : 'off'}`;
-        r2Badge.innerText = isR2On ? 'LIGADO' : 'STANDBY';
+        r2Badge.innerText = isR2On ? 'LIGADO' : 'DESLIGADO';
     }
     if (r2Text) {
-        r2Text.innerText = isR2On ? 'ATIVO (ON)' : 'STANDBY';
-        r2Text.style.color = isR2On ? '#059669' : '#64748b';
+        r2Text.innerText = isR2On ? 'ATIVO (ON)' : 'DESLIGADO (OFF)';
+        r2Text.style.color = isR2On ? '#10b981' : '#64748b';
     }
-    if (r2OnVal) r2OnVal.innerText = `${r2_on.toFixed(1)} psi`;
-    if (r2OffVal) r2OffVal.innerText = `${r2_off.toFixed(1)} psi`;
-    if (r2AcVal) r2AcVal.innerText = u.rele2_acionamentos || 0;
+    if (r2OnVal) r2OnVal.innerText = r2_on !== null ? `${r2_on.toFixed(1)} psi` : '--';
+    if (r2OffVal) r2OffVal.innerText = r2_off !== null ? `${r2_off.toFixed(1)} psi` : '--';
+    if (r2AcVal) r2AcVal.innerText = (u.rele2_acionamentos !== null && u.rele2_acionamentos !== undefined) ? u.rele2_acionamentos : '--';
 
     // 5. Card 4: Diagnóstico & Supervisão
     const diagChip = document.getElementById('fsDiagChip');

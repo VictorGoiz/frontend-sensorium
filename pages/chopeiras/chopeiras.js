@@ -8,6 +8,14 @@ let lastDevicesSignature = '';
 let lastProcessedReadingSignature = '';
 let liveBadgeWatchdog = null;
 
+// Estado do Modo Tela Cheia
+let fullscreenActiveIndex = 0;
+let fsAutoplayInterval = null;
+const fsAutoplayDuration = 8000;
+let fsKeyboardListenerAttached = false;
+let fsGaugeChartInstance = null;
+let fsChopeirasChartInstance = null;
+
 // Estado do Modal de Registros
 let registrosCurrentPage = 1;
 let registrosTotalPages = 1;
@@ -132,6 +140,10 @@ async function loadChopeirasData(silent = false) {
             renderChopeirasGrid(currentChopeiras);
             updateExecutiveSummary(currentChopeiras);
 
+            if (document.body.classList.contains('fullscreen-active')) {
+                renderFullscreenStation(fullscreenActiveIndex);
+            }
+
             // Verifica se há dados recebidos para ativar a badge
             const hasData = currentChopeiras.length > 0 && currentChopeiras.some(d => d.ultima_leitura && d.ultima_leitura.sensor1 !== null && d.ultima_leitura.sensor1 !== undefined);
             if (hasData) {
@@ -216,6 +228,14 @@ function handleLiveChopeiraReading(reading) {
         const engine = getFluidTelemetryEngine();
         if (engine) {
             engine.pushReading(sensor1, rele1_on, rele1_off, timestamp);
+        }
+    }
+
+    // 5. Se estiver em Modo Tela Cheia, atualiza o palco se for a chopeira ativa
+    if (document.body.classList.contains('fullscreen-active')) {
+        const activeDev = currentChopeiras[fullscreenActiveIndex];
+        if (activeDev && activeDev.numero_serie === numeroSerie) {
+            renderFullscreenStation(fullscreenActiveIndex);
         }
     }
 }
@@ -439,9 +459,11 @@ function renderChopeirasGrid(devices) {
 
 class FluidTelemetryEngine {
     constructor(canvasId) {
+        this.canvasId = canvasId;
         this.canvas = document.getElementById(canvasId);
-        if (!this.canvas) return;
-        this.ctx = this.canvas.getContext('2d');
+        if (this.canvas) {
+            this.ctx = this.canvas.getContext('2d');
+        }
         
         this.numPoints = 60; // 60 amostras cobrindo 100% da largura do canvas
         this.points = new Array(this.numPoints).fill(0);
@@ -471,14 +493,23 @@ class FluidTelemetryEngine {
     }
     
     setupCanvas() {
-        if (!this.canvas) return;
+        if (!this.canvas) {
+            this.canvas = document.getElementById(this.canvasId);
+            if (!this.canvas) return;
+            this.ctx = this.canvas.getContext('2d');
+        }
         const rect = this.canvas.getBoundingClientRect();
         const dpr = window.devicePixelRatio || 1;
-        this.width = rect.width || 800;
-        this.height = rect.height || 340;
+        const parentW = this.canvas.parentElement ? this.canvas.parentElement.clientWidth : 800;
+        const parentH = this.canvas.parentElement ? this.canvas.parentElement.clientHeight : 340;
+        this.width = rect.width > 0 ? rect.width : parentW;
+        this.height = rect.height > 0 ? rect.height : parentH;
         this.canvas.width = this.width * dpr;
         this.canvas.height = this.height * dpr;
-        this.ctx.scale(dpr, dpr);
+        if (this.ctx) {
+            this.ctx.setTransform(1, 0, 0, 1, 0, 0);
+            this.ctx.scale(dpr, dpr);
+        }
     }
     
     setupEvents() {
@@ -529,6 +560,10 @@ class FluidTelemetryEngine {
         const val = sensor1 !== null && sensor1 !== undefined ? Number(sensor1) : null;
         if (val !== null && !isNaN(val)) {
             this.targetPressure = val;
+            if (this.points.every(p => p === 0)) {
+                this.currentPressure = val;
+                this.points.fill(val);
+            }
         }
         
         if (rele1_on !== null && rele1_on !== undefined) this.setpointOn = Number(rele1_on);
@@ -865,7 +900,7 @@ class FluidTelemetryEngine {
     }
 }
 
-// Instância única do Motor de Telemetria Fluida
+// Instância única do Motor de Telemetria Fluida (Geral)
 let fluidTelemetry = null;
 
 function getFluidTelemetryEngine() {
@@ -873,6 +908,17 @@ function getFluidTelemetryEngine() {
         fluidTelemetry = new FluidTelemetryEngine('chopeirasChart');
     }
     return fluidTelemetry;
+}
+
+// Instância única do Motor de Telemetria Fluida (Tela Cheia)
+let fsFluidTelemetry = null;
+let fsLastStationSerial = '';
+
+function getFsFluidTelemetryEngine() {
+    if (!fsFluidTelemetry) {
+        fsFluidTelemetry = new FluidTelemetryEngine('fsChopeirasChart');
+    }
+    return fsFluidTelemetry;
 }
 
 /**
@@ -916,9 +962,23 @@ function renderChopeirasChart(data, serial = '', periodo = '', forceRedraw = fal
     engine.loadHistory(data, serial);
 }
 
-/**
- * Alterna o modo de Tela Cheia (Fullscreen Kiosk / TV)
- */
+/* ==========================================================================
+   MODO TELA CHEIA (APRESENTAÇÃO UNITÁRIA COM CARROSSEL)
+   ========================================================================== */
+
+function getPressureColor(val, minOn, maxOff) {
+    if (val === null || val === undefined) return '#0f172a';
+    const v = Number(val);
+    const on = minOn ? Number(minOn) : 30.0;
+    const off = maxOff ? Number(maxOff) : 50.0;
+
+    if (v < 20) return '#ef4444'; // Subpressão crítica
+    if (v <= on) return '#0284c7'; // Pressão baixa / Linha em acionamento
+    if (v >= on && v <= off) return '#10b981'; // Faixa ideal / Operacional
+    if (v > off) return '#ea580c'; // Sobrepressão
+    return '#0284c7';
+}
+
 function toggleFullscreen() {
     if (!document.fullscreenElement && !document.webkitFullscreenElement) {
         if (document.documentElement.requestFullscreen) {
@@ -936,25 +996,414 @@ function toggleFullscreen() {
 }
 
 function handleFullscreenChange() {
-    const isFull = !!(document.fullscreenElement || document.webkitFullscreenElement);
+    const isFs = !!(document.fullscreenElement || document.webkitFullscreenElement);
     const textEl = document.getElementById('fullscreenText');
     const iconEl = document.getElementById('fullscreenIcon');
-    document.body.classList.toggle('fullscreen-active', isFull);
+    document.body.classList.toggle('fullscreen-active', isFs);
 
     if (textEl) {
-        textEl.innerText = isFull ? 'Sair da Tela Cheia' : 'Tela Cheia';
+        textEl.innerText = isFs ? 'Sair da Tela Cheia' : 'Tela Cheia';
     }
 
     if (iconEl) {
-        if (isFull) {
+        if (isFs) {
             iconEl.innerHTML = '<path d="M8 3v3a2 2 0 0 1-2 2H3m18 0h-3a2 2 0 0 1-2-2V3m0 18v-3a2 2 0 0 1 2-2h3M3 16h3a2 2 0 0 1 2 2v3"/>';
         } else {
             iconEl.innerHTML = '<path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"/>';
         }
     }
 
+    if (isFs) {
+        setupFullscreenPresentation();
+    } else {
+        stopFsAutoplay();
+    }
+
     if (fluidTelemetry) {
         setTimeout(() => fluidTelemetry.setupCanvas(), 100);
+    }
+    if (fsFluidTelemetry) {
+        setTimeout(() => fsFluidTelemetry.setupCanvas(), 100);
+    }
+}
+
+function setupFullscreenPresentation() {
+    if (!fsKeyboardListenerAttached) {
+        document.addEventListener('keydown', handleFullscreenKeydown);
+        fsKeyboardListenerAttached = true;
+    }
+
+    populateFsDeviceSelect();
+
+    const standardSelect = document.getElementById('chopeiraSelect');
+    if (standardSelect && standardSelect.value && currentChopeiras && currentChopeiras.length > 0) {
+        const foundIdx = currentChopeiras.findIndex(d => d.numero_serie === standardSelect.value);
+        if (foundIdx >= 0) fullscreenActiveIndex = foundIdx;
+    }
+
+    renderFullscreenStation(fullscreenActiveIndex);
+    startFsAutoplay();
+}
+
+function populateFsDeviceSelect() {
+    const select = document.getElementById('fsDeviceSelect');
+    if (!select) return;
+
+    if (!currentChopeiras || currentChopeiras.length === 0) {
+        select.innerHTML = '<option value="">Nenhuma chopeira</option>';
+        return;
+    }
+
+    select.innerHTML = currentChopeiras.map((d, idx) => `
+        <option value="${d.numero_serie}">Chopeira #${d.numero_serie} (${idx + 1}/${currentChopeiras.length})</option>
+    `).join('');
+}
+
+function onFsDeviceSelectChange(selectedSerial) {
+    if (!selectedSerial || !currentChopeiras) return;
+    const idx = currentChopeiras.findIndex(d => d.numero_serie === selectedSerial);
+    if (idx >= 0) {
+        renderFullscreenStation(idx);
+    }
+}
+
+function handleFullscreenKeydown(e) {
+    if (!document.body.classList.contains('fullscreen-active')) return;
+
+    if (e.key === 'ArrowLeft') {
+        e.preventDefault();
+        navigateFullscreenCarousel(-1);
+    } else if (e.key === 'ArrowRight') {
+        e.preventDefault();
+        navigateFullscreenCarousel(1);
+    } else if (e.key === ' ' || e.code === 'Space') {
+        e.preventDefault();
+        toggleFullscreenAutoplay();
+    }
+}
+
+function navigateFullscreenCarousel(direction) {
+    if (!currentChopeiras || currentChopeiras.length === 0) return;
+    fullscreenActiveIndex += direction;
+    if (fullscreenActiveIndex < 0) fullscreenActiveIndex = currentChopeiras.length - 1;
+    if (fullscreenActiveIndex >= currentChopeiras.length) fullscreenActiveIndex = 0;
+
+    renderFullscreenStation(fullscreenActiveIndex);
+}
+
+function toggleFullscreenAutoplay() {
+    if (fsAutoplayInterval) {
+        stopFsAutoplay();
+    } else {
+        startFsAutoplay();
+    }
+}
+
+function startFsAutoplay() {
+    stopFsAutoplay();
+    const btn = document.getElementById('fsAutoplayBtn');
+    const txt = document.getElementById('fsAutoplayText');
+    const icon = document.getElementById('fsAutoplayIcon');
+
+    if (btn) btn.classList.add('playing');
+    if (txt) txt.innerText = 'Pausar (8s)';
+    if (icon) icon.innerHTML = '<rect x="6" y="4" width="4" height="16"></rect><rect x="14" y="4" width="4" height="16"></rect>';
+
+    fsAutoplayInterval = setInterval(() => {
+        navigateFullscreenCarousel(1);
+    }, fsAutoplayDuration);
+}
+
+function stopFsAutoplay() {
+    if (fsAutoplayInterval) {
+        clearInterval(fsAutoplayInterval);
+        fsAutoplayInterval = null;
+    }
+    const btn = document.getElementById('fsAutoplayBtn');
+    const txt = document.getElementById('fsAutoplayText');
+    const icon = document.getElementById('fsAutoplayIcon');
+
+    if (btn) btn.classList.remove('playing');
+    if (txt) txt.innerText = 'Auto (8s)';
+    if (icon) icon.innerHTML = '<polygon points="5 3 19 12 5 21 5 3"></polygon>';
+}
+
+function renderFsDots() {
+    const container = document.getElementById('fsDotsContainer');
+    if (!container || !currentChopeiras) return;
+
+    container.innerHTML = currentChopeiras.map((_, idx) => `
+        <div class="fs-dot ${idx === fullscreenActiveIndex ? 'active' : ''}" onclick="renderFullscreenStation(${idx})" title="Ir para chopeira ${idx + 1}"></div>
+    `).join('');
+}
+
+/**
+ * Renderiza a chopeira ativa no Modo Tela Cheia com os 4 Cards e o Gráfico dedicado
+ */
+function renderFullscreenStation(index) {
+    if (!currentChopeiras || currentChopeiras.length === 0) return;
+
+    if (index < 0) index = currentChopeiras.length - 1;
+    if (index >= currentChopeiras.length) index = 0;
+    fullscreenActiveIndex = index;
+
+    const dev = currentChopeiras[index];
+    const u = dev.ultima_leitura || {};
+
+    // 1. Header Metadata
+    const titleEl = document.getElementById('fsDeviceTitle');
+    if (titleEl) titleEl.innerText = `Chopeira #${dev.numero_serie}`;
+
+    const pressure = (u.sensor1 !== null && u.sensor1 !== undefined) ? Number(u.sensor1) : null;
+    const r1_on = u.rele1_on !== null && u.rele1_on !== undefined ? Number(u.rele1_on) : 30.0;
+    const r1_off = u.rele1_off !== null && u.rele1_off !== undefined ? Number(u.rele1_off) : 50.0;
+    const r2_on = u.rele2_on !== null && u.rele2_on !== undefined ? Number(u.rele2_on) : 28.0;
+    const r2_off = u.rele2_off !== null && u.rele2_off !== undefined ? Number(u.rele2_off) : 50.0;
+
+    const isR1On = pressure !== null && (u.rele1_estado === 1 || pressure <= r1_on);
+    const isR2On = pressure !== null && (u.rele2_estado === 1 || pressure <= r2_on);
+
+    const isCrit = dev.status === 'Crítico' || (pressure !== null && pressure < 20);
+    const isWarn = dev.status === 'Atenção' || (pressure !== null && pressure > 65);
+    const stClass = isCrit ? 'critico' : (isWarn ? 'atencao' : 'operacional');
+    const stLabel = isCrit ? 'Crítico (Subpressão)' : (isWarn ? 'Atenção (Sobrepressão)' : 'Operacional / Ideal');
+
+    const statusPill = document.getElementById('fsStatusPill');
+    const statusText = document.getElementById('fsStatusText');
+    if (statusPill) statusPill.className = `fs-status-pill ${stClass}`;
+    if (statusText) statusText.innerText = stLabel;
+
+    const timeEl = document.getElementById('fsLastReadingTime');
+    if (timeEl) {
+        const timeStr = u.timestamp ? new Date(u.timestamp).toLocaleTimeString('pt-BR') : '--:--:--';
+        timeEl.innerText = `Última Leitura: ${timeStr}`;
+    }
+
+    // 2. Card 1: Manômetro de Pressão
+    const pColor = getPressureColor(pressure, r1_on, r1_off);
+    const tempValEl = document.getElementById('fsTempVal');
+    if (tempValEl) {
+        tempValEl.innerText = pressure !== null ? pressure.toFixed(2) : '--';
+        tempValEl.style.color = pColor;
+    }
+
+    const pEvalEl = document.getElementById('fsPressureEval');
+    if (pEvalEl) {
+        if (pressure === null) {
+            pEvalEl.innerText = 'Sem Dados';
+            pEvalEl.style.background = '#f1f5f9';
+            pEvalEl.style.color = '#64748b';
+        } else if (isCrit) {
+            pEvalEl.innerText = 'Subpressão';
+            pEvalEl.style.background = '#fef2f2';
+            pEvalEl.style.color = '#dc2626';
+        } else if (isWarn) {
+            pEvalEl.innerText = 'Sobrepressão';
+            pEvalEl.style.background = '#fff7ed';
+            pEvalEl.style.color = '#ea580c';
+        } else {
+            pEvalEl.innerText = 'Pressão Ideal';
+            pEvalEl.style.background = '#ecfdf5';
+            pEvalEl.style.color = '#059669';
+        }
+    }
+
+    updateFsGaugeChart(pressure, 0, 80, pColor);
+
+    // 3. Card 2: Relé 1 (Linha de Chopp)
+    const r1Badge = document.getElementById('fsR1StateBadge');
+    const r1Text = document.getElementById('fsR1StatusText');
+    const r1OnVal = document.getElementById('fsR1OnVal');
+    const r1OffVal = document.getElementById('fsR1OffVal');
+    const r1AcVal = document.getElementById('fsR1AcVal');
+
+    if (r1Badge) {
+        r1Badge.className = `fs-relay-pill ${isR1On ? 'on' : 'off'}`;
+        r1Badge.innerText = isR1On ? 'LIGADO' : 'STANDBY';
+    }
+    if (r1Text) {
+        r1Text.innerText = isR1On ? 'ATIVO (ON)' : 'STANDBY';
+        r1Text.style.color = isR1On ? '#059669' : '#64748b';
+    }
+    if (r1OnVal) r1OnVal.innerText = `${r1_on.toFixed(1)} psi`;
+    if (r1OffVal) r1OffVal.innerText = `${r1_off.toFixed(1)} psi`;
+    if (r1AcVal) r1AcVal.innerText = u.rele1_acionamentos || 0;
+
+    // 4. Card 3: Relé 2 (Refrigeração)
+    const r2Badge = document.getElementById('fsR2StateBadge');
+    const r2Text = document.getElementById('fsR2StatusText');
+    const r2OnVal = document.getElementById('fsR2OnVal');
+    const r2OffVal = document.getElementById('fsR2OffVal');
+    const r2AcVal = document.getElementById('fsR2AcVal');
+
+    if (r2Badge) {
+        r2Badge.className = `fs-relay-pill ${isR2On ? 'on' : 'off'}`;
+        r2Badge.innerText = isR2On ? 'LIGADO' : 'STANDBY';
+    }
+    if (r2Text) {
+        r2Text.innerText = isR2On ? 'ATIVO (ON)' : 'STANDBY';
+        r2Text.style.color = isR2On ? '#059669' : '#64748b';
+    }
+    if (r2OnVal) r2OnVal.innerText = `${r2_on.toFixed(1)} psi`;
+    if (r2OffVal) r2OffVal.innerText = `${r2_off.toFixed(1)} psi`;
+    if (r2AcVal) r2AcVal.innerText = u.rele2_acionamentos || 0;
+
+    // 5. Card 4: Diagnóstico & Supervisão
+    const diagChip = document.getElementById('fsDiagChip');
+    const diagStatus = document.getElementById('fsDiagStatusText');
+    const diagStability = document.getElementById('fsDiagStability');
+    const diagExtraction = document.getElementById('fsDiagExtraction');
+
+    if (diagChip && diagStatus) {
+        if (isCrit) {
+            diagChip.className = 'fs-diag-chip danger';
+            diagChip.innerText = 'ALERTA';
+            diagStatus.innerText = 'PRESSÃO BAIXA';
+            if (diagStability) {
+                diagStability.innerText = 'Oscilação Crítica';
+                diagStability.style.color = '#dc2626';
+            }
+            if (diagExtraction) diagExtraction.innerText = 'Comprometida';
+        } else if (isWarn) {
+            diagChip.className = 'fs-diag-chip alert';
+            diagChip.innerText = 'ATENÇÃO';
+            diagStatus.innerText = 'PRESSÃO ELEVADA';
+            if (diagStability) {
+                diagStability.innerText = 'Instável';
+                diagStability.style.color = '#ea580c';
+            }
+            if (diagExtraction) diagExtraction.innerText = 'Verificar Válvula';
+        } else {
+            diagChip.className = 'fs-diag-chip normal';
+            diagChip.innerText = 'NORMAL';
+            diagStatus.innerText = 'PRESSURIZADO';
+            if (diagStability) {
+                diagStability.innerText = 'Estável';
+                diagStability.style.color = '#10b981';
+            }
+            if (diagExtraction) diagExtraction.innerText = 'Ideal / Padrão';
+        }
+    }
+
+    // 6. Gráfico em tempo real Fullscreen da chopeira ativa
+    renderFullscreenChart(dev);
+
+    // 7. Sincroniza select, dots e contador
+    renderFsDots();
+    const select = document.getElementById('fsDeviceSelect');
+    if (select && select.value !== dev.numero_serie) {
+        select.value = dev.numero_serie;
+    }
+    const counterEl = document.getElementById('fsDeviceCounterText');
+    if (counterEl) {
+        counterEl.innerText = `Chopeira ${fullscreenActiveIndex + 1} de ${currentChopeiras.length}`;
+    }
+}
+
+function updateFsGaugeChart(value, min, max, fillColor) {
+    const canvas = document.getElementById('fsGaugePressureCanvas');
+    if (!canvas || typeof Chart === 'undefined') return;
+
+    const val = (value !== null && value !== undefined && !isNaN(value)) ? Number(value) : min;
+    const clamped = Math.max(min, Math.min(max, val));
+    const progress = clamped - min;
+    const remaining = max - clamped;
+
+    if (fsGaugeChartInstance) {
+        try {
+            if (fsGaugeChartInstance.canvas === canvas) {
+                fsGaugeChartInstance.data.datasets[0].data = [progress, remaining];
+                fsGaugeChartInstance.data.datasets[0].backgroundColor = [fillColor, '#e2e8f0'];
+                fsGaugeChartInstance.update('none');
+                return;
+            } else {
+                fsGaugeChartInstance.destroy();
+                fsGaugeChartInstance = null;
+            }
+        } catch (e) {
+            fsGaugeChartInstance = null;
+        }
+    }
+
+    try {
+        const ctx = canvas.getContext('2d');
+        fsGaugeChartInstance = new Chart(ctx, {
+            type: 'doughnut',
+            data: {
+                datasets: [{
+                    data: [progress, remaining],
+                    backgroundColor: [fillColor, '#e2e8f0'],
+                    borderWidth: 0,
+                    circumference: 180,
+                    rotation: 270,
+                    borderRadius: [4, 4]
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                cutout: '74%',
+                animation: false,
+                plugins: {
+                    tooltip: { enabled: false },
+                    legend: { display: false }
+                }
+            }
+        });
+    } catch (err) {
+        console.warn('Erro ao criar manômetro fullscreen:', err);
+    }
+}
+
+async function renderFullscreenChart(dev) {
+    if (!dev) return;
+    const canvas = document.getElementById('fsChopeirasChart');
+    if (!canvas) return;
+
+    const engine = getFsFluidTelemetryEngine();
+    if (!engine) return;
+
+    const u = dev.ultima_leitura || {};
+    const r1_on = u.rele1_on !== null && u.rele1_on !== undefined ? Number(u.rele1_on) : 30.0;
+    const r1_off = u.rele1_off !== null && u.rele1_off !== undefined ? Number(u.rele1_off) : 50.0;
+    const sensor1 = u.sensor1 !== null && u.sensor1 !== undefined ? Number(u.sensor1) : null;
+
+    engine.pushReading(sensor1, r1_on, r1_off, u.timestamp);
+
+    // Se mudou a chopeira ativa no carrossel, recarrega histórico e ajusta dimensões
+    if (fsLastStationSerial !== dev.numero_serie) {
+        fsLastStationSerial = dev.numero_serie;
+        setTimeout(() => engine.setupCanvas(), 50);
+
+        try {
+            const res = await fetch(`${API_BASE}/api/reles/${dev.numero_serie}/leituras?periodo=all`, {
+                headers: getAuthHeaders()
+            });
+            if (res.ok) {
+                const result = await res.json();
+                if (result.success && Array.isArray(result.data) && result.data.length > 0) {
+                    let chronologicalData = result.data.slice().reverse();
+                    if (chronologicalData.length > 30) {
+                        chronologicalData = chronologicalData.slice(-30);
+                    }
+                    engine.loadHistory(chronologicalData, dev.numero_serie);
+                    return;
+                }
+            }
+        } catch (e) {
+            // Silencioso se API não estiver acessível
+        }
+
+        const base = sensor1 !== null ? sensor1 : 38.0;
+        const initialBuffer = [];
+        for (let i = 0; i < 30; i++) {
+            initialBuffer.push({
+                sensor1: base + Math.sin(i * 0.3) * 0.8,
+                rele1_on: r1_on,
+                rele1_off: r1_off
+            });
+        }
+        engine.loadHistory(initialBuffer, dev.numero_serie);
     }
 }
 

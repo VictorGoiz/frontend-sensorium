@@ -184,6 +184,202 @@
         </main>
     </div>
 
+    <!-- ====================================================
+         MODO TELA CHEIA (APRESENTAÇÃO UNITÁRIA COM CARROSSEL)
+         ==================================================== -->
+    <div id="chopeirasFullscreenPresentation" class="chopeiras-fullscreen-presentation">
+        <!-- Top Bar of Presentation -->
+        <div class="fs-top-bar">
+            <div class="fs-device-meta">
+                <div class="fs-device-title-row">
+                    <span class="fs-brand-tag chopp">CHOPEIRAS</span>
+                    <h2 id="fsDeviceTitle">Chopeira --</h2>
+                    <div class="fs-status-pill operacional" id="fsStatusPill">
+                        <span class="fs-status-dot" id="fsStatusDot"></span>
+                        <span id="fsStatusText">Operacional</span>
+                    </div>
+                    <div class="fs-live-badge active" id="fsLiveBadge">
+                        <span class="live-dot"></span>
+                        <span>AO VIVO</span>
+                    </div>
+                </div>
+                <div class="fs-timestamp-row">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
+                    <span id="fsLastReadingTime">Última Leitura: --</span>
+                </div>
+            </div>
+
+            <div class="fs-top-actions">
+                <button class="fs-action-btn fs-autoplay-btn" id="fsAutoplayBtn" onclick="toggleFullscreenAutoplay()" title="Alternar Rotação Automática (Espaço)">
+                    <svg id="fsAutoplayIcon" width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                        <polygon points="5 3 19 12 5 21 5 3"></polygon>
+                    </svg>
+                    <span id="fsAutoplayText">Auto (8s)</span>
+                </button>
+
+                <select id="fsDeviceSelect" class="fs-device-select" onchange="onFsDeviceSelectChange(this.value)" title="Ir diretamente para a chopeira">
+                    <!-- Preenchido dinamicamente -->
+                </select>
+
+                <button class="fs-action-btn fs-btn-exit" onclick="toggleFullscreen()" title="Sair da Tela Cheia (Esc)">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
+                        <line x1="18" y1="6" x2="6" y2="18"></line>
+                        <line x1="6" y1="6" x2="18" y2="18"></line>
+                    </svg>
+                    <span>Sair</span>
+                </button>
+
+                <div class="fs-brand-logo" title="Sensimonitor">
+                    <img src="../img/logo_sensimonitor.png" alt="Sensimonitor" class="fs-header-logo">
+                </div>
+            </div>
+        </div>
+
+        <!-- Central Unitary Stage with Carousel -->
+        <div class="fs-stage">
+            <!-- Left Navigation Arrow -->
+            <button class="fs-nav-arrow prev" id="fsNavPrev" onclick="navigateFullscreenCarousel(-1)" title="Chopeira Anterior (Seta Esquerda)">
+                <svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                    <polyline points="15 18 9 12 15 6"></polyline>
+                </svg>
+            </button>
+
+            <!-- Unitary Device Presentation Content -->
+            <div class="fs-card-stage" id="fsCardStage">
+                <!-- Top Row: 4 Cards of Active Chopeira -->
+                <div class="fs-cards-grid">
+                    <!-- Card 1: Main Gauge & Pressure Value -->
+                    <div class="fs-device-card fs-pressure-gauge-card">
+                        <div class="fs-card-header">
+                            <span class="fs-card-title">Pressão de Chopp (Sensor 1)</span>
+                            <span class="fs-card-badge" id="fsPressureEval">Estável</span>
+                        </div>
+                        <div class="fs-gauge-chart-container">
+                            <canvas id="fsGaugePressureCanvas"></canvas>
+                            <div class="fs-gauge-center">
+                                <span class="fs-gauge-number" id="fsTempVal">--</span>
+                                <span class="fs-gauge-unit">psi</span>
+                            </div>
+                        </div>
+                        <div class="fs-gauge-scale">
+                            <span>0 psi</span>
+                            <span class="fs-gauge-scale-mid">Faixa Ideal: 30 a 50 psi</span>
+                            <span>80 psi</span>
+                        </div>
+                    </div>
+
+                    <!-- Card 2: Relé 1 (Linha de Chopp / Pressão) -->
+                    <div class="fs-device-card">
+                        <div class="fs-card-header">
+                            <span class="fs-card-title">Relé 1 (Linha de Chopp)</span>
+                            <span class="fs-relay-pill on" id="fsR1StateBadge">LIGADO</span>
+                        </div>
+                        <div class="fs-card-metric-main">
+                            <span class="fs-metric-val" id="fsR1StatusText">ATIVO</span>
+                        </div>
+                        <div class="fs-card-details">
+                            <div class="fs-detail-row">
+                                <span>Setpoint (ON):</span>
+                                <strong id="fsR1OnVal" class="fs-val-chip cyan">30.0 psi</strong>
+                            </div>
+                            <div class="fs-detail-row">
+                                <span>Setpoint (OFF):</span>
+                                <strong id="fsR1OffVal" class="fs-val-chip green">50.0 psi</strong>
+                            </div>
+                            <div class="fs-detail-row">
+                                <span>Total de Partidas:</span>
+                                <strong id="fsR1AcVal">--</strong>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Card 3: Relé 2 (Refrigeração / Resfriamento) -->
+                    <div class="fs-device-card">
+                        <div class="fs-card-header">
+                            <span class="fs-card-title">Relé 2 (Refrigeração)</span>
+                            <span class="fs-relay-pill off" id="fsR2StateBadge">STANDBY</span>
+                        </div>
+                        <div class="fs-card-metric-main">
+                            <span class="fs-metric-val" id="fsR2StatusText">STANDBY</span>
+                        </div>
+                        <div class="fs-card-details">
+                            <div class="fs-detail-row">
+                                <span>Setpoint (ON):</span>
+                                <strong id="fsR2OnVal" class="fs-val-chip orange">28.0 psi</strong>
+                            </div>
+                            <div class="fs-detail-row">
+                                <span>Setpoint (OFF):</span>
+                                <strong id="fsR2OffVal" class="fs-val-chip green">50.0 psi</strong>
+                            </div>
+                            <div class="fs-detail-row">
+                                <span>Total de Partidas:</span>
+                                <strong id="fsR2AcVal">--</strong>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Card 4: Diagnóstico & Supervisão -->
+                    <div class="fs-device-card">
+                        <div class="fs-card-header">
+                            <span class="fs-card-title">Diagnóstico & Supervisão</span>
+                            <span class="fs-diag-chip normal" id="fsDiagChip">NORMAL</span>
+                        </div>
+                        <div class="fs-card-metric-main">
+                            <span class="fs-metric-val" id="fsDiagStatusText">PRESSURIZADO</span>
+                        </div>
+                        <div class="fs-card-details">
+                            <div class="fs-detail-row">
+                                <span>Estabilidade de Linha:</span>
+                                <strong id="fsDiagStability" style="color: #10b981;">Estável</strong>
+                            </div>
+                            <div class="fs-detail-row">
+                                <span>Qualidade de Extração:</span>
+                                <strong id="fsDiagExtraction">Ideal / Padrão</strong>
+                            </div>
+                            <div class="fs-detail-row">
+                                <span>Horímetro Operacional:</span>
+                                <strong id="fsDiagRuntime">Em conformidade</strong>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Bottom Row: Realtime Pressure Chart of Active Chopeira -->
+                <div class="fs-chart-container-card">
+                    <div class="fs-chart-header">
+                        <div class="fs-chart-title-box">
+                            <h3>Curva de Pressão em Tempo Real & Setpoints dos Relés</h3>
+                            <span class="fs-chart-sub">Supervisão contínua da pressão, histerese de atuação dos relés e estabilidade do fluxo</span>
+                        </div>
+                        <div class="fs-chart-legend">
+                            <span class="legend-item"><span class="legend-line blue"></span> Pressão (Sensor 1)</span>
+                            <span class="legend-item"><span class="legend-line green"></span> Setpoint ON</span>
+                            <span class="legend-item"><span class="legend-line red"></span> Setpoint OFF</span>
+                        </div>
+                    </div>
+                    <div class="fs-chart-canvas-wrapper">
+                        <canvas id="fsChopeirasChart"></canvas>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Right Navigation Arrow -->
+            <button class="fs-nav-arrow next" id="fsNavNext" onclick="navigateFullscreenCarousel(1)" title="Próxima Chopeira (Seta Direita)">
+                <svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                    <polyline points="9 18 15 12 9 6"></polyline>
+                </svg>
+            </button>
+        </div>
+
+        <!-- Footer Indicators & Counter -->
+        <div class="fs-footer-bar">
+            <div class="fs-dots-container" id="fsDotsContainer">
+                <!-- Dots gerados dinamicamente -->
+            </div>
+            <span class="fs-counter-text" id="fsDeviceCounterText">Chopeira 1 de 1</span>
+        </div>
+    </div>
+
     <!-- Modal de Registro de Leituras dos Relés -->
     <div class="modal-registros-overlay" id="registrosModal" onclick="handleRegistrosModalBackdrop(event)">
         <div class="modal-registros-container">

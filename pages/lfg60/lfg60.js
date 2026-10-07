@@ -5,9 +5,12 @@ let activeAlertFilter = 'todos';
 let sensorBadgeWatchdog = null;
 let simulationStepCount = 0;
 
-// ----------------------------------------------------
-// DISPOSITIVOS SIMULADOS DE EXEMPLO (DEMONSTRAÇÃO FRONTEND)
-// ----------------------------------------------------
+// ============================================================================
+// CONFIGURAÇÃO DE DADOS SIMULADOS (MOCK / DEMONSTRAÇÃO)
+// Para reativar dispositivos de exemplo, altere USE_SIMULATED_LFG60 para true.
+// ============================================================================
+const USE_SIMULATED_LFG60 = false;
+
 const SIMULATED_LFG60_DEVICES = [
     {
         numero_serie: 'LFG60-SIM-01',
@@ -206,49 +209,46 @@ async function fetchDevicesFromApi() {
             });
             if (res.ok) {
                 const result = await res.json();
-                if (result.success && Array.isArray(result.data) && result.data.length > 0) {
+                if (result.success && Array.isArray(result.data)) {
                     loadedData = result.data;
                 }
             }
-        } catch (apiErr) {}
-
-        if (!loadedData || loadedData.length === 0) {
-            if (currentDevices.length === 0) {
-                currentDevices = JSON.parse(JSON.stringify(SIMULATED_LFG60_DEVICES));
-            }
-        } else {
-            // Preserva estado ativo da simulação para não reiniciar dados quando chegam leituras reais via WebSocket/MQTT
-            SIMULATED_LFG60_DEVICES.forEach(sim => {
-                const existing = currentDevices.find(d => d.numero_serie === sim.numero_serie);
-                if (!loadedData.some(d => d.numero_serie === sim.numero_serie)) {
-                    loadedData.push(existing || JSON.parse(JSON.stringify(sim)));
-                }
-            });
-            currentDevices = loadedData;
+        } catch (apiErr) {
+            console.warn('[LFG60] API fetch warning:', apiErr.message);
         }
 
+        if (loadedData !== null && loadedData.length > 0) {
+            currentDevices = loadedData;
+        } else if (USE_SIMULATED_LFG60) {
+            currentDevices = JSON.parse(JSON.stringify(SIMULATED_LFG60_DEVICES));
+        } else {
+            currentDevices = loadedData || [];
+        }
+
+        updateLfgDeviceSelect(currentDevices);
+        renderSensorCards(currentDevices);
+        updateDashboardSummary(currentDevices);
+
+        if (document.body.classList.contains('fullscreen-active')) {
+            updateFullscreenTelemetry();
+        }
+
+        const hasData = currentDevices.length > 0 && currentDevices.some(d => d.ultima_leitura && (d.ultima_leitura.temperatura !== null || d.ultima_leitura.umidade !== null || d.ultima_leitura.co2 !== null));
+        setSensorLiveBadgeState(hasData);
+    } catch (err) {
+        console.warn('[LFG60] Error loading sensors:', err.message);
+        if (USE_SIMULATED_LFG60 && currentDevices.length === 0) {
+            currentDevices = JSON.parse(JSON.stringify(SIMULATED_LFG60_DEVICES));
+        } else if (!USE_SIMULATED_LFG60) {
+            currentDevices = [];
+        }
         updateLfgDeviceSelect(currentDevices);
         renderSensorCards(currentDevices);
         updateDashboardSummary(currentDevices);
         if (document.body.classList.contains('fullscreen-active')) {
             updateFullscreenTelemetry();
         }
-
-        const hasData = currentDevices.length > 0 && currentDevices.some(d => d.ultima_leitura && (d.ultima_leitura.temperatura !== null || d.ultima_leitura.umidade !== null || d.ultima_leitura.co2 !== null));
-        if (hasData) {
-            setSensorLiveBadgeState(true);
-        } else if (currentDevices.length === 0) {
-            setSensorLiveBadgeState(false);
-        }
-    } catch (err) {
-        console.warn('[LFG60] Error loading sensors:', err.message);
-        if (currentDevices.length === 0) {
-            currentDevices = JSON.parse(JSON.stringify(SIMULATED_LFG60_DEVICES));
-            updateLfgDeviceSelect(currentDevices);
-            renderSensorCards(currentDevices);
-            updateDashboardSummary(currentDevices);
-            setSensorLiveBadgeState(true);
-        }
+        setSensorLiveBadgeState(false);
     }
 }
 
@@ -313,7 +313,7 @@ function updateSingleSensorCardInPlace(dev) {
  * invertendo nos limites e mantendo valores estáticos dos demais parâmetros.
  */
 function simulateLiveLfg60Step() {
-    if (!currentDevices || currentDevices.length === 0) return;
+    if (!USE_SIMULATED_LFG60 || !currentDevices || currentDevices.length === 0) return;
 
     let hasSimulated = false;
 
@@ -1342,8 +1342,85 @@ function updateFullscreenGaugeChart(chartInstance, canvasId, value, min, max, fi
     });
 }
 
+function renderFullscreenEmptyState() {
+    fullscreenActiveIndex = 0;
+
+    const titleEl = document.getElementById('fsDeviceTitle');
+    if (titleEl) titleEl.innerText = 'Transmitter --';
+
+    const statusPill = document.getElementById('fsStatusPill');
+    const statusText = document.getElementById('fsStatusText');
+    if (statusPill && statusText) {
+        statusPill.className = 'fs-status-pill operacional';
+        statusText.innerText = 'Standby (Sem Dados)';
+    }
+
+    const ledDot = document.getElementById('fsLedDot');
+    const ledText = document.getElementById('fsLedText');
+    if (ledDot && ledText) {
+        ledDot.className = 'fs-led-dot green';
+        ledText.innerText = 'LED: --';
+    }
+
+    const lastTimeEl = document.getElementById('fsLastReadingTime');
+    if (lastTimeEl) lastTimeEl.innerText = 'Nenhum transmissor LFG60 vinculado';
+
+    const tempValEl = document.getElementById('fsTempVal');
+    if (tempValEl) {
+        tempValEl.innerText = '--';
+        tempValEl.style.color = '#64748b';
+    }
+    const tempChipEl = document.getElementById('fsTempChip');
+    if (tempChipEl) {
+        tempChipEl.className = 'fs-gauge-chip ideal';
+        tempChipEl.innerText = 'Sem Dados';
+    }
+
+    const umidValEl = document.getElementById('fsUmidVal');
+    if (umidValEl) {
+        umidValEl.innerText = '--';
+        umidValEl.style.color = '#64748b';
+    }
+    const umidChipEl = document.getElementById('fsUmidChip');
+    if (umidChipEl) {
+        umidChipEl.className = 'fs-gauge-chip ideal';
+        umidChipEl.innerText = 'Sem Dados';
+    }
+
+    fsGaugeTempChart = updateFullscreenGaugeChart(fsGaugeTempChart, 'fsGaugeTempCanvas', 0, 0, 50, '#e2e8f0');
+    fsGaugeUmidChart = updateFullscreenGaugeChart(fsGaugeUmidChart, 'fsGaugeUmidCanvas', 0, 0, 100, '#e2e8f0');
+
+    ['co2', 'pm25', 'pm10', 'voc', 'formaldeido'].forEach(p => {
+        updateFsVarCard(p, null, () => '--', p);
+    });
+
+    const diagLed = document.getElementById('fsDiagLedVal');
+    if (diagLed) {
+        diagLed.innerText = '--';
+        diagLed.style.color = '#64748b';
+    }
+    const diagEval = document.getElementById('fsDiagEvaluation');
+    const diagBadge = document.getElementById('fsStatus-diag');
+    if (diagEval && diagBadge) {
+        diagBadge.className = 'fs-param-status estavel';
+        diagBadge.innerText = 'Aguardando';
+        diagEval.innerText = 'Aguardando vinculação de transmissor';
+        diagEval.style.color = '#64748b';
+    }
+
+    renderFsDots();
+    const counterEl = document.getElementById('fsDeviceCounterText');
+    if (counterEl) counterEl.innerText = 'Nenhum transmissor LFG60 vinculado';
+
+    const select = document.getElementById('fsDeviceSelect');
+    if (select) select.innerHTML = '<option value="">Nenhum transmissor disponível</option>';
+}
+
 function renderFullscreenDevice(index) {
-    if (!currentDevices || currentDevices.length === 0) return;
+    if (!currentDevices || currentDevices.length === 0) {
+        renderFullscreenEmptyState();
+        return;
+    }
 
     if (index < 0) index = currentDevices.length - 1;
     if (index >= currentDevices.length) index = 0;
@@ -1560,7 +1637,10 @@ function stopFullscreenAutoplay() {
 }
 
 function updateFullscreenTelemetry() {
-    if (!currentDevices || currentDevices.length === 0) return;
+    if (!currentDevices || currentDevices.length === 0) {
+        renderFullscreenEmptyState();
+        return;
+    }
     populateFsDeviceSelect();
     renderFullscreenDevice(fullscreenActiveIndex);
 }

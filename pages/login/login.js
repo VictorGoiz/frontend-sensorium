@@ -34,6 +34,23 @@ document.addEventListener('DOMContentLoaded', () => {
                         return;
                     }
                     if (data.usuario.perfil === 'apresentacao') {
+                        try {
+                            const vinculosRes = await fetch(`${API_BASE}/api/meus-vinculos`, {
+                                headers: { 'Authorization': `Bearer ${data.token}` }
+                            });
+                            if (vinculosRes.ok) {
+                                const vData = await vinculosRes.json();
+                                if (vData.success && vData.vinculos) {
+                                    sessionStorage.setItem(`sensorium_vinculos_${data.usuario.id || data.usuario.email}`, JSON.stringify(vData));
+                                    const cats = ['chopeiras', 'lfg60', 'incendio', 'pressurizacao', 'hidraulico'];
+                                    const firstActive = cats.find(c => vData.vinculos[c] === true);
+                                    if (firstActive) {
+                                        window.location.href = `../${firstActive}/index.html`;
+                                        return;
+                                    }
+                                }
+                            }
+                        } catch (vErr) {}
                         window.location.href = '../chopeiras/index.html';
                         return;
                     }

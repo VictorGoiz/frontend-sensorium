@@ -9,15 +9,19 @@ const isLocalhost = window.location.hostname === 'localhost' || window.location.
 // ATENÇÃO (DEPLOY VERCEL):
 // O frontend na Vercel roda sempre em HTTPS.
 // Portanto, sua API na EC2 OBRIGATORIAMENTE precisa ter HTTPS e um Domínio configurados!
-// Substitua o valor abaixo pela URL HTTPS da sua EC2
+// URL da API na AWS EC2 (com certificado SSL/HTTPS)
 const EC2_API_URL = 'https://api.sensimonitor.com.br';
-
-// Se o Node.js estiver rodando na porta 3000 localmente
 const LOCAL_API_URL = 'http://localhost:3000';
 
+// URL da API LLM / IA (com endpoints de laudos, PDFs, Excels e e-mail)
+const EC2_LLM_URL = 'https://ai.sensimonitor.com.br/api';
+const LOCAL_LLM_URL = 'https://ai.sensimonitor.com.br/api';
+
 window.API_BASE = isLocalhost ? LOCAL_API_URL : EC2_API_URL;
+window.LLM_API_BASE = isLocalhost ? LOCAL_LLM_URL : EC2_LLM_URL;
 
 console.log('[Config] API_BASE configurado para:', window.API_BASE);
+console.log('[Config] LLM_API_BASE configurado para:', window.LLM_API_BASE);
 
 /**
  * Tratamento global de sessão expirada (HTTP 401).

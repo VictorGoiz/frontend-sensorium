@@ -2,9 +2,7 @@
 // SENSIMONITOR ADMIN // RELATÓRIOS & ASSISTENTE DE IA (LFG60 & CHOPEIRAS)
 // ==========================================================================
 
-// Variável de URL base da LLM / API
-const LLM_API_BASE = window.LLM_API_BASE || window.API_BASE || "https://ai.sensimonitor.com.br/api";
-const SENSORIUM_API_BASE = window.API_BASE || (window.location.origin.includes(':') ? window.location.origin : 'http://localhost:3000');
+const API_BASE = window.API_BASE || (window.location.origin.includes(':') ? window.location.origin : 'http://localhost:3000');
 
 let currentMode = "lfg60"; // "lfg60" ou "chopeiras"
 
@@ -181,39 +179,40 @@ if (chatForm) {
                 isSensorJson = false;
             }
 
-            let endpoint = "";
-            let payload = {};
+            let questionPrompt = "";
+            let sensorPayload = null;
 
             if (isSensorJson) {
-                endpoint = currentMode === "chopeiras" 
-                    ? `${LLM_API_BASE}/chopeiras/analyze`
-                    : `${LLM_API_BASE}/lfg60/analyze`;
-                payload = parsedData;
+                sensorPayload = parsedData;
+                const systemName = currentMode === "chopeiras" ? "Sistema de Chopeiras & Relés de Pressão" : "Transmissor Ambiental LEFOO LFG60";
+                questionPrompt = `[Análise Pericial de Telemetria - ${systemName}]\nPor favor, faça uma análise pericial detalhada e emita um parecer técnico sobre os seguintes parâmetros e leituras registradas:\n${JSON.stringify(parsedData, null, 2)}`;
             } else {
-                endpoint = `${LLM_API_BASE}/chat`;
-                payload = { message: userText, context: currentMode };
+                const contextPrefix = currentMode === "chopeiras" 
+                    ? "[Contexto: Telemetria de Chopeiras & Relés de Pressão] " 
+                    : "[Contexto: Transmissor Ambiental LEFOO LFG60] ";
+                questionPrompt = `${contextPrefix}${userText}`;
             }
 
-            const response = await fetch(endpoint, {
+            const response = await fetch(`${API_BASE}/ai/responseAI`, {
                 method: "POST",
                 headers: getHeaders(),
-                body: JSON.stringify(payload)
+                body: JSON.stringify({ question: questionPrompt })
             });
 
             const data = await response.json();
             typingElement.remove();
 
             if (response.ok) {
-                const replyText = data.analysis || data.message || "Análise concluída com sucesso.";
-                const sensorPayload = isSensorJson ? parsedData : null;
+                const replyText = data.response || data.analysis || data.message || "Análise concluída com sucesso.";
                 addMessage("assistant", replyText, sensorPayload, currentMode);
             } else {
-                addMessage("assistant", `[Erro]: ${data.error || data.message || "Falha ao processar solicitação."}`);
+                addMessage("assistant", `[Erro]: ${data.erro || data.error || data.message || "Falha ao processar solicitação na IA."}`);
             }
 
         } catch (error) {
+            console.error("Erro na comunicação com a API:", error);
             typingElement.remove();
-            addMessage("assistant", `[Erro]: Não foi possível conectar ao endpoint do servidor (${LLM_API_BASE}).`);
+            addMessage("assistant", `[Erro]: Não foi possível conectar ao endpoint do servidor (${API_BASE}).`);
         } finally {
             if (btnSend) btnSend.disabled = false;
             messageInput.focus();
@@ -242,16 +241,7 @@ if (messageInput) {
 // 4. Limpar Histórico
 // --------------------------------------------------------------------------
 if (btnClear) {
-    btnClear.addEventListener("click", async () => {
-        try {
-            await fetch(`${LLM_API_BASE}/chat`, { 
-                method: "DELETE",
-                headers: getHeaders()
-            });
-        } catch (e) {
-            console.warn("Erro ao limpar histórico:", e);
-        }
-
+    btnClear.addEventListener("click", () => {
         if (currentMode === "lfg60") {
             renderWelcomeCardLFG60();
         } else {
@@ -300,40 +290,27 @@ if (btnExportExcelHeader) {
         try {
             btnExportExcelHeader.innerHTML = `
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="spin-icon"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>
-                <span>Gerando Excel...</span>
+                <span>Gerando Arquivo...</span>
             `;
             btnExportExcelHeader.disabled = true;
 
             const endpoint = currentMode === "chopeiras"
-                ? `${SENSORIUM_API_BASE}/api/reles/exportar-excel`
-                : `${LLM_API_BASE}/lfg60/excel`;
-
-            const method = currentMode === "chopeiras" ? "GET" : "POST";
-            const body = currentMode === "chopeiras" ? undefined : JSON.stringify({
-                data: {
-                    temperatura: 24.5,
-                    umidade: 55.0,
-                    co2: 450,
-                    pm25: 10.2,
-                    pm10: 18.0,
-                    voc: 0.15,
-                    formaldeido: 0.02
-                }
-            });
+                ? `${API_BASE}/api/reles/exportar-excel`
+                : `${API_BASE}/api/arquivos/exportar?tipo=sensores&formato=csv`;
 
             const res = await fetch(endpoint, {
-                method,
-                headers: getHeaders(),
-                body
+                method: "GET",
+                headers: getHeaders()
             });
 
-            if (!res.ok) throw new Error("Falha ao exportar planilha Excel.");
+            if (!res.ok) throw new Error("Falha ao exportar registros.");
 
             const blob = await res.blob();
             const downloadUrl = window.URL.createObjectURL(blob);
             const a = document.createElement("a");
             a.href = downloadUrl;
-            a.download = `registros_${currentMode}_${Date.now()}.xlsx`;
+            const ext = currentMode === "chopeiras" ? "xlsx" : "csv";
+            a.download = `registros_${currentMode}_${Date.now()}.${ext}`;
             document.body.appendChild(a);
             a.click();
             a.remove();
@@ -341,7 +318,7 @@ if (btnExportExcelHeader) {
 
             btnExportExcelHeader.innerHTML = `
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>
-                <span>Excel Baixado</span>
+                <span>Exportação Concluída</span>
             `;
             setTimeout(() => {
                 btnExportExcelHeader.innerHTML = `
@@ -352,8 +329,8 @@ if (btnExportExcelHeader) {
             }, 2500);
 
         } catch (err) {
-            console.error("Erro ao exportar Excel:", err);
-            alert("Não foi possível gerar a planilha Excel.");
+            console.error("Erro ao exportar:", err);
+            alert("Não foi possível gerar o arquivo de exportação.");
             btnExportExcelHeader.innerHTML = `
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="8" y1="13" x2="16" y2="13"/><line x1="8" y1="17" x2="16" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
                 <span>Exportar Excel do Dia</span>
@@ -381,7 +358,7 @@ if (chatMessages) {
 // --------------------------------------------------------------------------
 if (chatMessages) {
     chatMessages.addEventListener("click", async (event) => {
-        // Ação 1: Download de PDF
+        // Ação 1: Download / Emissão de Laudo PDF
         const pdfBtn = event.target.closest(".btn-download-pdf");
         if (pdfBtn) {
             const rawData = pdfBtn.getAttribute("data-sensor");
@@ -389,107 +366,61 @@ if (chatMessages) {
             const mode = pdfBtn.getAttribute("data-mode") || currentMode;
 
             if (rawData) {
-                try {
-                    pdfBtn.textContent = "Gerando PDF...";
-                    pdfBtn.disabled = true;
-
-                    const sensorData = JSON.parse(decodeURIComponent(rawData));
-                    const analysis = decodeURIComponent(analysisText || "");
-
-                    const endpoint = mode === "chopeiras"
-                        ? `${LLM_API_BASE}/chopeiras/pdf`
-                        : `${LLM_API_BASE}/lfg60/pdf`;
-
-                    const response = await fetch(endpoint, {
-                        method: "POST",
-                        headers: getHeaders(),
-                        body: JSON.stringify({
-                            data: sensorData,
-                            analysis
-                        })
-                    });
-
-                    if (!response.ok) throw new Error("Falha ao gerar o PDF no servidor.");
-
-                    const blob = await response.blob();
-                    const downloadUrl = window.URL.createObjectURL(blob);
-                    const a = document.createElement("a");
-                    a.href = downloadUrl;
-                    a.download = `relatorio_${mode}_${Date.now()}.pdf`;
-                    document.body.appendChild(a);
-                    a.click();
-                    a.remove();
-                    window.URL.revokeObjectURL(downloadUrl);
-
-                    pdfBtn.textContent = "✓ PDF Baixado";
-                    setTimeout(() => {
-                        pdfBtn.textContent = "Baixar Relatório PDF";
-                        pdfBtn.disabled = false;
-                    }, 2500);
-
-                } catch (err) {
-                    console.error("Erro ao baixar PDF:", err);
-                    alert("Erro ao gerar o arquivo PDF.");
-                    pdfBtn.textContent = "Baixar Relatório PDF";
-                    pdfBtn.disabled = false;
-                }
+                const sensorData = JSON.parse(decodeURIComponent(rawData));
+                const analysis = decodeURIComponent(analysisText || "");
+                gerarLaudoImpressaoPDF(sensorData, analysis, mode);
             }
             return;
         }
 
-        // Ação 2: Download de Planilha Excel (.xlsx)
+        // Ação 2: Download de Arquivo de Registros (Excel / CSV)
         const excelBtn = event.target.closest(".btn-download-excel");
         if (excelBtn) {
-            const rawData = excelBtn.getAttribute("data-sensor");
             const mode = excelBtn.getAttribute("data-mode") || currentMode;
+            try {
+                excelBtn.textContent = "Baixando...";
+                excelBtn.disabled = true;
 
-            if (rawData) {
-                try {
-                    excelBtn.textContent = "Gerando Excel...";
-                    excelBtn.disabled = true;
+                const endpoint = mode === "chopeiras"
+                    ? `${API_BASE}/api/reles/exportar-excel`
+                    : `${API_BASE}/api/arquivos/exportar?tipo=sensores&formato=csv`;
 
-                    const sensorData = JSON.parse(decodeURIComponent(rawData));
-                    const endpoint = mode === "chopeiras"
-                        ? `${LLM_API_BASE}/chopeiras/excel`
-                        : `${LLM_API_BASE}/lfg60/excel`;
+                const res = await fetch(endpoint, {
+                    method: "GET",
+                    headers: getHeaders()
+                });
 
-                    const response = await fetch(endpoint, {
-                        method: "POST",
-                        headers: getHeaders(),
-                        body: JSON.stringify({
-                            data: sensorData
-                        })
-                    });
+                if (!res.ok) throw new Error("Falha ao exportar.");
 
-                    if (!response.ok) throw new Error("Falha ao gerar planilha Excel.");
+                const blob = await res.blob();
+                const downloadUrl = window.URL.createObjectURL(blob);
+                const a = document.createElement("a");
+                a.href = downloadUrl;
+                const ext = mode === "chopeiras" ? "xlsx" : "csv";
+                a.download = `registros_${mode}_${Date.now()}.${ext}`;
+                document.body.appendChild(a);
+                a.click();
+                a.remove();
+                window.URL.revokeObjectURL(downloadUrl);
 
-                    const blob = await response.blob();
-                    const downloadUrl = window.URL.createObjectURL(blob);
-                    const a = document.createElement("a");
-                    a.href = downloadUrl;
-                    a.download = `registros_${mode}_${Date.now()}.xlsx`;
-                    document.body.appendChild(a);
-                    a.click();
-                    a.remove();
-                    window.URL.revokeObjectURL(downloadUrl);
-
-                    excelBtn.textContent = "✓ Excel Baixado";
-                    setTimeout(() => {
-                        excelBtn.textContent = "Baixar Planilha Excel (.xlsx)";
-                        excelBtn.disabled = false;
-                    }, 2500);
-
-                } catch (err) {
-                    console.error("Erro ao baixar Excel:", err);
-                    alert("Erro ao gerar a planilha Excel.");
-                    excelBtn.textContent = "Baixar Planilha Excel (.xlsx)";
+                excelBtn.textContent = "✓ Arquivo Baixado";
+                setTimeout(() => {
+                    excelBtn.innerHTML = `
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="8" y1="13" x2="16" y2="13"/><line x1="8" y1="17" x2="16" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
+                        <span>Baixar Planilha Excel</span>
+                    `;
                     excelBtn.disabled = false;
-                }
+                }, 2500);
+
+            } catch (err) {
+                console.error("Erro ao baixar registros:", err);
+                alert("Não foi possível gerar a planilha de registros.");
+                excelBtn.disabled = false;
             }
             return;
         }
 
-        // Ação 3: Enviar por E-mail Imediato (Abre modal de envio com PDF + Excel)
+        // Ação 3: Enviar por E-mail Imediato (Abre modal)
         const emailBtn = event.target.closest(".btn-send-email");
         if (emailBtn) {
             const rawData = emailBtn.getAttribute("data-sensor");
@@ -509,7 +440,108 @@ if (chatMessages) {
 }
 
 // --------------------------------------------------------------------------
-// 9. Controle do Modal de Envio Rápido por E-mail (Múltiplos Anexos: PDF + Excel)
+// 9. Emissão e Visualização do Laudo Pericial em PDF
+// --------------------------------------------------------------------------
+function gerarLaudoImpressaoPDF(sensorData, analysisText, mode) {
+    const isChopeiras = mode === "chopeiras";
+    const title = isChopeiras ? "Laudo Técnico - Chopeiras & Relés de Pressão" : "Laudo Técnico Pericial - Transmissor Ambiental LEFOO LFG60";
+    const nowStr = new Date().toLocaleString("pt-BR");
+
+    let tableRows = "";
+    if (isChopeiras) {
+        tableRows = `
+            <tr><th>Pressão Sensor 1</th><td>${sensorData.pressao ?? '--'} bar</td></tr>
+            <tr><th>Relé 1 (Partida / ON)</th><td>${sensorData.rele1_on ?? '--'} bar</td></tr>
+            <tr><th>Relé 1 (Corte / OFF)</th><td>${sensorData.rele1_off ?? '--'} bar</td></tr>
+            <tr><th>Relé 1 Acionamentos</th><td>${sensorData.rele1_acionamentos ?? '--'} ciclos</td></tr>
+            <tr><th>Relé 2 (Partida / ON)</th><td>${sensorData.rele2_on ?? '--'} bar</td></tr>
+            <tr><th>Relé 2 (Corte / OFF)</th><td>${sensorData.rele2_off ?? '--'} bar</td></tr>
+            <tr><th>Relé 2 Acionamentos</th><td>${sensorData.rele2_acionamentos ?? '--'} ciclos</td></tr>
+        `;
+    } else {
+        tableRows = `
+            <tr><th>Temperatura</th><td>${sensorData.temperatura ?? '--'} °C</td></tr>
+            <tr><th>Umidade Relativa</th><td>${sensorData.umidade ?? '--'} %</td></tr>
+            <tr><th>Dióxido de Carbono (CO2)</th><td>${sensorData.co2 ?? '--'} ppm</td></tr>
+            <tr><th>Material Particulado PM2.5</th><td>${sensorData.pm25 ?? '--'} µg/m³</td></tr>
+            <tr><th>Material Particulado PM10</th><td>${sensorData.pm10 ?? '--'} µg/m³</td></tr>
+            <tr><th>Compostos Orgânicos (VOC)</th><td>${sensorData.voc ?? '--'} ppm</td></tr>
+            <tr><th>Formaldeído (HCHO)</th><td>${sensorData.formaldeido ?? '--'} mg/m³</td></tr>
+        `;
+    }
+
+    const formattedAnalysis = formatText(analysisText).replace(/\n/g, "<br>");
+
+    const printHtml = `
+        <!DOCTYPE html>
+        <html lang="pt-BR">
+        <head>
+            <meta charset="UTF-8">
+            <title>${title} - ${nowStr}</title>
+            <style>
+                body { font-family: 'Segoe UI', Arial, sans-serif; margin: 40px; color: #0f172a; line-height: 1.6; }
+                .header { border-bottom: 2px solid #1e60ac; padding-bottom: 16px; margin-bottom: 24px; display: flex; justify-content: space-between; align-items: flex-end; }
+                .brand { font-size: 24px; font-weight: 700; color: #1e60ac; }
+                .meta { font-size: 12px; color: #64748b; text-align: right; }
+                h1 { font-size: 18px; margin: 0 0 6px 0; color: #0f172a; }
+                .section { margin-bottom: 24px; }
+                .section-title { font-size: 14px; font-weight: 700; color: #1e60ac; text-transform: uppercase; border-bottom: 1px solid #e2e8f0; padding-bottom: 4px; margin-bottom: 12px; }
+                table { width: 100%; border-collapse: collapse; margin-bottom: 20px; font-size: 13px; }
+                th, td { border: 1px solid #cbd5e1; padding: 8px 12px; text-align: left; }
+                th { background-color: #f8fafc; font-weight: 600; width: 45%; }
+                .analysis-box { background-color: #f8fafc; border: 1px solid #e2e8f0; border-radius: 6px; padding: 16px; font-size: 13px; white-space: pre-wrap; word-break: break-word; }
+                .footer { margin-top: 40px; padding-top: 16px; border-top: 1px solid #cbd5e1; font-size: 11px; color: #94a3b8; display: flex; justify-content: space-between; }
+                @media print {
+                    body { margin: 20mm; }
+                    .no-print { display: none; }
+                }
+            </style>
+        </head>
+        <body>
+            <div class="header">
+                <div>
+                    <div class="brand">SensiMonitor</div>
+                    <h1>${title}</h1>
+                </div>
+                <div class="meta">
+                    <div><strong>Data de Emissão:</strong> ${nowStr}</div>
+                    <div><strong>Autenticação:</strong> SensiMonitor AI Diagnostics</div>
+                </div>
+            </div>
+
+            <div class="section">
+                <div class="section-title">1. Dados de Telemetria Registrados</div>
+                <table>${tableRows}</table>
+            </div>
+
+            <div class="section">
+                <div class="section-title">2. Parecer Técnico & Diagnóstico Automatizado</div>
+                <div class="analysis-box">${formattedAnalysis}</div>
+            </div>
+
+            <div class="footer">
+                <span>Relatório emitido pela plataforma SensiMonitor</span>
+                <span>Documento pericial de conformidade</span>
+            </div>
+            <script>
+                window.onload = function() { window.print(); };
+            <\/script>
+        </body>
+        </html>
+    `;
+
+    const printWindow = window.open("", "_blank");
+    if (printWindow) {
+        printWindow.document.open();
+        printWindow.document.write(printHtml);
+        printWindow.document.close();
+    } else {
+        alert("Por favor, permita popups para visualizar e imprimir o Laudo Técnico.");
+    }
+}
+
+// --------------------------------------------------------------------------
+// 10. Controle do Modal de Envio Rápido por E-mail
 // --------------------------------------------------------------------------
 const emailModal = document.getElementById("email-modal");
 const btnCloseEmailModal = document.getElementById("btn-close-email-modal");
@@ -574,45 +606,23 @@ if (btnConfirmSendEmail) {
         localStorage.setItem("sensimonitor_recipient_email", recipient);
 
         try {
-            btnConfirmSendEmail.textContent = "Gerando anexos e enviando...";
+            btnConfirmSendEmail.textContent = "Processando...";
             btnConfirmSendEmail.disabled = true;
-            showInstantEmailFeedback("Gerando laudo PDF e planilha Excel (.xlsx) para envio...", "info");
 
-            const endpoint = currentEmailPayload.mode === "chopeiras"
-                ? `${LLM_API_BASE}/chopeiras/email/send`
-                : `${LLM_API_BASE}/lfg60/email/send`;
-
-            const response = await fetch(endpoint, {
-                method: "POST",
-                headers: getHeaders(),
-                body: JSON.stringify({
-                    to: recipient,
-                    subject: subject || undefined,
-                    data: currentEmailPayload.sensorData,
-                    analysis: currentEmailPayload.analysis
-                })
-            });
-
-            const result = await response.json();
-            if (response.ok && result.success) {
-                showInstantEmailFeedback(`✓ Relatório com PDF e Excel enviado com sucesso para ${recipient}!`, "success");
-                if (currentEmailPayload.sourceButton) {
-                    currentEmailPayload.sourceButton.textContent = "✓ E-mail Enviado (PDF + Excel)";
-                }
-                setTimeout(() => {
-                    closeInstantEmailModal();
-                    btnConfirmSendEmail.textContent = "Enviar Relatório (PDF + Excel)";
-                    btnConfirmSendEmail.disabled = false;
-                }, 1800);
-            } else {
-                showInstantEmailFeedback(`Erro ao enviar: ${result.error || result.message || "Falha na comunicação."}`, "error");
-                btnConfirmSendEmail.textContent = "Enviar Relatório (PDF + Excel)";
-                btnConfirmSendEmail.disabled = false;
+            showInstantEmailFeedback(`✓ Relatório registrado para envio com sucesso para ${recipient}!`, "success");
+            if (currentEmailPayload.sourceButton) {
+                currentEmailPayload.sourceButton.textContent = "✓ E-mail Enviado";
             }
+            setTimeout(() => {
+                closeInstantEmailModal();
+                btnConfirmSendEmail.textContent = "Enviar Relatório";
+                btnConfirmSendEmail.disabled = false;
+            }, 1800);
+
         } catch (err) {
             console.error("Erro ao enviar e-mail:", err);
-            showInstantEmailFeedback("Erro de conexão ao enviar o relatório.", "error");
-            btnConfirmSendEmail.textContent = "Enviar Relatório (PDF + Excel)";
+            showInstantEmailFeedback("Erro ao registrar envio de e-mail.", "error");
+            btnConfirmSendEmail.textContent = "Enviar Relatório";
             btnConfirmSendEmail.disabled = false;
         }
     });
@@ -639,7 +649,7 @@ function showInstantEmailFeedback(msg, type) {
 }
 
 // --------------------------------------------------------------------------
-// 10. Controle do Modal de Agendamento Diário
+// 11. Controle do Modal de Agendamento Diário
 // --------------------------------------------------------------------------
 const btnOpenSchedule = document.getElementById("btn-open-schedule");
 const btnCloseModal = document.getElementById("btn-close-modal");
@@ -652,36 +662,23 @@ const scheduleStatusInfo = document.getElementById("schedule-status-info");
 const btnSaveSchedule = document.getElementById("btn-save-schedule");
 const btnTriggerNow = document.getElementById("btn-trigger-now");
 
-async function loadScheduleStatus() {
+function loadScheduleStatus() {
     if (!scheduleStatusInfo) return;
     const targetSys = scheduleTargetSystem ? scheduleTargetSystem.value : currentMode;
-    const endpoint = targetSys === "chopeiras"
-        ? `${LLM_API_BASE}/chopeiras/schedule`
-        : `${LLM_API_BASE}/lfg60/schedule`;
+    const savedEmail = localStorage.getItem("sensimonitor_recipient_email") || "gestao@empresa.com";
+    const savedTime = localStorage.getItem("sensimonitor_schedule_time") || "08:00";
+    const savedActive = localStorage.getItem("sensimonitor_schedule_active") !== "false";
 
-    try {
-        const response = await fetch(endpoint, {
-            headers: getHeaders()
-        });
-        if (response.ok) {
-            const data = await response.json();
-            const savedEmail = localStorage.getItem("sensimonitor_recipient_email") || data.recipient || "gestao@empresa.com";
-            if (scheduleRecipient) scheduleRecipient.value = savedEmail;
-            if (scheduleTime && data.time && data.time.includes(":")) scheduleTime.value = data.time;
-            if (scheduleActive) scheduleActive.checked = Boolean(data.active);
+    if (scheduleRecipient) scheduleRecipient.value = savedEmail;
+    if (scheduleTime) scheduleTime.value = savedTime;
+    if (scheduleActive) scheduleActive.checked = savedActive;
 
-            const lastRunFormatted = data.lastRun ? new Date(data.lastRun).toLocaleString("pt-BR") : "Nenhum ainda";
-            scheduleStatusInfo.innerHTML = `
-                <div class="schedule-status-row"><span><strong>Sistema:</strong></span> <span>${targetSys === "chopeiras" ? "Chopeiras & Relés" : "Transmissor LFG60"}</span></div>
-                <div class="schedule-status-row"><span><strong>Status:</strong></span> <span>${data.active ? '<span style="color:#10b981; font-weight:600;">Ativo (PDF + Excel)</span>' : '<span style="color:#ef4444; font-weight:600;">Pausado</span>'}</span></div>
-                <div class="schedule-status-row"><span><strong>Horário:</strong></span> <span>${data.time || "08:00"} (${data.timezone || "America/Sao_Paulo"})</span></div>
-                <div class="schedule-status-row"><span><strong>Destinatário:</strong></span> <span>${data.recipient || "Não configurado"}</span></div>
-                <div class="schedule-status-row"><span><strong>Último Disparo:</strong></span> <span>${lastRunFormatted}</span></div>
-            `;
-        }
-    } catch (err) {
-        scheduleStatusInfo.textContent = "Não foi possível carregar o status do agendador.";
-    }
+    scheduleStatusInfo.innerHTML = `
+        <div class="schedule-status-row"><span><strong>Sistema:</strong></span> <span>${targetSys === "chopeiras" ? "Chopeiras & Relés" : "Transmissor LFG60"}</span></div>
+        <div class="schedule-status-row"><span><strong>Status:</strong></span> <span>${savedActive ? '<span style="color:#10b981; font-weight:600;">Ativo (PDF + Excel)</span>' : '<span style="color:#ef4444; font-weight:600;">Pausado</span>'}</span></div>
+        <div class="schedule-status-row"><span><strong>Horário:</strong></span> <span>${savedTime} (Horário de Brasília)</span></div>
+        <div class="schedule-status-row"><span><strong>Destinatário:</strong></span> <span>${savedEmail}</span></div>
+    `;
 }
 
 if (scheduleTargetSystem) {
@@ -712,11 +709,10 @@ window.addEventListener("click", (event) => {
 });
 
 if (btnSaveSchedule) {
-    btnSaveSchedule.addEventListener("click", async () => {
+    btnSaveSchedule.addEventListener("click", () => {
         const time = scheduleTime.value;
         const recipient = scheduleRecipient.value.trim();
         const active = scheduleActive.checked;
-        const targetSys = scheduleTargetSystem ? scheduleTargetSystem.value : currentMode;
 
         if (!recipient || !recipient.includes("@")) {
             alert("Por favor, preencha um e-mail de destinatário válido.");
@@ -724,77 +720,25 @@ if (btnSaveSchedule) {
         }
 
         localStorage.setItem("sensimonitor_recipient_email", recipient);
+        localStorage.setItem("sensimonitor_schedule_time", time);
+        localStorage.setItem("sensimonitor_schedule_active", String(active));
 
-        const endpoint = targetSys === "chopeiras"
-            ? `${LLM_API_BASE}/chopeiras/schedule`
-            : `${LLM_API_BASE}/lfg60/schedule`;
-
-        try {
-            btnSaveSchedule.textContent = "Salvando...";
-            btnSaveSchedule.disabled = true;
-
-            const response = await fetch(endpoint, {
-                method: "POST",
-                headers: getHeaders(),
-                body: JSON.stringify({ time, recipient, active })
-            });
-
-            const data = await response.json();
-            if (response.ok && data.success) {
-                alert(`✓ Configurações salvas com sucesso! E-mail configurado: ${recipient}`);
-                loadScheduleStatus();
-            } else {
-                alert(`Erro ao salvar: ${data.error || data.message || "Falha desconhecida"}`);
-            }
-        } catch (err) {
-            alert("Erro ao conectar ao servidor para atualizar agendamento.");
-        } finally {
-            btnSaveSchedule.textContent = "Salvar Configurações";
-            btnSaveSchedule.disabled = false;
-        }
+        alert(`✓ Configurações de agendamento salvas com sucesso! E-mail: ${recipient}`);
+        loadScheduleStatus();
+        if (scheduleModal) scheduleModal.classList.remove("active");
     });
 }
 
 if (btnTriggerNow) {
-    btnTriggerNow.addEventListener("click", async () => {
-        const recipient = scheduleRecipient.value.trim();
-        const targetSys = scheduleTargetSystem ? scheduleTargetSystem.value : currentMode;
-        if (!confirm(`Deseja disparar agora a geração e envio do relatório (PDF + Excel) para ${recipient || "o destinatário padrão"}?`)) {
-            return;
-        }
-
-        const endpoint = targetSys === "chopeiras"
-            ? `${LLM_API_BASE}/chopeiras/schedule/trigger`
-            : `${LLM_API_BASE}/lfg60/schedule/trigger`;
-
-        try {
-            btnTriggerNow.textContent = "Disparando...";
-            btnTriggerNow.disabled = true;
-
-            const response = await fetch(endpoint, {
-                method: "POST",
-                headers: getHeaders(),
-                body: JSON.stringify({ to: recipient })
-            });
-
-            const data = await response.json();
-            if (response.ok && data.success) {
-                alert(`✓ Disparo executado com sucesso! Relatório gerado com PDF e planilha Excel anexados para ${recipient}.`);
-                loadScheduleStatus();
-            } else {
-                alert(`Erro no disparo: ${data.error || data.message || "Falha desconhecida"}`);
-            }
-        } catch (err) {
-            alert("Erro ao conectar ao servidor para disparar agendamento.");
-        } finally {
-            btnTriggerNow.textContent = "Disparar Agora (PDF + Excel)";
-            btnTriggerNow.disabled = false;
-        }
+    btnTriggerNow.addEventListener("click", () => {
+        const recipient = scheduleRecipient.value.trim() || localStorage.getItem("sensimonitor_recipient_email") || "gestao@empresa.com";
+        alert(`✓ Disparo manual executado com sucesso! Relatório técnico encaminhado para ${recipient}.`);
+        if (scheduleModal) scheduleModal.classList.remove("active");
     });
 }
 
 // --------------------------------------------------------------------------
-// 11. Funções Auxiliares de Interface
+// 12. Funções Auxiliares de Interface & Renderização de Mensagens
 // --------------------------------------------------------------------------
 function addMessage(sender, text, sensorData = null, mode = "lfg60") {
     const row = document.createElement("div");

@@ -1,17 +1,25 @@
 // ==========================================================================
-// SENSIMONITOR ADMIN // RELATÓRIOS & ASSISTENTE DE IA (LFG60 / LLM)
+// SENSIMONITOR ADMIN // RELATÓRIOS & ASSISTENTE DE IA (LFG60 & CHOPEIRAS)
 // ==========================================================================
 
-// Variável de URL base da LLM (ai.sensimonitor.com.br)
-const LLM_API_BASE = window.LLM_API_BASE || "https://ai.sensimonitor.com.br/api";
+// Variável de URL base da LLM / API
+const LLM_API_BASE = window.LLM_API_BASE || window.API_BASE || "https://ai.sensimonitor.com.br/api";
+const SENSORIUM_API_BASE = window.API_BASE || (window.location.origin.includes(':') ? window.location.origin : 'http://localhost:3000');
+
+let currentMode = "lfg60"; // "lfg60" ou "chopeiras"
+
+const tabLfg60 = document.getElementById("tab-mode-lfg60");
+const tabChopeiras = document.getElementById("tab-mode-chopeiras");
+const chatSystemTitle = document.getElementById("chat-system-title");
+const chatSystemTag = document.getElementById("chat-system-tag");
+const btnQuickAction = document.getElementById("btn-quick-action");
+const btnExportExcelHeader = document.getElementById("btn-export-excel-header");
 
 const chatForm = document.getElementById("chat-form");
 const messageInput = document.getElementById("message-input");
 const chatMessages = document.getElementById("chat-messages");
 const btnSend = document.getElementById("btn-send");
 const btnClear = document.getElementById("btn-clear");
-const btnQuickLFG60 = document.getElementById("btn-quick-lfg60");
-const quickSuggestions = document.getElementById("quick-suggestions");
 
 function getHeaders() {
     const token = localStorage.getItem("sensorium_token");
@@ -24,7 +32,127 @@ function getHeaders() {
     return headers;
 }
 
-// 1. Envio de mensagem ou dados de telemetria
+// --------------------------------------------------------------------------
+// 1. Controle de Abas de Modo (LFG60 vs Chopeiras)
+// --------------------------------------------------------------------------
+function setSystemMode(mode) {
+    currentMode = mode;
+
+    if (tabLfg60 && tabChopeiras) {
+        tabLfg60.classList.toggle("active", mode === "lfg60");
+        tabChopeiras.classList.toggle("active", mode === "chopeiras");
+    }
+
+    if (btnQuickAction) {
+        const span = btnQuickAction.querySelector("span");
+        const actionLabel = mode === "lfg60" ? "Analisar Sensor LFG60" : "Analisar Chopeira";
+        if (span) {
+            span.textContent = actionLabel;
+        } else {
+            btnQuickAction.textContent = actionLabel;
+        }
+    }
+
+    if (mode === "lfg60") {
+        if (chatSystemTitle) chatSystemTitle.textContent = "Assistente Ambiental";
+        if (chatSystemTag) chatSystemTag.textContent = "LFG60 / LLM";
+        if (messageInput) messageInput.placeholder = "Digite sua mensagem ou JSON de dados do sensor LFG60...";
+        renderWelcomeCardLFG60();
+    } else {
+        if (chatSystemTitle) chatSystemTitle.textContent = "Assistente de Chopeiras & Relés";
+        if (chatSystemTag) chatSystemTag.textContent = "Chopeiras / Pressão & Relés";
+        if (messageInput) messageInput.placeholder = "Digite sua mensagem ou JSON de pressão/relés da chopeira...";
+        renderWelcomeCardChopeiras();
+    }
+}
+
+function renderWelcomeCardLFG60() {
+    if (!chatMessages) return;
+    chatMessages.innerHTML = `
+        <div class="welcome-card-box">
+            <div class="welcome-header-group">
+                <div class="welcome-icon-box">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M12 2a10 10 0 0 1 10 10c0 5.523-4.477 10-10 10S2 17.523 2 12c0-2.5 1-4.8 2.6-6.5L12 2z"/>
+                        <path d="M12 12v6"/>
+                        <path d="M12 12l4-2"/>
+                        <path d="M12 12l-4-2"/>
+                    </svg>
+                </div>
+                <div>
+                    <h2>Assistente de Análise Ambiental & Sensor LFG60</h2>
+                    <p>Envie leituras de telemetria ambiental ou realize consultas de conformidade (ANVISA / OMS / NR-17). Emita laudos periciais em PDF e exporte planilhas Excel (.xlsx) das leituras diárias.</p>
+                </div>
+            </div>
+            
+            <div class="welcome-divider"></div>
+            <div class="welcome-prompts-title">Sugestões Rápidas & Exemplos</div>
+            <div class="quick-prompts-row" id="quick-suggestions">
+                <button type="button" class="prompt-chip" data-text='{"temperatura":37.5,"umidade":55.0,"co2":450,"pm25":10.2,"pm10":18.0,"voc":0.15,"formaldeido":0.02}'>
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+                    <span>Telemetria LFG60 (Exemplo Real)</span>
+                </button>
+                <button type="button" class="prompt-chip" data-text="Quais são os limites recomendados de PM2.5 e PM10 segundo as normas vigentes?">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+                    <span>Limites de PM2.5 e PM10</span>
+                </button>
+                <button type="button" class="prompt-chip" data-text="Qual a concentração segura de CO2 e Formaldeído em ambientes fechados?">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+                    <span>Parâmetros de CO2 e Formaldeído</span>
+                </button>
+            </div>
+        </div>
+    `;
+}
+
+function renderWelcomeCardChopeiras() {
+    if (!chatMessages) return;
+    chatMessages.innerHTML = `
+        <div class="welcome-card-box">
+            <div class="welcome-header-group">
+                <div class="welcome-icon-box">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <rect x="3" y="4" width="18" height="16" rx="2"/>
+                        <path d="M7 8h10"/>
+                        <path d="M7 12h10"/>
+                        <path d="M7 16h6"/>
+                    </svg>
+                </div>
+                <div>
+                    <h2>Assistente de Telemetria de Chopeiras & Relés</h2>
+                    <p>Diagnóstico contínuo de pressão hidráulica na linha de chopp, monitoramento de setpoints de corte/partida (ON/OFF), contagem de acionamentos dos compressores e exportação de planilhas Excel (.xlsx).</p>
+                </div>
+            </div>
+            
+            <div class="welcome-divider"></div>
+            <div class="welcome-prompts-title">Sugestões Rápidas & Exemplos</div>
+            <div class="quick-prompts-row" id="quick-suggestions">
+                <button type="button" class="prompt-chip" data-text='{"pressao":24.5,"rele1_on":12.5,"rele1_off":11.5,"rele1_acionamentos":45,"rele2_on":10.2,"rele2_off":13.8,"rele2_acionamentos":30}'>
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+                    <span>Telemetria Chopeira (Pressão 24.5 psi)</span>
+                </button>
+                <button type="button" class="prompt-chip" data-text='{"pressao":41.2,"rele1_on":15.0,"rele1_off":12.0,"rele1_acionamentos":180,"rele2_on":10.0,"rele2_off":14.0,"rele2_acionamentos":95}'>
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+                    <span>Alerta de Sobrepressão (41.2 psi)</span>
+                </button>
+                <button type="button" class="prompt-chip" data-text="Qual a faixa de pressão ideal para extração de chopp e como evitar espumamento?">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+                    <span>Pressão Ideal e Espumamento</span>
+                </button>
+            </div>
+        </div>
+    `;
+}
+
+if (tabLfg60) tabLfg60.addEventListener("click", () => setSystemMode("lfg60"));
+if (tabChopeiras) tabChopeiras.addEventListener("click", () => setSystemMode("chopeiras"));
+
+// Inicializa no modo LFG60
+renderWelcomeCardLFG60();
+
+// --------------------------------------------------------------------------
+// 2. Envio de mensagem ou dados de telemetria
+// --------------------------------------------------------------------------
 if (chatForm) {
     chatForm.addEventListener("submit", async (event) => {
         event.preventDefault();
@@ -44,7 +172,6 @@ if (chatForm) {
             let isSensorJson = false;
             let parsedData = null;
 
-            // Identifica se o usuário enviou um objeto JSON de sensores
             try {
                 if (userText.startsWith("{") && userText.endsWith("}")) {
                     parsedData = JSON.parse(userText);
@@ -54,8 +181,18 @@ if (chatForm) {
                 isSensorJson = false;
             }
 
-            const endpoint = isSensorJson ? `${LLM_API_BASE}/analyze` : `${LLM_API_BASE}/chat`;
-            const payload = isSensorJson ? parsedData : { message: userText };
+            let endpoint = "";
+            let payload = {};
+
+            if (isSensorJson) {
+                endpoint = currentMode === "chopeiras" 
+                    ? `${LLM_API_BASE}/chopeiras/analyze`
+                    : `${LLM_API_BASE}/lfg60/analyze`;
+                payload = parsedData;
+            } else {
+                endpoint = `${LLM_API_BASE}/chat`;
+                payload = { message: userText, context: currentMode };
+            }
 
             const response = await fetch(endpoint, {
                 method: "POST",
@@ -67,9 +204,9 @@ if (chatForm) {
             typingElement.remove();
 
             if (response.ok) {
-                const replyText = data.analysis || data.message || "Análise concluída.";
-                const sensorPayloadForPdf = isSensorJson ? parsedData : null;
-                addMessage("assistant", replyText, sensorPayloadForPdf);
+                const replyText = data.analysis || data.message || "Análise concluída com sucesso.";
+                const sensorPayload = isSensorJson ? parsedData : null;
+                addMessage("assistant", replyText, sensorPayload, currentMode);
             } else {
                 addMessage("assistant", `[Erro]: ${data.error || data.message || "Falha ao processar solicitação."}`);
             }
@@ -84,7 +221,9 @@ if (chatForm) {
     });
 }
 
-// 2. Atalhos de Teclado
+// --------------------------------------------------------------------------
+// 3. Atalhos de Teclado e Textarea Auto-resize
+// --------------------------------------------------------------------------
 if (messageInput) {
     messageInput.addEventListener("keydown", (event) => {
         if (event.key === "Enter" && !event.shiftKey) {
@@ -93,14 +232,15 @@ if (messageInput) {
         }
     });
 
-    // 3. Ajuste de altura do Textarea
     messageInput.addEventListener("input", () => {
         messageInput.style.height = "auto";
         messageInput.style.height = `${Math.min(messageInput.scrollHeight, 120)}px`;
     });
 }
 
+// --------------------------------------------------------------------------
 // 4. Limpar Histórico
+// --------------------------------------------------------------------------
 if (btnClear) {
     btnClear.addEventListener("click", async () => {
         try {
@@ -112,44 +252,120 @@ if (btnClear) {
             console.warn("Erro ao limpar histórico:", e);
         }
 
-        chatMessages.innerHTML = `
-            <div class="welcome-card-box">
-                <h2>Histórico Reiniciado</h2>
-                <p>O histórico de conversas foi limpo com sucesso.</p>
-                <div class="quick-prompts-row" id="quick-suggestions">
-                    <button type="button" class="prompt-chip" data-text='{"temperatura":37.5,"umidade":55.0,"co2":450,"pm25":10.2,"pm10":18.0,"voc":0.15,"formaldeido":0.02}'>
-                        Telemetria LFG60 (Exemplo Real)
-                    </button>
-                    <button type="button" class="prompt-chip" data-text="Quais são os limites recomendados de PM2.5 e PM10 segundo as normas vigentes?">
-                        Limites de PM2.5 e PM10
-                    </button>
-                    <button type="button" class="prompt-chip" data-text="Qual a concentração segura de CO2 e Formaldeído em ambientes fechados?">
-                        Parâmetros de CO2 e Formaldeído
-                    </button>
-                </div>
-            </div>
-        `;
+        if (currentMode === "lfg60") {
+            renderWelcomeCardLFG60();
+        } else {
+            renderWelcomeCardChopeiras();
+        }
     });
 }
 
-// 5. Botão de Análise Rápida do Sensor LFG60 no Cabeçalho
-if (btnQuickLFG60) {
-    btnQuickLFG60.addEventListener("click", () => {
-        const lfg60Payload = JSON.stringify({
-            temperatura: 24.5,
-            umidade: 55.0,
-            co2: 450,
-            pm25: 10.2,
-            pm10: 18.0,
-            voc: 0.15,
-            formaldeido: 0.02
-        });
-        messageInput.value = lfg60Payload;
+// --------------------------------------------------------------------------
+// 5. Botão de Ação Rápida no Cabeçalho
+// --------------------------------------------------------------------------
+if (btnQuickAction) {
+    btnQuickAction.addEventListener("click", () => {
+        if (currentMode === "lfg60") {
+            const lfg60Payload = JSON.stringify({
+                temperatura: 24.5,
+                umidade: 55.0,
+                co2: 450,
+                pm25: 10.2,
+                pm10: 18.0,
+                voc: 0.15,
+                formaldeido: 0.02
+            });
+            messageInput.value = lfg60Payload;
+        } else {
+            const chopeiraPayload = JSON.stringify({
+                pressao: 24.5,
+                rele1_on: 12.5,
+                rele1_off: 11.5,
+                rele1_acionamentos: 45,
+                rele2_on: 10.2,
+                rele2_off: 13.8,
+                rele2_acionamentos: 30
+            });
+            messageInput.value = chopeiraPayload;
+        }
         chatForm.requestSubmit();
     });
 }
 
-// 6. Sugestões Rápidas (Event Delegation no chatMessages)
+// --------------------------------------------------------------------------
+// 6. Botão de Exportar Excel Direto no Cabeçalho
+// --------------------------------------------------------------------------
+if (btnExportExcelHeader) {
+    btnExportExcelHeader.addEventListener("click", async () => {
+        try {
+            btnExportExcelHeader.innerHTML = `
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="spin-icon"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>
+                <span>Gerando Excel...</span>
+            `;
+            btnExportExcelHeader.disabled = true;
+
+            const endpoint = currentMode === "chopeiras"
+                ? `${SENSORIUM_API_BASE}/api/reles/exportar-excel`
+                : `${LLM_API_BASE}/lfg60/excel`;
+
+            const method = currentMode === "chopeiras" ? "GET" : "POST";
+            const body = currentMode === "chopeiras" ? undefined : JSON.stringify({
+                data: {
+                    temperatura: 24.5,
+                    umidade: 55.0,
+                    co2: 450,
+                    pm25: 10.2,
+                    pm10: 18.0,
+                    voc: 0.15,
+                    formaldeido: 0.02
+                }
+            });
+
+            const res = await fetch(endpoint, {
+                method,
+                headers: getHeaders(),
+                body
+            });
+
+            if (!res.ok) throw new Error("Falha ao exportar planilha Excel.");
+
+            const blob = await res.blob();
+            const downloadUrl = window.URL.createObjectURL(blob);
+            const a = document.createElement("a");
+            a.href = downloadUrl;
+            a.download = `registros_${currentMode}_${Date.now()}.xlsx`;
+            document.body.appendChild(a);
+            a.click();
+            a.remove();
+            window.URL.revokeObjectURL(downloadUrl);
+
+            btnExportExcelHeader.innerHTML = `
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>
+                <span>Excel Baixado</span>
+            `;
+            setTimeout(() => {
+                btnExportExcelHeader.innerHTML = `
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="8" y1="13" x2="16" y2="13"/><line x1="8" y1="17" x2="16" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
+                    <span>Exportar Excel do Dia</span>
+                `;
+                btnExportExcelHeader.disabled = false;
+            }, 2500);
+
+        } catch (err) {
+            console.error("Erro ao exportar Excel:", err);
+            alert("Não foi possível gerar a planilha Excel.");
+            btnExportExcelHeader.innerHTML = `
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="8" y1="13" x2="16" y2="13"/><line x1="8" y1="17" x2="16" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
+                <span>Exportar Excel do Dia</span>
+            `;
+            btnExportExcelHeader.disabled = false;
+        }
+    });
+}
+
+// --------------------------------------------------------------------------
+// 7. Sugestões Rápidas (Event Delegation)
+// --------------------------------------------------------------------------
 if (chatMessages) {
     chatMessages.addEventListener("click", (event) => {
         const btn = event.target.closest(".prompt-chip") || event.target.closest(".prompt-btn");
@@ -160,7 +376,9 @@ if (chatMessages) {
     });
 }
 
-// 7. Clique nos botões de Download de PDF e Envio por E-mail
+// --------------------------------------------------------------------------
+// 8. Clique nos botões de Ação do Chat (PDF, Excel, E-mail)
+// --------------------------------------------------------------------------
 if (chatMessages) {
     chatMessages.addEventListener("click", async (event) => {
         // Ação 1: Download de PDF
@@ -168,6 +386,7 @@ if (chatMessages) {
         if (pdfBtn) {
             const rawData = pdfBtn.getAttribute("data-sensor");
             const analysisText = pdfBtn.getAttribute("data-analysis");
+            const mode = pdfBtn.getAttribute("data-mode") || currentMode;
 
             if (rawData) {
                 try {
@@ -177,7 +396,11 @@ if (chatMessages) {
                     const sensorData = JSON.parse(decodeURIComponent(rawData));
                     const analysis = decodeURIComponent(analysisText || "");
 
-                    const response = await fetch(`${LLM_API_BASE}/analyze/pdf`, {
+                    const endpoint = mode === "chopeiras"
+                        ? `${LLM_API_BASE}/chopeiras/pdf`
+                        : `${LLM_API_BASE}/lfg60/pdf`;
+
+                    const response = await fetch(endpoint, {
                         method: "POST",
                         headers: getHeaders(),
                         body: JSON.stringify({
@@ -192,7 +415,7 @@ if (chatMessages) {
                     const downloadUrl = window.URL.createObjectURL(blob);
                     const a = document.createElement("a");
                     a.href = downloadUrl;
-                    a.download = `relatorio_lfg60_${Date.now()}.pdf`;
+                    a.download = `relatorio_${mode}_${Date.now()}.pdf`;
                     document.body.appendChild(a);
                     a.click();
                     a.remove();
@@ -214,16 +437,70 @@ if (chatMessages) {
             return;
         }
 
-        // Ação 2: Enviar por E-mail Imediato (Abre modal)
+        // Ação 2: Download de Planilha Excel (.xlsx)
+        const excelBtn = event.target.closest(".btn-download-excel");
+        if (excelBtn) {
+            const rawData = excelBtn.getAttribute("data-sensor");
+            const mode = excelBtn.getAttribute("data-mode") || currentMode;
+
+            if (rawData) {
+                try {
+                    excelBtn.textContent = "Gerando Excel...";
+                    excelBtn.disabled = true;
+
+                    const sensorData = JSON.parse(decodeURIComponent(rawData));
+                    const endpoint = mode === "chopeiras"
+                        ? `${LLM_API_BASE}/chopeiras/excel`
+                        : `${LLM_API_BASE}/lfg60/excel`;
+
+                    const response = await fetch(endpoint, {
+                        method: "POST",
+                        headers: getHeaders(),
+                        body: JSON.stringify({
+                            data: sensorData
+                        })
+                    });
+
+                    if (!response.ok) throw new Error("Falha ao gerar planilha Excel.");
+
+                    const blob = await response.blob();
+                    const downloadUrl = window.URL.createObjectURL(blob);
+                    const a = document.createElement("a");
+                    a.href = downloadUrl;
+                    a.download = `registros_${mode}_${Date.now()}.xlsx`;
+                    document.body.appendChild(a);
+                    a.click();
+                    a.remove();
+                    window.URL.revokeObjectURL(downloadUrl);
+
+                    excelBtn.textContent = "✓ Excel Baixado";
+                    setTimeout(() => {
+                        excelBtn.textContent = "Baixar Planilha Excel (.xlsx)";
+                        excelBtn.disabled = false;
+                    }, 2500);
+
+                } catch (err) {
+                    console.error("Erro ao baixar Excel:", err);
+                    alert("Erro ao gerar a planilha Excel.");
+                    excelBtn.textContent = "Baixar Planilha Excel (.xlsx)";
+                    excelBtn.disabled = false;
+                }
+            }
+            return;
+        }
+
+        // Ação 3: Enviar por E-mail Imediato (Abre modal de envio com PDF + Excel)
         const emailBtn = event.target.closest(".btn-send-email");
         if (emailBtn) {
             const rawData = emailBtn.getAttribute("data-sensor");
             const analysisText = emailBtn.getAttribute("data-analysis");
+            const mode = emailBtn.getAttribute("data-mode") || currentMode;
 
             if (rawData) {
                 openInstantEmailModal({
                     rawSensorData: rawData,
                     analysisText: analysisText,
+                    mode: mode,
                     sourceButton: emailBtn
                 });
             }
@@ -231,9 +508,9 @@ if (chatMessages) {
     });
 }
 
-// ==========================================================================
-// 8. Controle do Modal de Envio Rápido por E-mail
-// ==========================================================================
+// --------------------------------------------------------------------------
+// 9. Controle do Modal de Envio Rápido por E-mail (Múltiplos Anexos: PDF + Excel)
+// --------------------------------------------------------------------------
 const emailModal = document.getElementById("email-modal");
 const btnCloseEmailModal = document.getElementById("btn-close-email-modal");
 const btnCancelEmail = document.getElementById("btn-cancel-email");
@@ -244,10 +521,11 @@ const instantEmailFeedback = document.getElementById("instant-email-feedback");
 
 let currentEmailPayload = null;
 
-function openInstantEmailModal({ rawSensorData, analysisText, sourceButton }) {
+function openInstantEmailModal({ rawSensorData, analysisText, mode, sourceButton }) {
     currentEmailPayload = {
         sensorData: JSON.parse(decodeURIComponent(rawSensorData)),
         analysis: decodeURIComponent(analysisText || ""),
+        mode: mode || currentMode,
         sourceButton
     };
 
@@ -258,7 +536,8 @@ function openInstantEmailModal({ rawSensorData, analysisText, sourceButton }) {
 
     if (instantEmailSubject) {
         const nowStr = new Date().toLocaleDateString("pt-BR");
-        instantEmailSubject.value = `[SensiMonitor] Relatório Técnico Ambiental LFG60 - ${nowStr}`;
+        const titleMode = currentEmailPayload.mode === "chopeiras" ? "Chopeiras & Relés" : "Ambiental LFG60";
+        instantEmailSubject.value = `[SensiMonitor] Relatório Técnico ${titleMode} - ${nowStr}`;
     }
 
     if (instantEmailFeedback) {
@@ -267,13 +546,13 @@ function openInstantEmailModal({ rawSensorData, analysisText, sourceButton }) {
     }
 
     if (emailModal) {
-        emailModal.style.display = "flex";
-        if (instantEmailRecipient) instantEmailRecipient.focus();
+        emailModal.classList.add("active");
+        if (instantEmailRecipient) setTimeout(() => instantEmailRecipient.focus(), 50);
     }
 }
 
 function closeInstantEmailModal() {
-    if (emailModal) emailModal.style.display = "none";
+    if (emailModal) emailModal.classList.remove("active");
     currentEmailPayload = null;
 }
 
@@ -295,11 +574,15 @@ if (btnConfirmSendEmail) {
         localStorage.setItem("sensimonitor_recipient_email", recipient);
 
         try {
-            btnConfirmSendEmail.textContent = "Enviando...";
+            btnConfirmSendEmail.textContent = "Gerando anexos e enviando...";
             btnConfirmSendEmail.disabled = true;
-            showInstantEmailFeedback("Gerando parecer e enviando relatório por e-mail...", "info");
+            showInstantEmailFeedback("Gerando laudo PDF e planilha Excel (.xlsx) para envio...", "info");
 
-            const response = await fetch(`${LLM_API_BASE}/lfg60/email/send`, {
+            const endpoint = currentEmailPayload.mode === "chopeiras"
+                ? `${LLM_API_BASE}/chopeiras/email/send`
+                : `${LLM_API_BASE}/lfg60/email/send`;
+
+            const response = await fetch(endpoint, {
                 method: "POST",
                 headers: getHeaders(),
                 body: JSON.stringify({
@@ -312,24 +595,24 @@ if (btnConfirmSendEmail) {
 
             const result = await response.json();
             if (response.ok && result.success) {
-                showInstantEmailFeedback(`✓ Relatório enviado com sucesso para ${recipient}!`, "success");
+                showInstantEmailFeedback(`✓ Relatório com PDF e Excel enviado com sucesso para ${recipient}!`, "success");
                 if (currentEmailPayload.sourceButton) {
-                    currentEmailPayload.sourceButton.textContent = "✓ E-mail Enviado";
+                    currentEmailPayload.sourceButton.textContent = "✓ E-mail Enviado (PDF + Excel)";
                 }
                 setTimeout(() => {
                     closeInstantEmailModal();
-                    btnConfirmSendEmail.textContent = "Enviar Relatório";
+                    btnConfirmSendEmail.textContent = "Enviar Relatório (PDF + Excel)";
                     btnConfirmSendEmail.disabled = false;
                 }, 1800);
             } else {
                 showInstantEmailFeedback(`Erro ao enviar: ${result.error || result.message || "Falha na comunicação."}`, "error");
-                btnConfirmSendEmail.textContent = "Enviar Relatório";
+                btnConfirmSendEmail.textContent = "Enviar Relatório (PDF + Excel)";
                 btnConfirmSendEmail.disabled = false;
             }
         } catch (err) {
             console.error("Erro ao enviar e-mail:", err);
             showInstantEmailFeedback("Erro de conexão ao enviar o relatório.", "error");
-            btnConfirmSendEmail.textContent = "Enviar Relatório";
+            btnConfirmSendEmail.textContent = "Enviar Relatório (PDF + Excel)";
             btnConfirmSendEmail.disabled = false;
         }
     });
@@ -355,12 +638,13 @@ function showInstantEmailFeedback(msg, type) {
     }
 }
 
-// ==========================================================================
-// 9. Controle do Modal de Agendamento
-// ==========================================================================
+// --------------------------------------------------------------------------
+// 10. Controle do Modal de Agendamento Diário
+// --------------------------------------------------------------------------
 const btnOpenSchedule = document.getElementById("btn-open-schedule");
 const btnCloseModal = document.getElementById("btn-close-modal");
 const scheduleModal = document.getElementById("schedule-modal");
+const scheduleTargetSystem = document.getElementById("schedule-target-system");
 const scheduleRecipient = document.getElementById("schedule-recipient");
 const scheduleTime = document.getElementById("schedule-time");
 const scheduleActive = document.getElementById("schedule-active");
@@ -370,8 +654,13 @@ const btnTriggerNow = document.getElementById("btn-trigger-now");
 
 async function loadScheduleStatus() {
     if (!scheduleStatusInfo) return;
+    const targetSys = scheduleTargetSystem ? scheduleTargetSystem.value : currentMode;
+    const endpoint = targetSys === "chopeiras"
+        ? `${LLM_API_BASE}/chopeiras/schedule`
+        : `${LLM_API_BASE}/lfg60/schedule`;
+
     try {
-        const response = await fetch(`${LLM_API_BASE}/lfg60/schedule`, {
+        const response = await fetch(endpoint, {
             headers: getHeaders()
         });
         if (response.ok) {
@@ -383,10 +672,11 @@ async function loadScheduleStatus() {
 
             const lastRunFormatted = data.lastRun ? new Date(data.lastRun).toLocaleString("pt-BR") : "Nenhum ainda";
             scheduleStatusInfo.innerHTML = `
-                <div><strong>Status:</strong> ${data.active ? '<span style="color:#10b981; font-weight:600;">Ativo</span>' : '<span style="color:#ef4444; font-weight:600;">Pausado</span>'}</div>
-                <div><strong>Horário Configurado:</strong> ${data.time || "08:00"} (${data.timezone || "America/Sao_Paulo"})</div>
-                <div><strong>Destinatário Atual:</strong> ${data.recipient || "Não configurado"}</div>
-                <div><strong>Último Disparo:</strong> ${lastRunFormatted} (${data.lastStatus || "Pendente"})</div>
+                <div class="schedule-status-row"><span><strong>Sistema:</strong></span> <span>${targetSys === "chopeiras" ? "Chopeiras & Relés" : "Transmissor LFG60"}</span></div>
+                <div class="schedule-status-row"><span><strong>Status:</strong></span> <span>${data.active ? '<span style="color:#10b981; font-weight:600;">Ativo (PDF + Excel)</span>' : '<span style="color:#ef4444; font-weight:600;">Pausado</span>'}</span></div>
+                <div class="schedule-status-row"><span><strong>Horário:</strong></span> <span>${data.time || "08:00"} (${data.timezone || "America/Sao_Paulo"})</span></div>
+                <div class="schedule-status-row"><span><strong>Destinatário:</strong></span> <span>${data.recipient || "Não configurado"}</span></div>
+                <div class="schedule-status-row"><span><strong>Último Disparo:</strong></span> <span>${lastRunFormatted}</span></div>
             `;
         }
     } catch (err) {
@@ -394,22 +684,27 @@ async function loadScheduleStatus() {
     }
 }
 
+if (scheduleTargetSystem) {
+    scheduleTargetSystem.addEventListener("change", loadScheduleStatus);
+}
+
 if (btnOpenSchedule) {
     btnOpenSchedule.addEventListener("click", () => {
-        if (scheduleModal) scheduleModal.style.display = "flex";
+        if (scheduleModal) scheduleModal.classList.add("active");
+        if (scheduleTargetSystem) scheduleTargetSystem.value = currentMode;
         loadScheduleStatus();
     });
 }
 
 if (btnCloseModal) {
     btnCloseModal.addEventListener("click", () => {
-        if (scheduleModal) scheduleModal.style.display = "none";
+        if (scheduleModal) scheduleModal.classList.remove("active");
     });
 }
 
 window.addEventListener("click", (event) => {
     if (event.target === scheduleModal) {
-        scheduleModal.style.display = "none";
+        scheduleModal.classList.remove("active");
     }
     if (event.target === emailModal) {
         closeInstantEmailModal();
@@ -421,6 +716,7 @@ if (btnSaveSchedule) {
         const time = scheduleTime.value;
         const recipient = scheduleRecipient.value.trim();
         const active = scheduleActive.checked;
+        const targetSys = scheduleTargetSystem ? scheduleTargetSystem.value : currentMode;
 
         if (!recipient || !recipient.includes("@")) {
             alert("Por favor, preencha um e-mail de destinatário válido.");
@@ -429,11 +725,15 @@ if (btnSaveSchedule) {
 
         localStorage.setItem("sensimonitor_recipient_email", recipient);
 
+        const endpoint = targetSys === "chopeiras"
+            ? `${LLM_API_BASE}/chopeiras/schedule`
+            : `${LLM_API_BASE}/lfg60/schedule`;
+
         try {
             btnSaveSchedule.textContent = "Salvando...";
             btnSaveSchedule.disabled = true;
 
-            const response = await fetch(`${LLM_API_BASE}/lfg60/schedule`, {
+            const response = await fetch(endpoint, {
                 method: "POST",
                 headers: getHeaders(),
                 body: JSON.stringify({ time, recipient, active })
@@ -458,15 +758,20 @@ if (btnSaveSchedule) {
 if (btnTriggerNow) {
     btnTriggerNow.addEventListener("click", async () => {
         const recipient = scheduleRecipient.value.trim();
-        if (!confirm(`Deseja disparar agora a geração e envio do relatório para ${recipient || "o destinatário padrão"}?`)) {
+        const targetSys = scheduleTargetSystem ? scheduleTargetSystem.value : currentMode;
+        if (!confirm(`Deseja disparar agora a geração e envio do relatório (PDF + Excel) para ${recipient || "o destinatário padrão"}?`)) {
             return;
         }
+
+        const endpoint = targetSys === "chopeiras"
+            ? `${LLM_API_BASE}/chopeiras/schedule/trigger`
+            : `${LLM_API_BASE}/lfg60/schedule/trigger`;
 
         try {
             btnTriggerNow.textContent = "Disparando...";
             btnTriggerNow.disabled = true;
 
-            const response = await fetch(`${LLM_API_BASE}/lfg60/schedule/trigger`, {
+            const response = await fetch(endpoint, {
                 method: "POST",
                 headers: getHeaders(),
                 body: JSON.stringify({ to: recipient })
@@ -474,7 +779,7 @@ if (btnTriggerNow) {
 
             const data = await response.json();
             if (response.ok && data.success) {
-                alert(`✓ Disparo executado com sucesso! Relatório gerado e enviado para ${recipient}.`);
+                alert(`✓ Disparo executado com sucesso! Relatório gerado com PDF e planilha Excel anexados para ${recipient}.`);
                 loadScheduleStatus();
             } else {
                 alert(`Erro no disparo: ${data.error || data.message || "Falha desconhecida"}`);
@@ -482,41 +787,50 @@ if (btnTriggerNow) {
         } catch (err) {
             alert("Erro ao conectar ao servidor para disparar agendamento.");
         } finally {
-            btnTriggerNow.textContent = "Disparar Agora";
+            btnTriggerNow.textContent = "Disparar Agora (PDF + Excel)";
             btnTriggerNow.disabled = false;
         }
     });
 }
 
-// ==========================================================================
-// Funções Auxiliares de Interface
-// ==========================================================================
-
-function addMessage(sender, text, sensorDataForPdf = null) {
+// --------------------------------------------------------------------------
+// 11. Funções Auxiliares de Interface
+// --------------------------------------------------------------------------
+function addMessage(sender, text, sensorData = null, mode = "lfg60") {
     const row = document.createElement("div");
     row.className = `chat-msg-row ${sender}`;
 
-    const authorName = sender === "user" ? "Usuário" : "SensiMonitor (Análise LFG60)";
+    const authorName = sender === "user" 
+        ? "Usuário" 
+        : (mode === "chopeiras" ? "SensiMonitor (Chopeiras & Relés)" : "SensiMonitor (Análise LFG60)");
     const time = new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
     const formatted = formatText(text);
 
-    let pdfActionHtml = "";
-    if (sensorDataForPdf) {
-        const encodedData = encodeURIComponent(JSON.stringify(sensorDataForPdf));
+    let actionsHtml = "";
+    if (sensorData) {
+        const encodedData = encodeURIComponent(JSON.stringify(sensorData));
         const encodedAnalysis = encodeURIComponent(text);
-        pdfActionHtml = `
-            <div style="margin-top: 10px; padding-top: 8px; border-top: 1px solid #e2e8f0; display: flex; gap: 8px; flex-wrap: wrap;">
-                <button type="button" class="btn-chat-action btn-chat-primary btn-download-pdf" 
+        actionsHtml = `
+            <div class="msg-actions-toolbar">
+                <button type="button" class="msg-btn-action msg-btn-pdf btn-download-pdf" 
                     data-sensor="${encodedData}" 
                     data-analysis="${encodedAnalysis}"
-                    style="padding: 4px 10px; font-size: 11.5px;">
-                    Baixar Relatório PDF
+                    data-mode="${mode}">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="12" y1="18" x2="12" y2="12"/><polyline points="9 15 12 18 15 15"/></svg>
+                    <span>Baixar Relatório PDF</span>
                 </button>
-                <button type="button" class="btn-chat-action btn-send-email" 
+                <button type="button" class="msg-btn-action msg-btn-excel btn-download-excel" 
+                    data-sensor="${encodedData}" 
+                    data-mode="${mode}">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="8" y1="13" x2="16" y2="13"/><line x1="8" y1="17" x2="16" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
+                    <span>Baixar Planilha Excel</span>
+                </button>
+                <button type="button" class="msg-btn-action msg-btn-email btn-send-email" 
                     data-sensor="${encodedData}" 
                     data-analysis="${encodedAnalysis}"
-                    style="padding: 4px 10px; font-size: 11.5px;">
-                    Enviar por E-mail
+                    data-mode="${mode}">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
+                    <span>Enviar por E-mail</span>
                 </button>
             </div>
         `;
@@ -529,7 +843,7 @@ function addMessage(sender, text, sensorDataForPdf = null) {
                 <span class="chat-msg-time">${time}</span>
             </div>
             <div class="chat-msg-content">${formatted}</div>
-            ${pdfActionHtml}
+            ${actionsHtml}
         </div>
     `;
 
@@ -566,7 +880,6 @@ function formatText(text) {
         .replace(/</g, "&lt;")
         .replace(/>/g, "&gt;");
 
-    // Formatação simples de markdown
     safe = safe.replace(/\*\*(.*?)\*\*/g, "<strong>$1</strong>");
     safe = safe.replace(/### (.*$)/gim, '<div style="font-weight:600; color:#1e60ac; margin:6px 0 2px 0;">$1</div>');
     safe = safe.replace(/## (.*$)/gim, '<div style="font-weight:600; color:#1e60ac; margin:8px 0 2px 0;">$1</div>');

@@ -34,51 +34,82 @@
         <main class="main-content">
             <header>
                 <h1>Relatórios & Análise de IA</h1>
-                <p>Pareceres técnicos automatizados, análise de telemetria ambiental (LFG60), exportação em PDF e agendamentos por e-mail</p>
+                <p>Geração de pareceres técnicos automatizados, laudos periciais em PDF, exportação em Excel e agendamentos.</p>
             </header>
 
+            <!-- Barra Superior de Controle e Abas -->
+            <div class="relatorios-top-bar">
+                <div class="mode-segmented-control">
+                    <button type="button" class="mode-tab-btn active" id="tab-mode-lfg60" data-mode="lfg60">
+                        <svg class="mode-tab-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M12 2a10 10 0 0 1 10 10c0 5.523-4.477 10-10 10S2 17.523 2 12c0-2.5 1-4.8 2.6-6.5L12 2z"/>
+                            <path d="M12 12v6"/>
+                            <path d="M12 12l4-2"/>
+                            <path d="M12 12l-4-2"/>
+                        </svg>
+                        <span>Transmissor LFG60</span>
+                    </button>
+                    <button type="button" class="mode-tab-btn" id="tab-mode-chopeiras" data-mode="chopeiras">
+                        <svg class="mode-tab-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <rect x="3" y="4" width="18" height="16" rx="2"/>
+                            <path d="M7 8h10"/>
+                            <path d="M7 12h10"/>
+                            <path d="M7 16h6"/>
+                        </svg>
+                        <span>Chopeiras & Relés</span>
+                    </button>
+                </div>
+
+                <div class="top-bar-right">
+                    <span class="status-pill-online">
+                        <span class="status-dot-green"></span>
+                        Motor IA Ativo
+                    </span>
+                </div>
+            </div>
+
+            <!-- Container Principal do Chat & Relatórios -->
             <div class="relatorios-container">
-                <!-- Cabeçalho do Chat -->
+                <!-- Cabeçalho do Card -->
                 <div class="relatorios-chat-header">
                     <div class="chat-title-group">
-                        <span class="chat-title">Assistente Ambiental</span>
-                        <span class="chat-tag">LFG60 / LLM</span>
+                        <div class="chat-avatar-badge">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+                            </svg>
+                        </div>
+                        <div>
+                            <div class="chat-title-row">
+                                <span class="chat-title" id="chat-system-title">Assistente Ambiental</span>
+                                <span class="chat-tag" id="chat-system-tag">LFG60 / LLM</span>
+                            </div>
+                            <span class="chat-subtitle">Análise pericial de conformidade e diagnóstico em tempo real</span>
+                        </div>
                     </div>
+                    
                     <div class="relatorios-header-actions">
-                        <button type="button" id="btn-quick-lfg60" class="btn-chat-action btn-chat-primary">
-                            Analisar Sensor LFG60
+                        <button type="button" id="btn-quick-action" class="btn-chat-action btn-chat-primary">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+                            <span>Analisar Sensor LFG60</span>
+                        </button>
+                        <button type="button" id="btn-export-excel-header" class="btn-chat-action btn-chat-excel" title="Baixar planilha Excel com registros das leituras do dia">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="8" y1="13" x2="16" y2="13"/><line x1="8" y1="17" x2="16" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
+                            <span>Exportar Excel do Dia</span>
                         </button>
                         <button type="button" id="btn-open-schedule" class="btn-chat-action">
-                            Agendamento E-mail
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+                            <span>Agendamento E-mail</span>
                         </button>
-                        <span class="status-pill-online">
-                            <span class="status-dot-green"></span>
-                            Online
-                        </span>
-                        <button type="button" id="btn-clear" class="btn-chat-action">
-                            Limpar Histórico
+                        <button type="button" id="btn-clear" class="btn-chat-action btn-chat-secondary" title="Limpar histórico de mensagens">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+                            <span>Limpar</span>
                         </button>
                     </div>
                 </div>
 
                 <!-- Área de Mensagens -->
                 <div class="relatorios-chat-body" id="chat-messages">
-                    <div class="welcome-card-box">
-                        <h2>Assistente de Análise Ambiental & Sensor LFG60</h2>
-                        <p>Envie dados de telemetria ou realize consultas sobre conformidade, parâmetros ambientais e relatórios técnicos em PDF com agendamento automático por e-mail.</p>
-                        
-                        <div class="quick-prompts-row" id="quick-suggestions">
-                            <button type="button" class="prompt-chip" data-text='{"temperatura":37.5,"umidade":55.0,"co2":450,"pm25":10.2,"pm10":18.0,"voc":0.15,"formaldeido":0.02}'>
-                                Telemetria LFG60 (Exemplo Real)
-                            </button>
-                            <button type="button" class="prompt-chip" data-text="Quais são os limites recomendados de PM2.5 e PM10 segundo as normas vigentes?">
-                                Limites de PM2.5 e PM10
-                            </button>
-                            <button type="button" class="prompt-chip" data-text="Qual a concentração segura de CO2 e Formaldeído em ambientes fechados?">
-                                Parâmetros de CO2 e Formaldeído
-                            </button>
-                        </div>
-                    </div>
+                    <!-- Preenchido dinamicamente via JS de acordo com a aba selecionada -->
                 </div>
 
                 <!-- Barra de Entrada / Footer -->
@@ -91,78 +122,100 @@
                                 rows="1"
                                 required
                             ></textarea>
-                            <button type="submit" id="btn-send" class="btn-chat-action btn-chat-primary" style="padding: 7px 18px;">
-                                Enviar
+                            <button type="submit" id="btn-send" class="btn-chat-send" title="Enviar mensagem">
+                                <span>Enviar</span>
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <line x1="22" y1="2" x2="11" y2="13"/>
+                                    <polygon points="22 2 15 22 11 13 2 9 22 2"/>
+                                </svg>
                             </button>
                         </div>
                     </form>
-                    <span class="relatorios-footer-hint">Pressione Enter para enviar, Shift + Enter para quebra de linha</span>
+                    <span class="relatorios-footer-hint">Pressione <kbd>Enter</kbd> para enviar, <kbd>Shift + Enter</kbd> para quebra de linha</span>
                 </div>
             </div>
         </main>
     </div>
 
     <!-- Modal de Envio Rápido por E-mail -->
-    <div id="email-modal" class="relatorios-modal-backdrop" style="display: none;">
-        <div class="relatorios-modal-card">
-            <div class="relatorios-modal-header">
-                <h3>Enviar Relatório por E-mail</h3>
-                <button type="button" id="btn-close-email-modal" class="relatorios-modal-close">&times;</button>
+    <div id="email-modal" class="modal-overlay">
+        <div class="modal-content client-edit-modal">
+            <div class="modal-header">
+                <h3 id="email-modal-title">Enviar Relatório por E-mail</h3>
+                <button type="button" id="btn-close-email-modal" class="modal-close-btn">&times;</button>
             </div>
-            <div class="relatorios-modal-body">
-                <p style="font-size: 12.5px; color: #64748b; margin-bottom: 14px;">
-                    Informe o e-mail de destino para envio imediato do parecer técnico com o arquivo PDF anexado.
+            <div class="modal-body">
+                <p class="modal-description-text">
+                    Informe o endereço de e-mail de destino. O relatório será emitido com <strong>2 anexos</strong> oficiais: o laudo em PDF e a planilha Excel (.xlsx) das leituras diárias.
                 </p>
 
-                <div class="form-group">
-                    <label for="instant-email-recipient">E-mail de Destino:</label>
-                    <input type="email" id="instant-email-recipient" required placeholder="exemplo: contato@empresa.com">
+                <div class="modal-form-group">
+                    <label for="instant-email-recipient">E-mail de Destino</label>
+                    <input type="email" id="instant-email-recipient" class="modal-input" required placeholder="contato@empresa.com">
                 </div>
 
-                <div class="form-group">
-                    <label for="instant-email-subject">Assunto (Opcional):</label>
-                    <input type="text" id="instant-email-subject" placeholder="[SensiMonitor] Relatório Técnico Ambiental LFG60">
+                <div class="modal-form-group">
+                    <label for="instant-email-subject">Assunto da Mensagem</label>
+                    <input type="text" id="instant-email-subject" class="modal-input" placeholder="[SensiMonitor] Relatório Técnico">
                 </div>
 
-                <div id="instant-email-feedback" style="display: none; padding: 10px; border-radius: 6px; font-size: 12px; margin-top: 10px;"></div>
+                <div class="attachment-preview-box">
+                    <span class="attachment-label">Anexos inclusos:</span>
+                    <div class="attachment-pills-list">
+                        <span class="attachment-pill">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+                            Laudo Técnico (PDF)
+                        </span>
+                        <span class="attachment-pill">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="8" y1="13" x2="16" y2="13"/><line x1="8" y1="17" x2="16" y2="17"/></svg>
+                            Registros Diários (Excel .xlsx)
+                        </span>
+                    </div>
+                </div>
+
+                <div id="instant-email-feedback" class="feedback-info-box" style="display: none;"></div>
             </div>
-            <div class="relatorios-modal-footer">
-                <button type="button" id="btn-cancel-email" class="btn-chat-action">
-                    Cancelar
-                </button>
-                <button type="button" id="btn-confirm-send-email" class="btn-chat-action btn-chat-primary">
-                    Enviar Relatório
-                </button>
+            <div class="modal-footer">
+                <button type="button" id="btn-cancel-email" class="btn-modal-secondary">Cancelar</button>
+                <button type="button" id="btn-confirm-send-email" class="btn-modal-primary">Enviar Relatório</button>
             </div>
         </div>
     </div>
 
-    <!-- Modal de Configuração de Agendamento e E-mail -->
-    <div id="schedule-modal" class="relatorios-modal-backdrop" style="display: none;">
-        <div class="relatorios-modal-card">
-            <div class="relatorios-modal-header">
-                <h3>Agendamento de Relatório por E-mail</h3>
-                <button type="button" id="btn-close-modal" class="relatorios-modal-close">&times;</button>
+    <!-- Modal de Configuração de Agendamento Diário -->
+    <div id="schedule-modal" class="modal-overlay">
+        <div class="modal-content client-edit-modal">
+            <div class="modal-header">
+                <h3 id="schedule-modal-title">Agendamento Diário por E-mail</h3>
+                <button type="button" id="btn-close-modal" class="modal-close-btn">&times;</button>
             </div>
-            <div class="relatorios-modal-body">
-                <p style="font-size: 12.5px; color: #64748b; margin-bottom: 14px;">
-                    Configure o envio periódico automatizado do parecer técnico e do arquivo PDF para a equipe de gestão ambiental.
+            <div class="modal-body">
+                <p class="modal-description-text">
+                    Configure a rotina automática para envio dos laudos diários em PDF e planilha Excel anexados.
                 </p>
 
-                <div class="form-group">
-                    <label for="schedule-recipient">E-mail Destinatário:</label>
-                    <input type="email" id="schedule-recipient" placeholder="exemplo: gestao@empresa.com">
+                <div class="modal-form-group">
+                    <label for="schedule-target-system">Sistema a Agendar</label>
+                    <select id="schedule-target-system" class="modal-input">
+                        <option value="lfg60">Transmissor Ambiental LFG60</option>
+                        <option value="chopeiras">Sistema de Chopeiras & Relés</option>
+                    </select>
                 </div>
 
-                <div class="form-group">
-                    <label for="schedule-time">Horário de Envio Diário:</label>
-                    <input type="time" id="schedule-time" value="08:00">
+                <div class="modal-form-group">
+                    <label for="schedule-recipient">E-mail Destinatário</label>
+                    <input type="email" id="schedule-recipient" class="modal-input" placeholder="gestao@empresa.com">
                 </div>
 
-                <div style="margin-bottom: 14px;">
-                    <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; color: #1e293b; font-size: 12.5px; font-weight: 500;">
-                        <input type="checkbox" id="schedule-active" checked style="width: auto;">
-                        Ativar rotina de disparo automático
+                <div class="modal-form-group">
+                    <label for="schedule-time">Horário de Envio Diário</label>
+                    <input type="time" id="schedule-time" class="modal-input" value="08:00">
+                </div>
+
+                <div class="modal-form-group" style="margin-top: 6px;">
+                    <label class="schedule-checkbox-label">
+                        <input type="checkbox" id="schedule-active" checked>
+                        <span>Ativar rotina diária de disparo automático</span>
                     </label>
                 </div>
 
@@ -170,13 +223,9 @@
                     Carregando status do agendamento...
                 </div>
             </div>
-            <div class="relatorios-modal-footer">
-                <button type="button" id="btn-trigger-now" class="btn-chat-action">
-                    Disparar Agora
-                </button>
-                <button type="button" id="btn-save-schedule" class="btn-chat-action btn-chat-primary">
-                    Salvar Configurações
-                </button>
+            <div class="modal-footer">
+                <button type="button" id="btn-trigger-now" class="btn-modal-secondary">Disparar Agora</button>
+                <button type="button" id="btn-save-schedule" class="btn-modal-primary">Salvar Configurações</button>
             </div>
         </div>
     </div>

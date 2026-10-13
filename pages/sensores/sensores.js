@@ -444,32 +444,39 @@ async function openPrescribedRangesModal() {
             const l = limites[key];
             if (!l) return;
             
-            const hasMin = l.min_ideal !== undefined;
-            const inputStyle = 'width: 50px; background: #0f172a; color: #f8fafc; border: 1px solid #334155; border-radius: 4px; padding: 4px 2px; text-align: center; font-size: 12px; margin: 0 2px;';
+            const hasMin = (key === 'temperatura' || key === 'umidade') || (l.min_ideal !== null && l.min_ideal !== undefined);
+            const step = (key === 'voc' || key === 'formaldeido') ? '0.01' : '0.1';
+            const inputStyle = 'width: 55px; background: #0f172a; color: #f8fafc; border: 1px solid #334155; border-radius: 4px; padding: 4px 2px; text-align: center; font-size: 12px; margin: 0 2px;';
+
+            const minIdealVal = (l.min_ideal !== null && l.min_ideal !== undefined) ? l.min_ideal : '';
+            const maxIdealVal = (l.max_ideal !== null && l.max_ideal !== undefined) ? l.max_ideal : '';
+            const maxAvisoVal = (l.max_aviso !== null && l.max_aviso !== undefined) ? l.max_aviso : '';
+            const critMinVal = (l.crit_min !== null && l.crit_min !== undefined) ? l.crit_min : '';
+            const critMaxVal = (l.crit_max !== null && l.crit_max !== undefined) ? l.crit_max : '';
             
             html += `
             <tr data-param="${key}">
-                <td style="white-space: nowrap;"><strong>${l.label}</strong></td>
+                <td style="white-space: nowrap;"><strong>${l.label || key}</strong></td>
                 <td>${l.unit}</td>
                 <td style="white-space: nowrap;">
                     ${hasMin ? 
-                        `<input type="number" step="0.1" class="input-limite" data-field="min_ideal" value="${l.min_ideal}" style="${inputStyle}"> a 
-                         <input type="number" step="0.1" class="input-limite" data-field="max_ideal" value="${l.max_ideal}" style="${inputStyle}">` 
+                        `<input type="number" step="${step}" class="input-limite" data-field="min_ideal" value="${minIdealVal}" style="${inputStyle}"> a 
+                         <input type="number" step="${step}" class="input-limite" data-field="max_ideal" value="${maxIdealVal}" style="${inputStyle}">` 
                         : 
-                        `&le; <input type="number" step="0.1" class="input-limite" data-field="max_ideal" value="${l.max_ideal}" style="${inputStyle}">`
+                        `&le; <input type="number" step="${step}" class="input-limite" data-field="max_ideal" value="${maxIdealVal}" style="${inputStyle}">`
                     }
                 </td>
                 <td style="color: #f59e0b; white-space: nowrap; font-size: 12px;">
                     ${hasMin ? 
                         `Fora do Ideal` 
                         : 
-                        `Até <input type="number" step="0.1" class="input-limite" data-field="max_aviso" value="${l.max_aviso}" style="${inputStyle}">`
+                        `Até <input type="number" step="${step}" class="input-limite" data-field="max_aviso" value="${maxAvisoVal}" style="${inputStyle}">`
                     }
                 </td>
                 <td style="color: #ef4444; white-space: nowrap; font-size: 12px;">
                     ${hasMin ? 
-                        `&lt; <input type="number" step="0.1" class="input-limite" data-field="crit_min" value="${l.crit_min}" style="${inputStyle}"> ou 
-                         &gt; <input type="number" step="0.1" class="input-limite" data-field="crit_max" value="${l.crit_max}" style="${inputStyle}">` 
+                        `&lt; <input type="number" step="${step}" class="input-limite" data-field="crit_min" value="${critMinVal}" style="${inputStyle}"> ou 
+                         &gt; <input type="number" step="${step}" class="input-limite" data-field="crit_max" value="${critMaxVal}" style="${inputStyle}">` 
                         : 
                         `&gt; Aviso Max`
                     }
@@ -505,7 +512,13 @@ async function savePrescribedRanges() {
         const inputs = row.querySelectorAll('.input-limite');
         inputs.forEach(input => {
             const field = input.getAttribute('data-field');
-            novosLimites[param][field] = input.value !== '' ? Number(input.value) : '';
+            const rawVal = (input.value || '').trim().replace(',', '.');
+            if (rawVal === '') {
+                novosLimites[param][field] = null;
+            } else {
+                const num = parseFloat(rawVal);
+                novosLimites[param][field] = isNaN(num) ? null : num;
+            }
         });
     });
     
@@ -521,11 +534,13 @@ async function savePrescribedRanges() {
             closeRangesModal();
             loadDashboardData(); // Recarrega para refletir mudanças se aplicável
         } else {
-            alert('Erro ao atualizar limites.');
+            const errData = await res.json().catch(() => ({}));
+            const errMsg = errData.error || errData.erro || errData.message || `Erro ao atualizar limites (${res.status})`;
+            alert(errMsg);
         }
     } catch (e) {
         console.error('Erro ao salvar limites:', e);
-        alert('Erro ao conectar com a API.');
+        alert(`Erro ao conectar com a API: ${e.message || e}`);
     }
 }
 

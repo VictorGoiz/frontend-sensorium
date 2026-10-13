@@ -2,6 +2,16 @@ let mapInstance = null;
 let currentDevices = [];
 let currentAlerts = [];
 let activeAlertFilter = 'todos';
+// Limites e Ranges Prescritos dinâmicos (atualizados do banco)
+let currentLimites = {
+    temperatura: { min_ideal: 18.0, max_ideal: 26.0, crit_min: 15.0, crit_max: 30.0, unit: '°C', label: 'Temperatura' },
+    umidade: { min_ideal: 30.0, max_ideal: 60.0, crit_min: 20.0, crit_max: 75.0, unit: '%', label: 'Umidade' },
+    co2: { max_ideal: 800.0, max_aviso: 1000.0, unit: 'ppm', label: 'Dióxido de Carbono (CO2)' },
+    pm25: { max_ideal: 15.0, max_aviso: 25.0, unit: 'µg/m³', label: 'Partículas Finas (PM2.5)' },
+    pm10: { max_ideal: 30.0, max_aviso: 50.0, unit: 'µg/m³', label: 'Partículas Grossas (PM10)' },
+    voc: { max_ideal: 0.20, max_aviso: 0.30, unit: 'ppm', label: 'Compostos Orgânicos Voláteis (VOC)' },
+    formaldeido: { max_ideal: 0.05, max_aviso: 0.10, unit: 'mg/m³', label: 'Formaldeído (HCHO)' }
+};
 // Assinatura da última leitura processada: evita atualizar a mesma leitura duas
 // vezes quando 'sensor_reading' e 'dashboard_update' chegam juntos (push duplo).
 let lastProcessedReadingSignature = '';
@@ -211,8 +221,25 @@ document.addEventListener('DOMContentLoaded', function() {
     });
 });
 
+async function fetchLimitesFromApi() {
+    try {
+        const res = await fetch(`${API_BASE}/api/lfg60/limites`, {
+            headers: getAuthHeaders()
+        });
+        if (res.ok) {
+            const data = await res.json();
+            if (data && typeof data === 'object') {
+                currentLimites = { ...currentLimites, ...data };
+            }
+        }
+    } catch (e) {
+        console.warn('[LFG60] Erro ao buscar limites prescritos da API:', e.message);
+    }
+}
+
 async function loadDashboardData() {
     await Promise.all([
+        fetchLimitesFromApi(),
         fetchDevicesFromApi(),
         fetchAlertsFromApi()
     ]);
@@ -235,6 +262,9 @@ async function fetchDevicesFromApi() {
             });
             if (res.ok) {
                 const result = await res.json();
+                if (result.prescribed_ranges && typeof result.prescribed_ranges === 'object') {
+                    currentLimites = { ...currentLimites, ...result.prescribed_ranges };
+                }
                 if (result.success && Array.isArray(result.data)) {
                     loadedData = result.data;
                 }
@@ -561,15 +591,27 @@ const activeManometros = {};
 
 function getTemperatureGaugeColor(tempVal) {
     if (tempVal === null || tempVal === undefined || isNaN(tempVal)) return '#94a3b8';
-    if (tempVal >= 18 && tempVal <= 26) return '#10b981'; // Ideal Green
-    if ((tempVal >= 15 && tempVal < 18) || (tempVal > 26 && tempVal <= 30)) return '#f59e0b'; // Warning Yellow
+    const cfg = currentLimites.temperatura || { min_ideal: 18, max_ideal: 26, crit_min: 15, crit_max: 30 };
+    const minI = (cfg.min_ideal !== null && cfg.min_ideal !== undefined) ? Number(cfg.min_ideal) : 18;
+    const maxI = (cfg.max_ideal !== null && cfg.max_ideal !== undefined) ? Number(cfg.max_ideal) : 26;
+    const critMin = (cfg.crit_min !== null && cfg.crit_min !== undefined) ? Number(cfg.crit_min) : 15;
+    const critMax = (cfg.crit_max !== null && cfg.crit_max !== undefined) ? Number(cfg.crit_max) : 30;
+
+    if (tempVal >= minI && tempVal <= maxI) return '#10b981'; // Ideal Green
+    if ((tempVal >= critMin && tempVal < minI) || (tempVal > maxI && tempVal <= critMax)) return '#f59e0b'; // Warning Yellow
     return '#ef4444'; // Critical Red
 }
 
 function getHumidityGaugeColor(umidVal) {
     if (umidVal === null || umidVal === undefined || isNaN(umidVal)) return '#94a3b8';
-    if (umidVal >= 30 && umidVal <= 60) return '#0284c7'; // Ideal Ocean Blue
-    if ((umidVal >= 20 && umidVal < 30) || (umidVal > 60 && umidVal <= 75)) return '#f59e0b'; // Warning Yellow
+    const cfg = currentLimites.umidade || { min_ideal: 30, max_ideal: 60, crit_min: 20, crit_max: 75 };
+    const minI = (cfg.min_ideal !== null && cfg.min_ideal !== undefined) ? Number(cfg.min_ideal) : 30;
+    const maxI = (cfg.max_ideal !== null && cfg.max_ideal !== undefined) ? Number(cfg.max_ideal) : 60;
+    const critMin = (cfg.crit_min !== null && cfg.crit_min !== undefined) ? Number(cfg.crit_min) : 20;
+    const critMax = (cfg.crit_max !== null && cfg.crit_max !== undefined) ? Number(cfg.crit_max) : 75;
+
+    if (umidVal >= minI && umidVal <= maxI) return '#0284c7'; // Ideal Ocean Blue
+    if ((umidVal >= critMin && umidVal < minI) || (umidVal > maxI && umidVal <= critMax)) return '#f59e0b'; // Warning Yellow
     return '#ef4444'; // Critical Red
 }
 
@@ -759,7 +801,7 @@ function renderSensorCards(devices) {
                             <span>0°C</span>
                             <span>50°C</span>
                         </div>
-                        <div class="manometro-ideal-badge">Ideal: 18°C to 26°C</div>
+                        <div class="manometro-ideal-badge">Ideal: ${(currentLimites.temperatura?.min_ideal ?? 18)}°C to ${(currentLimites.temperatura?.max_ideal ?? 26)}°C</div>
                     </div>
 
                     <!-- Humidity Gauge -->
@@ -775,7 +817,7 @@ function renderSensorCards(devices) {
                             <span>0%</span>
                             <span>100%</span>
                         </div>
-                        <div class="manometro-ideal-badge">Ideal: 30% to 60%</div>
+                        <div class="manometro-ideal-badge">Ideal: ${(currentLimites.umidade?.min_ideal ?? 30)}% to ${(currentLimites.umidade?.max_ideal ?? 60)}%</div>
                     </div>
                 </div>
 
@@ -995,14 +1037,32 @@ function openDeviceDetailModal(numeroSerie) {
     // Render 7 Environmental Parameters
     const grid = document.getElementById('modalParamsGrid');
     if (grid) {
+        const tCfg = currentLimites.temperatura || { min_ideal: 18, max_ideal: 26 };
+        const uCfg = currentLimites.umidade || { min_ideal: 30, max_ideal: 60 };
+        const co2Cfg = currentLimites.co2 || { max_ideal: 800 };
+        const pm25Cfg = currentLimites.pm25 || { max_ideal: 15 };
+        const pm10Cfg = currentLimites.pm10 || { max_ideal: 30 };
+        const vocCfg = currentLimites.voc || { max_ideal: 0.20 };
+        const formCfg = currentLimites.formaldeido || { max_ideal: 0.05 };
+
+        const tMin = (tCfg.min_ideal !== null && tCfg.min_ideal !== undefined) ? Number(tCfg.min_ideal) : 18;
+        const tMax = (tCfg.max_ideal !== null && tCfg.max_ideal !== undefined) ? Number(tCfg.max_ideal) : 26;
+        const uMin = (uCfg.min_ideal !== null && uCfg.min_ideal !== undefined) ? Number(uCfg.min_ideal) : 30;
+        const uMax = (uCfg.max_ideal !== null && uCfg.max_ideal !== undefined) ? Number(uCfg.max_ideal) : 60;
+        const co2Max = (co2Cfg.max_ideal !== null && co2Cfg.max_ideal !== undefined) ? Number(co2Cfg.max_ideal) : 800;
+        const pm25Max = (pm25Cfg.max_ideal !== null && pm25Cfg.max_ideal !== undefined) ? Number(pm25Cfg.max_ideal) : 15;
+        const pm10Max = (pm10Cfg.max_ideal !== null && pm10Cfg.max_ideal !== undefined) ? Number(pm10Cfg.max_ideal) : 30;
+        const vocMax = (vocCfg.max_ideal !== null && vocCfg.max_ideal !== undefined) ? Number(vocCfg.max_ideal) : 0.20;
+        const formMax = (formCfg.max_ideal !== null && formCfg.max_ideal !== undefined) ? Number(formCfg.max_ideal) : 0.05;
+
         grid.innerHTML = `
-            ${renderParamCard('Temperature', l.temperatura, '°C', '18.0 - 26.0 °C', l.temperatura < 18 || l.temperatura > 26)}
-            ${renderParamCard('Relative Humidity', l.umidade, '%', '30.0 - 60.0 %', l.umidade < 30 || l.umidade > 60)}
-            ${renderParamCard('CO2', l.co2, 'ppm', '≤ 800 ppm', l.co2 > 800)}
-            ${renderParamCard('PM2.5', l.pm25, 'µg/m³', '≤ 15 µg/m³', l.pm25 > 15)}
-            ${renderParamCard('PM10', l.pm10, 'µg/m³', '≤ 30 µg/m³', l.pm10 > 30)}
-            ${renderParamCard('VOC', l.voc, 'ppm', '≤ 0.20 ppm', l.voc > 0.20)}
-            ${renderParamCard('Formaldehyde', l.formaldeido, 'mg/m³', '≤ 0.05 mg/m³', l.formaldeido > 0.05)}
+            ${renderParamCard('Temperature', l.temperatura, '°C', `${tMin.toFixed(1)} - ${tMax.toFixed(1)} °C`, l.temperatura !== null && (l.temperatura < tMin || l.temperatura > tMax))}
+            ${renderParamCard('Relative Humidity', l.umidade, '%', `${uMin.toFixed(1)} - ${uMax.toFixed(1)} %`, l.umidade !== null && (l.umidade < uMin || l.umidade > uMax))}
+            ${renderParamCard('CO2', l.co2, 'ppm', `≤ ${co2Max} ppm`, l.co2 !== null && l.co2 > co2Max)}
+            ${renderParamCard('PM2.5', l.pm25, 'µg/m³', `≤ ${pm25Max.toFixed(1)} µg/m³`, l.pm25 !== null && l.pm25 > pm25Max)}
+            ${renderParamCard('PM10', l.pm10, 'µg/m³', `≤ ${pm10Max.toFixed(1)} µg/m³`, l.pm10 !== null && l.pm10 > pm10Max)}
+            ${renderParamCard('VOC', l.voc, 'ppm', `≤ ${vocMax.toFixed(2)} ppm`, l.voc !== null && l.voc > vocMax)}
+            ${renderParamCard('Formaldehyde', l.formaldeido, 'mg/m³', `≤ ${formMax.toFixed(2)} mg/m³`, l.formaldeido !== null && l.formaldeido > formMax)}
         `;
     }
 
@@ -1141,9 +1201,18 @@ async function openPrescribedRangesModal() {
             const l = limites[key];
             if (!l) return;
             
-            const hasMin = l.min_ideal !== undefined;
-            const inputStyle = 'width: 50px; background: #0f172a; color: #f8fafc; border: 1px solid #334155; border-radius: 4px; padding: 4px 2px; text-align: center; font-size: 12px; margin: 0 2px;';
+            // Apenas temperatura e umidade possuem faixa com mínimo e máximo ideal.
+            // Os demais (CO2, partículas, VOC, formaldeído) possuem apenas teto ideal e teto de aviso.
+            const hasMin = (key === 'temperatura' || key === 'umidade') || (l.min_ideal !== null && l.min_ideal !== undefined);
+            const step = (key === 'voc' || key === 'formaldeido') ? '0.01' : '0.1';
+            const inputStyle = 'width: 55px; background: #0f172a; color: #f8fafc; border: 1px solid #334155; border-radius: 4px; padding: 4px 2px; text-align: center; font-size: 12px; margin: 0 2px;';
             const translatedLabel = translateParamKey(key);
+
+            const minIdealVal = (l.min_ideal !== null && l.min_ideal !== undefined) ? l.min_ideal : '';
+            const maxIdealVal = (l.max_ideal !== null && l.max_ideal !== undefined) ? l.max_ideal : '';
+            const maxAvisoVal = (l.max_aviso !== null && l.max_aviso !== undefined) ? l.max_aviso : '';
+            const critMinVal = (l.crit_min !== null && l.crit_min !== undefined) ? l.crit_min : '';
+            const critMaxVal = (l.crit_max !== null && l.crit_max !== undefined) ? l.crit_max : '';
             
             html += `
             <tr data-param="${key}">
@@ -1151,23 +1220,23 @@ async function openPrescribedRangesModal() {
                 <td>${l.unit}</td>
                 <td style="white-space: nowrap;">
                     ${hasMin ? 
-                        `<input type="number" step="0.1" class="input-limite" data-field="min_ideal" value="${l.min_ideal}" style="${inputStyle}"> to 
-                         <input type="number" step="0.1" class="input-limite" data-field="max_ideal" value="${l.max_ideal}" style="${inputStyle}">` 
+                        `<input type="number" step="${step}" class="input-limite" data-field="min_ideal" value="${minIdealVal}" style="${inputStyle}"> to 
+                         <input type="number" step="${step}" class="input-limite" data-field="max_ideal" value="${maxIdealVal}" style="${inputStyle}">` 
                         : 
-                        `&le; <input type="number" step="0.1" class="input-limite" data-field="max_ideal" value="${l.max_ideal}" style="${inputStyle}">`
+                        `&le; <input type="number" step="${step}" class="input-limite" data-field="max_ideal" value="${maxIdealVal}" style="${inputStyle}">`
                     }
                 </td>
                 <td style="color: #f59e0b; white-space: nowrap; font-size: 12px;">
                     ${hasMin ? 
                         `Outside Ideal` 
                         : 
-                        `Up to <input type="number" step="0.1" class="input-limite" data-field="max_aviso" value="${l.max_aviso}" style="${inputStyle}">`
+                        `Up to <input type="number" step="${step}" class="input-limite" data-field="max_aviso" value="${maxAvisoVal}" style="${inputStyle}">`
                     }
                 </td>
                 <td style="color: #ef4444; white-space: nowrap; font-size: 12px;">
                     ${hasMin ? 
-                        `&lt; <input type="number" step="0.1" class="input-limite" data-field="crit_min" value="${l.crit_min}" style="${inputStyle}"> or 
-                         &gt; <input type="number" step="0.1" class="input-limite" data-field="crit_max" value="${l.crit_max}" style="${inputStyle}">` 
+                        `&lt; <input type="number" step="${step}" class="input-limite" data-field="crit_min" value="${critMinVal}" style="${inputStyle}"> or 
+                         &gt; <input type="number" step="${step}" class="input-limite" data-field="crit_max" value="${critMaxVal}" style="${inputStyle}">` 
                         : 
                         `&gt; Max Warning`
                     }
@@ -1203,7 +1272,13 @@ async function savePrescribedRanges() {
         const inputs = row.querySelectorAll('.input-limite');
         inputs.forEach(input => {
             const field = input.getAttribute('data-field');
-            novosLimites[param][field] = input.value !== '' ? Number(input.value) : '';
+            const rawVal = (input.value || '').trim().replace(',', '.');
+            if (rawVal === '') {
+                novosLimites[param][field] = null;
+            } else {
+                const num = parseFloat(rawVal);
+                novosLimites[param][field] = isNaN(num) ? null : num;
+            }
         });
     });
     
@@ -1215,15 +1290,24 @@ async function savePrescribedRanges() {
         });
         
         if (res.ok) {
+            // Atualiza o estado em memória local imediatamente
+            Object.keys(novosLimites).forEach(param => {
+                if (!currentLimites[param]) currentLimites[param] = {};
+                Object.assign(currentLimites[param], novosLimites[param]);
+            });
+
             alert('Limits updated successfully!');
             closeRangesModal();
-            loadDashboardData();
+            await loadDashboardData();
         } else {
-            alert('Error updating limits.');
+            const errData = await res.json().catch(() => ({}));
+            const errMsg = errData.error || errData.erro || errData.message || `Error updating limits (${res.status})`;
+            console.error('[LFG60] API error updating limits:', errMsg);
+            alert(`Error updating limits: ${errMsg}`);
         }
     } catch (e) {
         console.error('Error saving limits:', e);
-        alert('Error connecting to API.');
+        alert(`Error connecting to API: ${e.message || e}`);
     }
 }
 
@@ -1352,37 +1436,26 @@ function getParamEvaluation(param, val) {
         return { text: 'N/A', cls: 'ideal' };
     }
     const v = Number(val);
-    switch (param) {
-        case 'temperatura':
-            if (v >= 18 && v <= 26) return { text: 'Ideal', cls: 'ideal' };
-            if ((v >= 15 && v < 18) || (v > 26 && v <= 30)) return { text: 'Warning', cls: 'aviso' };
-            return { text: 'Critical', cls: 'critico' };
-        case 'umidade':
-            if (v >= 30 && v <= 60) return { text: 'Ideal', cls: 'ideal' };
-            if ((v >= 20 && v < 30) || (v > 60 && v <= 75)) return { text: 'Warning', cls: 'aviso' };
-            return { text: 'Critical', cls: 'critico' };
-        case 'co2':
-            if (v <= 800) return { text: 'Normal', cls: 'ideal' };
-            if (v <= 1200) return { text: 'Warning', cls: 'aviso' };
-            return { text: 'Critical', cls: 'critico' };
-        case 'pm25':
-            if (v <= 15) return { text: 'Normal', cls: 'ideal' };
-            if (v <= 25) return { text: 'Warning', cls: 'aviso' };
-            return { text: 'Critical', cls: 'critico' };
-        case 'pm10':
-            if (v <= 30) return { text: 'Normal', cls: 'ideal' };
-            if (v <= 50) return { text: 'Warning', cls: 'aviso' };
-            return { text: 'Critical', cls: 'critico' };
-        case 'voc':
-            if (v <= 0.20) return { text: 'Normal', cls: 'ideal' };
-            if (v <= 0.50) return { text: 'Warning', cls: 'aviso' };
-            return { text: 'Critical', cls: 'critico' };
-        case 'formaldeido':
-            if (v <= 0.05) return { text: 'Normal', cls: 'ideal' };
-            if (v <= 0.10) return { text: 'Warning', cls: 'aviso' };
-            return { text: 'Critical', cls: 'critico' };
-        default:
-            return { text: 'Normal', cls: 'ideal' };
+    const cfg = currentLimites[param];
+    if (!cfg) return { text: 'Normal', cls: 'ideal' };
+
+    const hasMin = (param === 'temperatura' || param === 'umidade') || (cfg.min_ideal !== null && cfg.min_ideal !== undefined);
+    if (hasMin) {
+        const minI = (cfg.min_ideal !== null && cfg.min_ideal !== undefined) ? Number(cfg.min_ideal) : 0;
+        const maxI = (cfg.max_ideal !== null && cfg.max_ideal !== undefined) ? Number(cfg.max_ideal) : 0;
+        const critMin = (cfg.crit_min !== null && cfg.crit_min !== undefined) ? Number(cfg.crit_min) : -999;
+        const critMax = (cfg.crit_max !== null && cfg.crit_max !== undefined) ? Number(cfg.crit_max) : 999;
+
+        if (v >= minI && v <= maxI) return { text: 'Ideal', cls: 'ideal' };
+        if ((v >= critMin && v < minI) || (v > maxI && v <= critMax)) return { text: 'Warning', cls: 'aviso' };
+        return { text: 'Critical', cls: 'critico' };
+    } else {
+        const maxI = (cfg.max_ideal !== null && cfg.max_ideal !== undefined) ? Number(cfg.max_ideal) : 0;
+        const maxA = (cfg.max_aviso !== null && cfg.max_aviso !== undefined) ? Number(cfg.max_aviso) : maxI;
+
+        if (v <= maxI) return { text: 'Normal', cls: 'ideal' };
+        if (v <= maxA) return { text: 'Warning', cls: 'aviso' };
+        return { text: 'Critical', cls: 'critico' };
     }
 }
 
@@ -1582,6 +1655,16 @@ function renderFullscreenDevice(index) {
         umidChipEl.innerText = umidEval.text;
     }
 
+    // 2.1 Atualiza legendas de range ideal dos manômetros em tela cheia
+    const tCfg = currentLimites.temperatura || { min_ideal: 18, max_ideal: 26 };
+    const uCfg = currentLimites.umidade || { min_ideal: 30, max_ideal: 60 };
+    const fsGaugeRanges = document.querySelectorAll('.fs-gauge-range');
+    if (fsGaugeRanges[0]) fsGaugeRanges[0].innerText = `Ideal Range: ${(tCfg.min_ideal ?? 18)}°C to ${(tCfg.max_ideal ?? 26)}°C`;
+    if (fsGaugeRanges[1]) fsGaugeRanges[1].innerText = `Ideal Range: ${(uCfg.min_ideal ?? 30)}% to ${(uCfg.max_ideal ?? 60)}%`;
+    const fsGaugeMids = document.querySelectorAll('.fs-gauge-scale-mid');
+    if (fsGaugeMids[0]) fsGaugeMids[0].innerText = `Ideal Range: ${(tCfg.min_ideal ?? 18)}° to ${(tCfg.max_ideal ?? 26)}°C`;
+    if (fsGaugeMids[1]) fsGaugeMids[1].innerText = `Ideal Range: ${(uCfg.min_ideal ?? 30)}% to ${(uCfg.max_ideal ?? 60)}%`;
+
     fsGaugeTempChart = updateFullscreenGaugeChart(fsGaugeTempChart, 'fsGaugeTempCanvas', tempVal, 0, 50, tempColor);
     fsGaugeUmidChart = updateFullscreenGaugeChart(fsGaugeUmidChart, 'fsGaugeUmidCanvas', umidVal, 0, 100, umidColor);
 
@@ -1657,6 +1740,11 @@ function updateFsVarCard(paramKey, rawVal, formatFn, evalKey) {
             cardEl.style.borderColor = '#fde68a';
         } else {
             cardEl.style.borderColor = '#e2e8f0';
+        }
+
+        const footerSpan = cardEl.querySelector('.fs-param-footer span');
+        if (footerSpan && currentLimites[evalKey] && currentLimites[evalKey].max_ideal !== undefined && currentLimites[evalKey].max_ideal !== null) {
+            footerSpan.innerHTML = `Ideal Range: &le; ${currentLimites[evalKey].max_ideal} ${currentLimites[evalKey].unit || ''}`;
         }
     }
 }

@@ -2,6 +2,9 @@ let mapInstance = null;
 let currentDevices = [];
 let currentAlerts = [];
 let activeAlertFilter = 'todos';
+// Assinatura da última leitura processada: evita atualizar a mesma leitura duas
+// vezes quando 'sensor_reading' e 'dashboard_update' chegam juntos (push duplo).
+let lastProcessedReadingSignature = '';
 let sensorBadgeWatchdog = null;
 let simulationStepCount = 0;
 
@@ -148,15 +151,38 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     if (typeof io !== 'undefined') {
-        const socket = io(API_BASE, { auth: { token: localStorage.getItem('sensorium_token') } });
+        const socket = io(API_BASE, {
+            auth: { token: localStorage.getItem('sensorium_token') },
+            reconnection: true,
+            reconnectionAttempts: Infinity,
+            reconnectionDelay: 1000,
+            transports: ['websocket', 'polling']
+        });
+
+        // Push com a leitura completa (padrão de relés/incêndio): atualiza as
+        // variáveis no lugar, sem refazer o fetch de todos os dispositivos.
+        socket.on('sensor_reading', (data) => {
+            handleLiveSensorReading(data);
+        });
+
         socket.on('dashboard_update', (data) => {
-            console.log('[LFG60] WebSocket update received:', data);
-            triggerDashboardUpdate(data);
+            if (data?.data && data.type === 'sensor_data') {
+                // Novo formato: já traz os dados -> atualização in-place.
+                handleLiveSensorReading(data.data);
+            } else {
+                // Formato legado (apenas aviso): mantém o refetch debounced.
+                console.log('[LFG60] WebSocket update received:', data);
+                triggerDashboardUpdate(data);
+            }
         });
 
         socket.on('disconnect', () => {
             setSensorLiveBadgeState(false);
         });
+
+        // Rede de segurança leve: ressincroniza lista e alertas periodicamente,
+        // recuperando qualquer evento perdido sem o custo de refetch por leitura.
+        setInterval(loadDashboardData, 15000);
     } else {
         console.warn('[LFG60] Socket.IO not loaded. Falling back to polling.');
         setInterval(loadDashboardData, 10000);
@@ -249,6 +275,66 @@ async function fetchDevicesFromApi() {
             updateFullscreenTelemetry();
         }
         setSensorLiveBadgeState(false);
+    }
+}
+
+/**
+ * Recebe uma leitura completa via Socket.IO (push) e atualiza TODAS as variáveis
+ * do dispositivo no lugar, sem refazer o fetch de toda a lista. Deduplica para
+ * não processar a mesma leitura duas vezes quando 'sensor_reading' e
+ * 'dashboard_update' chegam juntos para a mesma leitura.
+ */
+function handleLiveSensorReading(reading) {
+    if (!reading || !reading.numeroSerie) return;
+
+    const { numeroSerie, temperatura, umidade, co2, pm25, pm10, voc, formaldeido, led, status, timestamp } = reading;
+
+    // Evita processar a mesma leitura duas vezes (push duplicado do backend).
+    const sig = `${numeroSerie}_${timestamp}_${temperatura}_${umidade}_${co2}`;
+    if (lastProcessedReadingSignature === sig) return;
+    lastProcessedReadingSignature = sig;
+
+    setSensorLiveBadgeState(true);
+
+    const dev = currentDevices.find(d => d.numero_serie === numeroSerie);
+    if (!dev) {
+        // Dispositivo ainda não está na lista (recém-criado): ressincroniza a lista completa.
+        loadDashboardData();
+        return;
+    }
+
+    dev.ultima_leitura = {
+        temperatura: temperatura ?? null,
+        umidade: umidade ?? null,
+        co2: co2 ?? null,
+        pm25: pm25 ?? null,
+        pm10: pm10 ?? null,
+        voc: voc ?? null,
+        formaldeido: formaldeido ?? null,
+        timestamp: timestamp || new Date().toISOString()
+    };
+    if (led !== undefined && led !== null) dev.led = led;
+    if (status !== undefined && status !== null) dev.status = status;
+
+    // Atualização in-place do card (temperatura, umidade, CO2, gauges e badge).
+    updateSingleSensorCardInPlace(dev);
+    updateDashboardSummary(currentDevices);
+
+    // Se o modal de detalhes deste dispositivo estiver aberto, atualiza as 7 variáveis.
+    const modal = document.getElementById('sensorModal');
+    if (modal && modal.classList.contains('active')) {
+        const title = document.getElementById('modalSensorTitle')?.innerText || '';
+        if (title.includes(numeroSerie)) {
+            updateOpenModalSimulatedValues(dev);
+        }
+    }
+
+    // Se a tela cheia estiver ativa neste dispositivo, atualiza a telemetria.
+    if (document.body.classList.contains('fullscreen-active')) {
+        const activeDev = currentDevices[fullscreenActiveIndex];
+        if (activeDev && activeDev.numero_serie === numeroSerie) {
+            renderFullscreenDevice(fullscreenActiveIndex);
+        }
     }
 }
 

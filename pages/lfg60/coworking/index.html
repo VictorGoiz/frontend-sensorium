@@ -1,0 +1,660 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sensimonitor - LFG60 Coworking (3º Andar)</title>
+    <link rel="icon" type="image/png" href="../../img/logo_head.png">
+    <link rel="stylesheet" href="../../home/home.css">
+    <link rel="stylesheet" href="../../components/chat.css">
+    <link rel="stylesheet" href="../../sensores/sensores.css">
+    <link rel="stylesheet" href="../lfg60.css">
+    <link rel="stylesheet" href="coworking.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- Socket.IO Client -->
+    <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+    <!-- Leaflet CSS for Maps -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="../../config.js"></script>
+</head>
+<body>
+    <div class="app-layout">
+        <aside class="sidebar">
+            <div class="logo-container">
+                <img src="../../img/logo_sensimonitor.png" alt="SensiMonitor" class="sidebar-logo">
+            </div>
+            <nav>
+                <a href="../../home/index.html" class="nav-item">Overview</a>
+                <a href="../../sensores/index.html" class="nav-item">Sensors</a>
+                <a href="../../reles/index.html" class="nav-item">Relays</a>
+                
+                <!-- Devices Dropdown (Presentation Area) -->
+                <div class="nav-dropdown open">
+                    <button class="nav-dropdown-toggle active" onclick="toggleNavDropdown(this)">
+                        <span>Devices</span>
+                        <svg class="chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <polyline points="6 9 12 15 18 9"></polyline>
+                        </svg>
+                    </button>
+                    <div class="nav-dropdown-menu">
+                        <a href="../../chopeiras/index.html" class="nav-subitem">Chopeiras</a>
+                        <a href="../index.html" class="nav-subitem">LFG60 Padrão</a>
+                        <a href="index.html" class="nav-subitem active">LFG60 Coworking</a>
+                        <a href="../../incendio/index.html" class="nav-subitem">Sistema de Incêndio</a>
+                        <a href="../../pressurizacao/index.html" class="nav-subitem">Pressurização de Água</a>
+                        <a href="../../hidraulico/index.html" class="nav-subitem">Sistema Hidráulico</a>
+                    </div>
+                </div>
+            </nav>
+            <div class="user-info">
+                <a href="../../login/index.html" class="logout-btn">Logout</a>
+            </div>
+        </aside>
+
+        <main class="main-content">
+            <!-- Header in Kegerator Style -->
+            <header class="presentation-header">
+                <div class="header-brand">
+                    <div class="header-title-row">
+                        <h1>LFG60 Coworking (3º Andar)</h1>
+                        <span class="badge-live-presentation" id="livePresentationBadge">
+                            <span class="dot"></span>
+                            <span id="liveBadgeText">AGUARDANDO DADOS</span>
+                        </span>
+                    </div>
+                    <p>Telemetria e qualidade do ar em tempo real para o Espaço Coworking corporativo</p>
+                </div>
+
+                <div class="header-actions">
+                    <select id="lfgDeviceSelect" class="select-presentation" onchange="onSelectLfgDeviceChange()">
+                        <option value="all">Todos os Dispositivos</option>
+                    </select>
+
+                    <button class="btn-presentation-action" onclick="openPrescribedRangesModal()" title="Tabela de Limites e Ranges Prescritos">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M12 20h9"></path>
+                            <path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"></path>
+                        </svg>
+                        <span>Limites & Faixas</span>
+                    </button>
+
+                    <!-- Header Warnings and Alerts Button & Drawer -->
+                    <div class="header-alerts-container">
+                        <button class="header-alert-btn" id="headerAlertBtn" onclick="toggleHeaderAlerts()" title="Central de Avisos e Alertas">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" fill="currentColor" viewBox="0 0 16 16">
+                                <path d="M8 16a2 2 0 0 0 2-2H6a2 2 0 0 0 2 2zM8 1.918l-.797.161A4.002 4.002 0 0 0 4 6c0 .628-.134 2.197-.459 3.742-.16.767-.376 1.566-.663 2.258h10.244c-.287-.692-.502-1.49-.663-2.258C12.134 8.197 12 6.628 12 6a4.002 4.002 0 0 0-3.203-3.92L8 1.917zM14.22 12c.223.447.481.801.78 1H1c.299-.199.557-.553.78-1C2.68 10.2 3 6.88 3 6c0-2.42 1.72-4.44 4.005-4.901a1 1 0 1 1 1.99 0A5.002 5.002 0 0 1 13 6c0 .88.32 4.2 1.22 6z"/>
+                            </svg>
+                            <span class="alert-badge" id="headerAlertBadge">0</span>
+                        </button>
+
+                        <!-- Alerts Dropdown / Popover -->
+                        <div class="header-alerts-popover" id="headerAlertsPopover">
+                            <div class="popover-header">
+                                <div class="popover-title">
+                                    <span>Central de Alertas e Avisos</span>
+                                </div>
+                                <button class="btn-clear-all" onclick="markAllAlertsAsRead()">Marcar todos como lidos</button>
+                            </div>
+                            <div class="popover-filters">
+                                <button class="filter-tab active" onclick="filterAlerts('todos', this)">Todos</button>
+                                <button class="filter-tab" onclick="filterAlerts('Critico', this)">Críticos</button>
+                                <button class="filter-tab" onclick="filterAlerts('Aviso', this)">Avisos</button>
+                            </div>
+                            <div class="popover-body" id="headerAlertsList">
+                                <div class="alerts-loading">Carregando alertas...</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <button class="btn-fullscreen btn-fullscreen-coworking" onclick="toggleFullscreen()" title="Abrir Tela Cheia Corporativa Coworking">
+                        <svg id="fullscreenIcon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"/>
+                        </svg>
+                        <span id="fullscreenText">Tela Cheia Coworking</span>
+                    </button>
+
+                    <!-- LEFOO Logo -->
+                    <div class="header-brand-logo" title="LEFOO">
+                        <img src="../../img/logo_lefoo.jpeg" alt="LEFOO" class="header-lefoo-logo">
+                    </div>
+                </div>
+            </header>
+
+            <div class="dashboard-cards sensor-cards">
+                <div class="card dark-card">
+                    <h3>Status Geral do Ambiente</h3>
+                    <div class="card-value" id="cardStatusGeral">Operacional</div>
+                    <div class="card-indicator positive" id="cardStatusGeralSub">Sensores na faixa ideal</div>
+                </div>
+                <div class="card dark-card">
+                    <h3>Dispositivos sob Atenção</h3>
+                    <div class="card-value warning" id="cardCountAtencao">0</div>
+                    <div class="card-indicator warning">Sensível a variações</div>
+                </div>
+                <div class="card dark-card alert-card">
+                    <h3>Alertas Pendentes</h3>
+                    <div class="card-value warning" id="cardCountAlertas">0</div>
+                    <div class="card-indicator" id="cardAlertasSub">Ação necessária</div>
+                </div>
+            </div>
+
+            <!-- Connected Devices List Header with Carousel Controls -->
+            <div class="section-title lfg-section-header" style="display: flex; justify-content: space-between; align-items: center; margin-top: 25px;">
+                <div class="section-title-left" style="display: flex; align-items: center; gap: 10px;">
+                    <h2>Dispositivos Conectados (Transmissores LEFOO LFG60)</h2>
+                    <span class="devices-count-pill" id="devicesCountPill">0 dispositivos</span>
+                </div>
+                
+                <div class="carousel-controls" id="carouselControls">
+                    <button class="btn-carousel-nav" id="btnCarouselPrev" onclick="scrollCarousel(-1)" title="Dispositivos anteriores">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="15 18 9 12 15 6"></polyline></svg>
+                    </button>
+                    <div class="carousel-indicators" id="carouselIndicators"></div>
+                    <button class="btn-carousel-nav" id="btnCarouselNext" onclick="scrollCarousel(1)" title="Próximos dispositivos">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="9 18 15 12 9 6"></polyline></svg>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Devices Carousel -->
+            <div class="lfg-carousel-wrapper" id="lfgCarouselWrapper">
+                <div class="sensor-list lfg-carousel-track" id="sensorListContainer">
+                    <div style="padding: 20px; text-align: center; color: #888; width: 100%;">Carregando dispositivos do banco de dados...</div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- ======================================================================
+         MODO TELA CHEIA CORPORATIVO DO CLIENTE COWORKING
+         Top 45% com plano de fundo 'img/layoutFundoOrgcoworking.png'
+         Bottom 55% com fundo branco padrão e cartões com dados e gráficos
+         ====================================================================== -->
+    <div id="lfgFullscreenPresentation" class="cw-fullscreen-presentation">
+        <!-- ÁREA SUPERIOR (45% DA TELA) COM IMAGEM DE FUNDO -->
+        <section class="cw-hero-section">
+            <div class="cw-hero-overlay"></div>
+
+            <!-- Barra Superior Flutuante com Controles e Identificação -->
+            <div class="cw-hero-top-bar">
+                <div class="cw-top-left-group">
+                    <div class="cw-brand-pill">
+                        <span class="cw-brand-bold">LEFOO</span>
+                        <span class="cw-brand-sep">|</span>
+                        <span class="cw-brand-light">SENSIMONITOR</span>
+                    </div>
+
+                    <div class="cw-live-pill" id="fsLiveBadge">
+                        <span class="cw-live-dot"></span>
+                        <span id="cwLiveStatusText">AO VIVO</span>
+                    </div>
+
+                    <div class="cw-status-pill operacional" id="fsStatusPill">
+                        <span class="cw-status-dot" id="fsStatusDot"></span>
+                        <span id="fsStatusText">Operacional</span>
+                    </div>
+                </div>
+
+                <!-- Relógio Corporativo Central -->
+                <div class="cw-clock-widget">
+                    <span class="cw-clock-time" id="cwLiveClock">--:--:--</span>
+                    <span class="cw-clock-sep">•</span>
+                    <span class="cw-clock-date" id="cwLiveDate">Carregando data...</span>
+                </div>
+
+                <!-- Controles de Navegação e Fechamento -->
+                <div class="cw-top-right-group">
+                    <button class="cw-ctrl-btn cw-autoplay-btn" id="fsAutoplayBtn" onclick="toggleFullscreenAutoplay()" title="Alternar rotação automática (Espaço)">
+                        <svg id="fsAutoplayIcon" width="15" height="15" viewBox="0 0 24 24" fill="currentColor">
+                            <polygon points="5 3 19 12 5 21 5 3"></polygon>
+                        </svg>
+                        <span id="fsAutoplayText">Auto (8s)</span>
+                    </button>
+
+                    <select id="fsDeviceSelect" class="cw-device-select" onchange="onFsDeviceSelectChange(this.value)" title="Transmissor selecionado">
+                        <!-- Populated dynamically -->
+                    </select>
+
+                    <button class="cw-ctrl-btn cw-exit-btn" onclick="toggleFullscreen()" title="Sair da Tela Cheia (Esc)">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
+                            <line x1="18" y1="6" x2="6" y2="18"></line>
+                            <line x1="6" y1="6" x2="18" y2="18"></line>
+                        </svg>
+                        <span>Sair</span>
+                    </button>
+                </div>
+            </div>
+
+            <!-- CONTEÚDO PRINCIPAL SOBREPOSTO AO FUNDO DE 45% -->
+            <div class="cw-hero-content-row">
+                <!-- CARD INFORMATIVO DA QUALIDADE DO AR (LADO ESQUERDO) -->
+                <div class="cw-air-card">
+                    <div class="cw-air-card-header">
+                        <div class="cw-location-badge">
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                                <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path>
+                                <circle cx="12" cy="10" r="3"></circle>
+                            </svg>
+                            <span>Ambiente Monitorado</span>
+                        </div>
+                        <h2 class="cw-location-heading">Espaço Coworking — 3º Andar</h2>
+                    </div>
+
+                    <div class="cw-air-status-highlight">
+                        <div class="cw-air-badge ideal" id="cwAirQualityBadge">
+                            <div class="cw-air-icon-bubble">
+                                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                    <path d="M11 20A7 7 0 0 1 9.8 6.1C15.5 5 17 4.48 19 2c1 2 2 4.18 2 8 0 5.5-4.78 10-10 10Z"></path>
+                                    <path d="M2 21c0-3 1.85-5.36 5.08-6C9.5 14.52 12 13 13 12"></path>
+                                </svg>
+                            </div>
+                            <div class="cw-air-status-meta">
+                                <span class="cw-air-label">Qualidade do Ar</span>
+                                <strong class="cw-air-value" id="cwAirQualityValue">Boa</strong>
+                            </div>
+                        </div>
+
+                        <!-- Mini Indicadores Rápidos no Card -->
+                        <div class="cw-air-quick-stats">
+                            <div class="cw-quick-stat">
+                                <span class="cw-quick-stat-lbl">Temperatura</span>
+                                <strong class="cw-quick-stat-val" id="cwHeroTempVal">--°C</strong>
+                            </div>
+                            <div class="cw-quick-stat">
+                                <span class="cw-quick-stat-lbl">Umidade</span>
+                                <strong class="cw-quick-stat-val" id="cwHeroUmidVal">--%</strong>
+                            </div>
+                            <div class="cw-quick-stat">
+                                <span class="cw-quick-stat-lbl">CO₂</span>
+                                <strong class="cw-quick-stat-val" id="cwHeroCo2Val">-- ppm</strong>
+                            </div>
+                        </div>
+                    </div>
+
+                    <p class="cw-air-card-desc" id="cwAirQualityDesc">
+                        Ambiente salubre e climatizado. Índices dentro das normas sanitárias e de bem-estar para garantir foco, conforto térmico e produtividade.
+                    </p>
+
+                    <div class="cw-air-card-footer">
+                        <div class="cw-footer-item">
+                            <span class="cw-dot-subtle"></span>
+                            <span id="fsDeviceTitle">Transmissor --</span>
+                        </div>
+                        <div class="cw-footer-item" id="fsLastReadingTime">
+                            Última leitura: --
+                        </div>
+                    </div>
+                </div>
+
+                <!-- LADO DIREITO DO BANNER: DESTAQUES CORPORATIVOS DE BEM-ESTAR -->
+                <div class="cw-hero-wellness-panel">
+                    <div class="cw-wellness-item">
+                        <div class="cw-wellness-icon-wrap blue">
+                            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <path d="M14 14.76V3.5a2.5 2.5 0 0 0-5 0v11.26a4.5 4.5 0 1 0 5 0z"></path>
+                            </svg>
+                        </div>
+                        <div class="cw-wellness-text">
+                            <span class="cw-wellness-title">Conforto Térmico</span>
+                            <strong class="cw-wellness-status" id="cwWellnessTemp">Climatização Ideal</strong>
+                            <span class="cw-wellness-sub">Sensação agradável e equilibrada</span>
+                        </div>
+                    </div>
+
+                    <div class="cw-wellness-item">
+                        <div class="cw-wellness-icon-wrap green">
+                            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <path d="M9.59 4.59A2 2 0 1 1 11 8H2m10.59 11.41A2 2 0 1 0 14 16H2m15.73-8.27A2.5 2.5 0 1 1 19.5 12H2"/>
+                            </svg>
+                        </div>
+                        <div class="cw-wellness-text">
+                            <span class="cw-wellness-title">Renovação do Ar</span>
+                            <strong class="cw-wellness-status" id="cwWellnessRenov">Ar Puro & Renovado</strong>
+                            <span class="cw-wellness-sub">Baixo índice de gás carbônico</span>
+                        </div>
+                    </div>
+
+                    <div class="cw-wellness-item">
+                        <div class="cw-wellness-icon-wrap purple">
+                            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path>
+                            </svg>
+                        </div>
+                        <div class="cw-wellness-text">
+                            <span class="cw-wellness-title">Filtragem & Pureza</span>
+                            <strong class="cw-wellness-status" id="cwWellnessPureza">Excelente</strong>
+                            <span class="cw-wellness-sub">Livre de poeiras ultrafinas e odores</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- ÁREA INFERIOR (55% DA TELA) COM FUNDO BRANCO PADRÃO, GRÁFICOS E CARDS -->
+        <section class="cw-data-section">
+            <div class="cw-data-content-wrap">
+                <!-- Seção Esquerda: Manômetros Gráficos de Temperatura e Umidade -->
+                <div class="cw-gauges-panel">
+                    <!-- Temperatura Ambiente -->
+                    <div class="cw-data-card cw-gauge-card" id="fsGaugeCardTemp">
+                        <div class="cw-card-top-row">
+                            <div>
+                                <span class="cw-card-category">Ambiente</span>
+                                <h3 class="cw-card-title">Temperatura</h3>
+                            </div>
+                            <span class="cw-status-chip ideal" id="fsTempChip">Ideal</span>
+                        </div>
+
+                        <div class="cw-gauge-center-area">
+                            <div class="cw-canvas-holder">
+                                <canvas id="fsGaugeTempCanvas"></canvas>
+                            </div>
+                            <div class="cw-gauge-number-overlay">
+                                <span class="cw-gauge-big-num" id="fsTempVal">--</span>
+                                <span class="cw-gauge-unit">°C</span>
+                            </div>
+                        </div>
+
+                        <div class="cw-gauge-scale-row">
+                            <span>0°C</span>
+                            <span class="cw-scale-pill fs-gauge-scale-mid">Faixa Ideal: 18° a 26°C</span>
+                            <span>50°C</span>
+                        </div>
+                    </div>
+
+                    <!-- Umidade Relativa -->
+                    <div class="cw-data-card cw-gauge-card" id="fsGaugeCardUmid">
+                        <div class="cw-card-top-row">
+                            <div>
+                                <span class="cw-card-category">Ambiente</span>
+                                <h3 class="cw-card-title">Umidade do Ar</h3>
+                            </div>
+                            <span class="cw-status-chip ideal" id="fsUmidChip">Ideal</span>
+                        </div>
+
+                        <div class="cw-gauge-center-area">
+                            <div class="cw-canvas-holder">
+                                <canvas id="fsGaugeUmidCanvas"></canvas>
+                            </div>
+                            <div class="cw-gauge-number-overlay">
+                                <span class="cw-gauge-big-num" id="fsUmidVal">--</span>
+                                <span class="cw-gauge-unit">%</span>
+                            </div>
+                        </div>
+
+                        <div class="cw-gauge-scale-row">
+                            <span>0%</span>
+                            <span class="cw-scale-pill fs-gauge-scale-mid">Faixa Ideal: 30% a 60%</span>
+                            <span>100%</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Seção Direita: Grid com os 5 Parâmetros Ambientais + Diagnóstico Corporativo -->
+                <div class="cw-params-panel">
+                    <div class="cw-params-panel-header">
+                        <div class="cw-header-left">
+                            <span class="cw-section-kicker">Métricas Corporativas de Qualidade do Ar</span>
+                            <h3 class="cw-section-heading">Monitoramento das Variáveis Ambientais (LFG60)</h3>
+                        </div>
+                        <div class="cw-header-right">
+                            <span class="cw-norm-badge">Norma ANVISA & RE 09/2003</span>
+                        </div>
+                    </div>
+
+                    <div class="cw-params-grid">
+                        <!-- CO2 -->
+                        <div class="cw-param-box" id="fsCard-co2">
+                            <div class="cw-box-top">
+                                <div class="cw-box-ident">
+                                    <span class="cw-symbol-pill">CO₂</span>
+                                    <span class="cw-param-label">Dióxido de Carbono</span>
+                                </div>
+                                <span class="cw-box-status ideal" id="fsStatus-co2">Ar Renovado</span>
+                            </div>
+                            <div class="cw-box-value-row">
+                                <span class="cw-box-val" id="fsVal-co2">--</span>
+                                <span class="cw-box-unit">ppm</span>
+                            </div>
+                            <div class="cw-box-bottom">
+                                <span class="cw-box-hint">Limite Ideal: &le; 800 ppm</span>
+                                <span class="cw-box-note">Renovação e Foco</span>
+                            </div>
+                        </div>
+
+                        <!-- PM2.5 -->
+                        <div class="cw-param-box" id="fsCard-pm25">
+                            <div class="cw-box-top">
+                                <div class="cw-box-ident">
+                                    <span class="cw-symbol-pill">PM2.5</span>
+                                    <span class="cw-param-label">Partículas Finas</span>
+                                </div>
+                                <span class="cw-box-status ideal" id="fsStatus-pm25">Puro</span>
+                            </div>
+                            <div class="cw-box-value-row">
+                                <span class="cw-box-val" id="fsVal-pm25">--</span>
+                                <span class="cw-box-unit">µg/m³</span>
+                            </div>
+                            <div class="cw-box-bottom">
+                                <span class="cw-box-hint">Limite Ideal: &le; 15.0 µg/m³</span>
+                                <span class="cw-box-note">Poeira Ultrafina</span>
+                            </div>
+                        </div>
+
+                        <!-- PM10 -->
+                        <div class="cw-param-box" id="fsCard-pm10">
+                            <div class="cw-box-top">
+                                <div class="cw-box-ident">
+                                    <span class="cw-symbol-pill">PM10</span>
+                                    <span class="cw-param-label">Partículas Inaláveis</span>
+                                </div>
+                                <span class="cw-box-status ideal" id="fsStatus-pm10">Limpo</span>
+                            </div>
+                            <div class="cw-box-value-row">
+                                <span class="cw-box-val" id="fsVal-pm10">--</span>
+                                <span class="cw-box-unit">µg/m³</span>
+                            </div>
+                            <div class="cw-box-bottom">
+                                <span class="cw-box-hint">Limite Ideal: &le; 30.0 µg/m³</span>
+                                <span class="cw-box-note">Poeira Suspensa</span>
+                            </div>
+                        </div>
+
+                        <!-- VOC -->
+                        <div class="cw-param-box" id="fsCard-voc">
+                            <div class="cw-box-top">
+                                <div class="cw-box-ident">
+                                    <span class="cw-symbol-pill">VOC</span>
+                                    <span class="cw-param-label">Compostos Orgânicos</span>
+                                </div>
+                                <span class="cw-box-status ideal" id="fsStatus-voc">Neutro</span>
+                            </div>
+                            <div class="cw-box-value-row">
+                                <span class="cw-box-val" id="fsVal-voc">--</span>
+                                <span class="cw-box-unit">ppm</span>
+                            </div>
+                            <div class="cw-box-bottom">
+                                <span class="cw-box-hint">Limite Ideal: &le; 0.20 ppm</span>
+                                <span class="cw-box-note">Livre de Odores</span>
+                            </div>
+                        </div>
+
+                        <!-- Formaldeído -->
+                        <div class="cw-param-box" id="fsCard-formaldeido">
+                            <div class="cw-box-top">
+                                <div class="cw-box-ident">
+                                    <span class="cw-symbol-pill">HCHO</span>
+                                    <span class="cw-param-label">Formaldeído</span>
+                                </div>
+                                <span class="cw-box-status ideal" id="fsStatus-formaldeido">Seguro</span>
+                            </div>
+                            <div class="cw-box-value-row">
+                                <span class="cw-box-val" id="fsVal-formaldeido">--</span>
+                                <span class="cw-box-unit">mg/m³</span>
+                            </div>
+                            <div class="cw-box-bottom">
+                                <span class="cw-box-hint">Limite Ideal: &le; 0.05 mg/m³</span>
+                                <span class="cw-box-note">Móveis e Resinas</span>
+                            </div>
+                        </div>
+
+                        <!-- Diagnóstico Geral e Conformidade do Ambiente -->
+                        <div class="cw-param-box diag" id="fsCard-diag">
+                            <div class="cw-box-top">
+                                <div class="cw-box-ident">
+                                    <span class="cw-symbol-pill diag">DIAG</span>
+                                    <span class="cw-param-label">Diagnóstico do Espaço</span>
+                                </div>
+                                <span class="cw-box-status ideal" id="fsStatus-diag">Conforme</span>
+                            </div>
+                            <div class="cw-diag-inline-row">
+                                <div class="cw-diag-chip">
+                                    <span class="cw-diag-dot-green" id="fsLedDot"></span>
+                                    <span>LED: <strong id="fsDiagLedVal">Verde</strong></span>
+                                </div>
+                                <div class="cw-diag-chip">
+                                    <span class="cw-diag-dot-green"></span>
+                                    <span style="color: #059669;"><strong>MQTT Online</strong></span>
+                                </div>
+                            </div>
+                            <div class="cw-box-bottom">
+                                <span class="cw-box-hint" id="fsDiagEvaluation">7 parâmetros dentro do padrão</span>
+                                <span class="cw-box-note">LEFOO Sensorium</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Rodapé Sutil com Controles de Carrossel e Atalhos -->
+            <div class="cw-bottom-control-bar">
+                <div class="cw-nav-buttons-wrap">
+                    <button class="cw-small-nav-btn" onclick="navigateFullscreenCarousel(-1)" title="Dispositivo Anterior (Seta Esquerda)">
+                        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="15 18 9 12 15 6"></polyline></svg>
+                        <span>Anterior</span>
+                    </button>
+
+                    <div class="cw-dots-holder" id="fsCarouselDots">
+                        <!-- Dynamic dots -->
+                    </div>
+
+                    <button class="cw-small-nav-btn" onclick="navigateFullscreenCarousel(1)" title="Próximo Dispositivo (Seta Direita)">
+                        <span>Próximo</span>
+                        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="9 18 15 12 9 6"></polyline></svg>
+                    </button>
+                </div>
+
+                <div class="cw-bottom-meta-wrap">
+                    <span class="cw-counter-chip" id="fsDeviceCounterText">Dispositivo 1 de 1</span>
+                    <span class="cw-keyboard-legend">
+                        Navegue com as setas <strong>&larr;</strong> <strong>&rarr;</strong> &bull; 
+                        <strong>Espaço</strong> para alternar auto-rotação &bull; 
+                        <strong>Esc</strong> para sair
+                    </span>
+                </div>
+            </div>
+        </section>
+    </div>
+
+    <!-- Modal for Detailed Sensor Info -->
+    <div class="modal-overlay" id="sensorModal">
+        <div class="modal-content sensor-detail-modal">
+            <div class="modal-header">
+                <h2 id="modalSensorTitle">Detalhes do Dispositivo</h2>
+                <button class="close-btn" onclick="closeSensorModal()">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="modal-info-grid">
+                    <div class="device-summary-box">
+                        <h3>Status em Tempo Real</h3>
+                        <div class="led-indicator-large" id="modalLedIndicator">
+                            <span class="led-dot" id="modalLedDot"></span>
+                            <span id="modalLedText">LED: Verde</span>
+                        </div>
+                        <div class="device-status-badge" id="modalDeviceStatus">Status: Operacional</div>
+                    </div>
+
+                    <div class="location-box">
+                        <h3>Informações do Dispositivo</h3>
+                        <p id="modalLocationText">Número de Série: --</p>
+                        <p id="modalLastTimestamp">Última Leitura: --</p>
+                    </div>
+                </div>
+
+                <h3 style="margin-top: 20px; font-size: 15px;">Leitura dos 7 Parâmetros Ambientais</h3>
+                <div class="params-detail-grid" id="modalParamsGrid">
+                    <!-- Populated via JavaScript -->
+                </div>
+
+                <h3 style="margin-top: 20px; font-size: 15px;">Histórico Recente de Leituras</h3>
+                <div id="modalHistoryContainer" style="max-height: 160px; overflow-y: auto; background: #0f172a; padding: 12px; border-radius: 8px; border: 1px solid #1e293b; color: #cbd5e1; font-size: 12px; margin-top: 8px;">
+                    <div>Carregando histórico...</div>
+                </div>
+
+                <div class="modal-map" id="map" style="margin-top: 20px; height: 200px; border-radius: 8px;"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal for Prescribed Ranges Info -->
+    <div class="modal-overlay" id="rangesModal">
+        <div class="modal-content ranges-modal-content">
+            <div class="modal-header">
+                <h2>Limites e Ranges Prescritos (LEFOO LFG60)</h2>
+                <button class="close-btn" onclick="closeRangesModal()">&times;</button>
+            </div>
+            <div class="modal-body">
+                <p style="font-size: 13px; color: #555; margin-bottom: 15px;">
+                    Valores prescritos para controle de alertas automáticos e sinalização LED tricolor.
+                </p>
+                <div class="table-responsive">
+                    <table class="ranges-table">
+                        <thead>
+                            <tr>
+                                <th>Parâmetro</th>
+                                <th>Unidade</th>
+                                <th>Faixa Ideal (Verde)</th>
+                                <th>Atenção (Amarelo)</th>
+                                <th>Crítico (Vermelho)</th>
+                            </tr>
+                        </thead>
+                        <tbody id="rangesTableBody">
+                            <!-- Populated via JavaScript -->
+                        </tbody>
+                    </table>
+                </div>
+                <div style="margin-top: 20px; text-align: right;">
+                    <button class="btn-config-main" onclick="savePrescribedRanges()">Salvar Configurações</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Chat / Lateral Alerts -->
+    <div class="chat-sidebar-overlay" id="chatOverlay" onclick="toggleChat()"></div>
+    <div class="chat-sidebar" id="chatSidebar">
+        <div class="chat-header">
+            <h3>Central de Alertas e Notificações</h3>
+            <button class="close-chat-btn" onclick="toggleChat()">&times;</button>
+        </div>
+        <div class="chat-body" id="chatBody"></div>
+        <div class="chat-footer">
+            <input type="text" id="chatInput" placeholder="Digite uma dúvida sobre os sensores...">
+            <button id="chatSendBtn">Enviar</button>
+        </div>
+    </div>
+
+    <!-- Floating Button for Chat -->
+    <button class="chat-fab" onclick="toggleChat()">
+        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" fill="currentColor" viewBox="0 0 16 16">
+          <path d="M16 8c0 3.866-3.582 7-8 7a9.06 9.06 0 0 1-2.347-.306c-2.316.5-4.741.97-4.741.97a.499.499 0 0 1-.58-.58c0 0 .47-2.425.97-4.741A8.99 8.99 0 0 1 0 8c0-3.866 3.582-7 8-7s8 3.134 8 7zM5 8a1 1 0 1 0-2 0 1 1 0 0 0 2 0zm4 0a1 1 0 1 0-2 0 1 1 0 0 0 2 0zm3 1a1 1 0 1 0 0-2 1 1 0 0 0 0 2z"/>
+        </svg>
+    </button>
+
+    <!-- Leaflet JS -->
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="../../components/chat.js"></script>
+    <script src="coworking.js"></script>
+</body>
+</html>

@@ -1,0 +1,1098 @@
+/* ==========================================================================
+   SENSIMONITOR - ESTILIZAÇÃO CORPORATIVA COWORKING (3º ANDAR)
+   Especializada para Tela Cheia (TVs, Displays e Apresentações Corporativas)
+   ========================================================================== */
+
+/* Botão de destaque do Coworking no header */
+.btn-fullscreen-coworking {
+    background: linear-gradient(135deg, #0284c7 0%, #0369a1 100%) !important;
+    color: #ffffff !important;
+    border: none !important;
+    box-shadow: 0 2px 8px rgba(2, 132, 199, 0.28) !important;
+}
+
+.btn-fullscreen-coworking:hover {
+    background: linear-gradient(135deg, #0369a1 0%, #075985 100%) !important;
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(2, 132, 199, 0.38) !important;
+}
+
+/* ==========================================================================
+   ESTRUTURA PRINCIPAL DE TELA CHEIA (FULLSCREEN PRESENTATION)
+   ========================================================================== */
+.cw-fullscreen-presentation {
+    display: none !important;
+}
+
+:fullscreen .app-layout,
+body.fullscreen-active .app-layout {
+    display: none !important;
+}
+
+:fullscreen .chat-fab,
+body.fullscreen-active .chat-fab {
+    display: none !important;
+}
+
+:fullscreen .cw-fullscreen-presentation,
+body.fullscreen-active .cw-fullscreen-presentation {
+    display: flex !important;
+    flex-direction: column !important;
+    position: fixed !important;
+    inset: 0 !important;
+    z-index: 999999 !important;
+    width: 100vw !important;
+    height: 100vh !important;
+    max-height: 100vh !important;
+    overflow: hidden !important;
+    background: #ffffff !important;
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif !important;
+    color: #0f172a !important;
+    box-sizing: border-box !important;
+    margin: 0 !important;
+    padding: 0 !important;
+}
+
+/* ==========================================================================
+   1. SEÇÃO HERO / SUPERIOR (45% DE ALTURA COM O PLANO DE FUNDO COWORKING)
+   ========================================================================== */
+.cw-hero-section {
+    position: relative;
+    width: 100vw;
+    height: 45vh;
+    min-height: 45vh;
+    max-height: 45vh;
+    background-image: url('img/layoutFundoOrgcoworking.png');
+    background-repeat: no-repeat;
+    background-position: center center;
+    background-size: cover;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    padding: 18px 40px 18px 40px;
+    box-sizing: border-box;
+    overflow: hidden;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+    z-index: 20;
+}
+
+/* Camada de sobreposição com gradiente sofisticado para legibilidade */
+.cw-hero-overlay {
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(
+        180deg, 
+        rgba(15, 23, 42, 0.55) 0%, 
+        rgba(15, 23, 42, 0.22) 45%, 
+        rgba(15, 23, 42, 0.50) 100%
+    );
+    pointer-events: none;
+    z-index: 1;
+}
+
+/* --- Barra Superior Flutuante sobre o Banner --- */
+.cw-hero-top-bar {
+    position: relative;
+    z-index: 10;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    width: 100%;
+}
+
+.cw-top-left-group {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.cw-brand-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    background: rgba(255, 255, 255, 0.92);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    padding: 5px 14px;
+    border-radius: 20px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.12);
+    border: 1px solid rgba(255, 255, 255, 0.7);
+}
+
+.cw-brand-bold {
+    font-size: 13px;
+    font-weight: 800;
+    color: #0284c7;
+    letter-spacing: 0.5px;
+}
+
+.cw-brand-sep {
+    color: #cbd5e1;
+    font-weight: 300;
+}
+
+.cw-brand-light {
+    font-size: 12px;
+    font-weight: 700;
+    color: #1e293b;
+    letter-spacing: 0.3px;
+}
+
+.cw-live-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    background: rgba(16, 185, 129, 0.90);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    color: #ffffff;
+    padding: 5px 12px;
+    border-radius: 20px;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.5px;
+    box-shadow: 0 2px 8px rgba(16, 185, 129, 0.35);
+}
+
+.cw-live-dot {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: #ffffff;
+    animation: cwPulse 1.8s infinite;
+}
+
+@keyframes cwPulse {
+    0% { transform: scale(0.9); opacity: 0.7; box-shadow: 0 0 0 0 rgba(255, 255, 255, 0.7); }
+    70% { transform: scale(1.15); opacity: 1; box-shadow: 0 0 0 6px rgba(255, 255, 255, 0); }
+    100% { transform: scale(0.9); opacity: 0.7; box-shadow: 0 0 0 0 rgba(255, 255, 255, 0); }
+}
+
+.cw-status-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 5px 12px;
+    border-radius: 20px;
+    font-size: 11px;
+    font-weight: 700;
+    background: rgba(255, 255, 255, 0.88);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    color: #059669;
+    border: 1px solid rgba(167, 243, 208, 0.6);
+}
+
+.cw-status-pill.operacional {
+    color: #059669;
+    border-color: #a7f3d0;
+}
+
+.cw-status-pill.atencao {
+    color: #d97706;
+    border-color: #fde68a;
+}
+
+.cw-status-pill.critico {
+    color: #dc2626;
+    border-color: #fecaca;
+}
+
+.cw-status-dot {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: currentColor;
+}
+
+/* Relógio Corporativo Central */
+.cw-clock-widget {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    background: rgba(15, 23, 42, 0.55);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    border: 1px solid rgba(255, 255, 255, 0.18);
+    padding: 5px 16px;
+    border-radius: 20px;
+    color: #ffffff;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+}
+
+.cw-clock-time {
+    font-size: 14px;
+    font-weight: 800;
+    letter-spacing: 0.5px;
+    font-variant-numeric: tabular-nums;
+    color: #38bdf8;
+}
+
+.cw-clock-sep {
+    color: rgba(255, 255, 255, 0.4);
+    font-size: 12px;
+}
+
+.cw-clock-date {
+    font-size: 12px;
+    font-weight: 500;
+    color: #e2e8f0;
+}
+
+/* Controles de Topo Direito */
+.cw-top-right-group {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.cw-ctrl-btn {
+    height: 34px;
+    padding: 0 14px;
+    border-radius: 8px;
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    transition: all 0.2s ease;
+    border: none;
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.12);
+}
+
+.cw-autoplay-btn {
+    background: rgba(255, 255, 255, 0.90);
+    backdrop-filter: blur(6px);
+    color: #1e293b;
+    border: 1px solid rgba(255, 255, 255, 0.6);
+}
+
+.cw-autoplay-btn:hover {
+    background: #ffffff;
+    color: #0284c7;
+    transform: translateY(-1px);
+}
+
+.cw-autoplay-btn.active {
+    background: #0284c7;
+    color: #ffffff;
+    border-color: #0284c7;
+    box-shadow: 0 0 12px rgba(2, 132, 199, 0.4);
+}
+
+.cw-device-select {
+    height: 34px;
+    padding: 0 12px;
+    border-radius: 8px;
+    background: rgba(255, 255, 255, 0.92);
+    backdrop-filter: blur(6px);
+    border: 1px solid rgba(255, 255, 255, 0.6);
+    color: #0f172a;
+    font-size: 12px;
+    font-weight: 600;
+    outline: none;
+    cursor: pointer;
+}
+
+.cw-exit-btn {
+    background: rgba(254, 242, 242, 0.92);
+    backdrop-filter: blur(6px);
+    color: #dc2626;
+    border: 1px solid rgba(254, 202, 202, 0.8);
+}
+
+.cw-exit-btn:hover {
+    background: #dc2626;
+    color: #ffffff;
+    transform: translateY(-1px);
+}
+
+/* --- Linha de Conteúdo Principal do Banner (Sobreposto) --- */
+.cw-hero-content-row {
+    position: relative;
+    z-index: 10;
+    display: flex;
+    align-items: flex-end;
+    justify-content: space-between;
+    gap: 24px;
+    margin-bottom: 4px;
+}
+
+/* ==========================================================================
+   CARD INFORMATIVO DA QUALIDADE DO AR (LADO ESQUERDO) - DESTAQUE COWORKING
+   ========================================================================== */
+.cw-air-card {
+    background: rgba(255, 255, 255, 0.94);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    border: 1px solid rgba(255, 255, 255, 0.9);
+    border-radius: 20px;
+    padding: 18px 24px 16px 24px;
+    box-shadow: 0 14px 38px rgba(0, 0, 0, 0.22), 0 2px 8px rgba(0, 0, 0, 0.08);
+    width: 520px;
+    max-width: 48vw;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    animation: cwFadeInLeft 0.4s ease;
+}
+
+@keyframes cwFadeInLeft {
+    from { opacity: 0; transform: translateX(-15px); }
+    to { opacity: 1; transform: translateX(0); }
+}
+
+.cw-air-card-header {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+}
+
+.cw-location-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.6px;
+    color: #0284c7;
+}
+
+.cw-location-heading {
+    margin: 0;
+    font-size: 21px;
+    font-weight: 800;
+    color: #0f172a;
+    letter-spacing: -0.4px;
+    line-height: 1.2;
+}
+
+.cw-air-status-highlight {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 14px;
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
+    padding: 8px 14px;
+    border-radius: 14px;
+}
+
+.cw-air-badge {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.cw-air-icon-bubble {
+    width: 40px;
+    height: 40px;
+    border-radius: 12px;
+    background: #ecfdf5;
+    color: #059669;
+    border: 1px solid #a7f3d0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+}
+
+.cw-air-badge.atencao .cw-air-icon-bubble {
+    background: #fffbe8;
+    color: #d97706;
+    border-color: #fde68a;
+}
+
+.cw-air-badge.critico .cw-air-icon-bubble {
+    background: #fef2f2;
+    color: #dc2626;
+    border-color: #fecaca;
+}
+
+.cw-air-status-meta {
+    display: flex;
+    flex-direction: column;
+}
+
+.cw-air-label {
+    font-size: 11px;
+    font-weight: 600;
+    color: #64748b;
+    text-transform: uppercase;
+    letter-spacing: 0.4px;
+}
+
+.cw-air-value {
+    font-size: 22px;
+    font-weight: 900;
+    color: #059669;
+    line-height: 1.1;
+    letter-spacing: -0.5px;
+}
+
+.cw-air-badge.atencao .cw-air-value {
+    color: #d97706;
+}
+
+.cw-air-badge.critico .cw-air-value {
+    color: #dc2626;
+}
+
+.cw-air-quick-stats {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    border-left: 1px solid #e2e8f0;
+    padding-left: 14px;
+}
+
+.cw-quick-stat {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+}
+
+.cw-quick-stat-lbl {
+    font-size: 10px;
+    font-weight: 600;
+    color: #94a3b8;
+    text-transform: uppercase;
+}
+
+.cw-quick-stat-val {
+    font-size: 13px;
+    font-weight: 800;
+    color: #0f172a;
+}
+
+.cw-air-card-desc {
+    font-size: 12px;
+    line-height: 1.45;
+    color: #475569;
+    margin: 0;
+    font-weight: 500;
+}
+
+.cw-air-card-footer {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    border-top: 1px solid #f1f5f9;
+    padding-top: 8px;
+    font-size: 11px;
+    color: #64748b;
+}
+
+.cw-footer-item {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.cw-dot-subtle {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: #0284c7;
+}
+
+/* --- Painel de Bem-Estar no Lado Direito do Banner --- */
+.cw-hero-wellness-panel {
+    display: flex;
+    gap: 14px;
+    align-items: stretch;
+}
+
+.cw-wellness-item {
+    background: rgba(255, 255, 255, 0.90);
+    backdrop-filter: blur(14px);
+    -webkit-backdrop-filter: blur(14px);
+    border: 1px solid rgba(255, 255, 255, 0.85);
+    border-radius: 16px;
+    padding: 12px 18px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.16);
+    min-width: 200px;
+    animation: cwFadeInRight 0.4s ease;
+}
+
+@keyframes cwFadeInRight {
+    from { opacity: 0; transform: translateX(15px); }
+    to { opacity: 1; transform: translateX(0); }
+}
+
+.cw-wellness-icon-wrap {
+    width: 40px;
+    height: 40px;
+    border-radius: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+}
+
+.cw-wellness-icon-wrap.blue {
+    background: #e0f2fe;
+    color: #0284c7;
+}
+
+.cw-wellness-icon-wrap.green {
+    background: #ecfdf5;
+    color: #059669;
+}
+
+.cw-wellness-icon-wrap.purple {
+    background: #f3e8ff;
+    color: #7c3aed;
+}
+
+.cw-wellness-text {
+    display: flex;
+    flex-direction: column;
+}
+
+.cw-wellness-title {
+    font-size: 10px;
+    font-weight: 700;
+    color: #64748b;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.cw-wellness-status {
+    font-size: 14px;
+    font-weight: 800;
+    color: #0f172a;
+    line-height: 1.2;
+}
+
+.cw-wellness-sub {
+    font-size: 11px;
+    color: #64748b;
+    font-weight: 500;
+}
+
+/* ==========================================================================
+   2. SEÇÃO DE DADOS INFERIOR (55% DE ALTURA COM FUNDO BRANCO PADRÃO)
+   ========================================================================== */
+.cw-data-section {
+    position: relative;
+    width: 100vw;
+    height: 55vh;
+    min-height: 55vh;
+    max-height: 55vh;
+    background: #ffffff;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    padding: 14px 36px 10px 36px;
+    box-sizing: border-box;
+    overflow: hidden;
+    z-index: 10;
+}
+
+.cw-data-content-wrap {
+    display: flex;
+    align-items: stretch;
+    gap: 20px;
+    flex: 1;
+    min-height: 0;
+    max-width: 1720px;
+    margin: 0 auto;
+    width: 100%;
+}
+
+/* --- Coluna dos Manômetros (Esquerda da Área Branca) --- */
+.cw-gauges-panel {
+    flex: 0 0 380px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    justify-content: space-between;
+}
+
+.cw-data-card {
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
+    border-radius: 14px;
+    padding: 12px 18px 10px 18px;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.03);
+    transition: all 0.25s ease;
+}
+
+.cw-data-card:hover {
+    border-color: #cbd5e1;
+    transform: translateY(-1px);
+    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.06);
+}
+
+.cw-gauge-card {
+    flex: 1;
+    min-height: 0;
+}
+
+.cw-card-top-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+}
+
+.cw-card-category {
+    font-size: 10px;
+    font-weight: 700;
+    text-transform: uppercase;
+    color: #64748b;
+    letter-spacing: 0.5px;
+    display: block;
+}
+
+.cw-card-title {
+    margin: 2px 0 0 0;
+    font-size: 15px;
+    font-weight: 800;
+    color: #0f172a;
+    letter-spacing: -0.2px;
+}
+
+.cw-status-chip {
+    font-size: 10px;
+    font-weight: 800;
+    text-transform: uppercase;
+    padding: 2px 8px;
+    border-radius: 12px;
+}
+
+.cw-status-chip.ideal {
+    background: #ecfdf5;
+    color: #059669;
+}
+
+.cw-status-chip.aviso {
+    background: #fffbe8;
+    color: #d97706;
+}
+
+.cw-status-chip.critico {
+    background: #fef2f2;
+    color: #dc2626;
+}
+
+.cw-gauge-center-area {
+    position: relative;
+    width: 100%;
+    height: 105px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin: 1px 0;
+}
+
+.cw-canvas-holder {
+    width: 100%;
+    height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.cw-canvas-holder canvas {
+    max-height: 105px !important;
+}
+
+.cw-gauge-number-overlay {
+    position: absolute;
+    bottom: 4px;
+    left: 50%;
+    transform: translateX(-50%);
+    display: flex;
+    align-items: baseline;
+    gap: 3px;
+    pointer-events: none;
+}
+
+.cw-gauge-big-num {
+    font-size: 32px;
+    font-weight: 900;
+    color: #0f172a;
+    line-height: 1;
+    letter-spacing: -1px;
+}
+
+.cw-gauge-unit {
+    font-size: 16px;
+    font-weight: 700;
+    color: #64748b;
+}
+
+.cw-gauge-scale-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    font-size: 10px;
+    font-weight: 600;
+    color: #94a3b8;
+    border-top: 1px solid #f1f5f9;
+    padding-top: 5px;
+}
+
+.cw-scale-pill {
+    background: #f0f9ff;
+    color: #0284c7;
+    font-weight: 700;
+    padding: 2px 8px;
+    border-radius: 10px;
+    font-size: 10px;
+}
+
+/* --- Painel de Variáveis Ambientais (Direita da Área Branca) --- */
+.cw-params-panel {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.cw-params-panel-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-end;
+    border-bottom: 1px solid #f1f5f9;
+    padding-bottom: 6px;
+}
+
+.cw-section-kicker {
+    font-size: 11px;
+    font-weight: 700;
+    color: #0284c7;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    display: block;
+}
+
+.cw-section-heading {
+    margin: 1px 0 0 0;
+    font-size: 16px;
+    font-weight: 800;
+    color: #0f172a;
+    letter-spacing: -0.3px;
+}
+
+.cw-norm-badge {
+    font-size: 11px;
+    font-weight: 600;
+    color: #64748b;
+    background: #f1f5f9;
+    padding: 3px 10px;
+    border-radius: 12px;
+    border: 1px solid #e2e8f0;
+}
+
+.cw-params-grid {
+    flex: 1;
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    grid-template-rows: repeat(2, 1fr);
+    gap: 12px;
+    min-height: 0;
+}
+
+.cw-param-box {
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
+    border-radius: 12px;
+    padding: 10px 14px;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    transition: all 0.2s ease;
+}
+
+.cw-param-box:hover {
+    border-color: #cbd5e1;
+    background: #ffffff;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.04);
+}
+
+.cw-box-top {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+
+.cw-box-ident {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.cw-symbol-pill {
+    font-size: 10px;
+    font-weight: 800;
+    color: #0284c7;
+    background: #e0f2fe;
+    padding: 2px 6px;
+    border-radius: 4px;
+    letter-spacing: 0.3px;
+}
+
+.cw-symbol-pill.diag {
+    background: #e2e8f0;
+    color: #334155;
+}
+
+.cw-param-label {
+    font-size: 12px;
+    font-weight: 700;
+    color: #334155;
+}
+
+.cw-box-status {
+    font-size: 10px;
+    font-weight: 700;
+    padding: 2px 7px;
+    border-radius: 10px;
+}
+
+.cw-box-status.ideal {
+    background: #ecfdf5;
+    color: #059669;
+}
+
+.cw-box-status.aviso {
+    background: #fffbe8;
+    color: #d97706;
+}
+
+.cw-box-status.critico {
+    background: #fef2f2;
+    color: #dc2626;
+}
+
+.cw-box-value-row {
+    display: flex;
+    align-items: baseline;
+    gap: 4px;
+    margin: 2px 0;
+}
+
+.cw-box-val {
+    font-size: 26px;
+    font-weight: 900;
+    color: #0f172a;
+    line-height: 1;
+    letter-spacing: -0.5px;
+}
+
+.cw-box-unit {
+    font-size: 12px;
+    font-weight: 700;
+    color: #64748b;
+}
+
+.cw-box-bottom {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    font-size: 10px;
+    color: #64748b;
+    border-top: 1px dashed #e2e8f0;
+    padding-top: 4px;
+}
+
+.cw-box-hint {
+    font-weight: 600;
+}
+
+.cw-box-note {
+    font-size: 10px;
+    color: #94a3b8;
+    font-weight: 500;
+}
+
+/* Box Diagnóstico Especial */
+.cw-param-box.diag {
+    background: #f1f5f9;
+    border-color: #cbd5e1;
+}
+
+.cw-diag-inline-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin: 4px 0;
+}
+
+.cw-diag-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 11px;
+    color: #334155;
+    background: #ffffff;
+    padding: 3px 8px;
+    border-radius: 6px;
+    border: 1px solid #e2e8f0;
+}
+
+.cw-diag-dot-green {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: #10b981;
+}
+
+/* --- Rodapé da Área Branca (Controles de Navegação e Atalhos) --- */
+.cw-bottom-control-bar {
+    height: 42px;
+    min-height: 42px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    border-top: 1px solid #f1f5f9;
+    margin-top: 4px;
+    padding-top: 4px;
+}
+
+.cw-nav-buttons-wrap {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.cw-small-nav-btn {
+    height: 30px;
+    padding: 0 12px;
+    border-radius: 6px;
+    border: 1px solid #cbd5e1;
+    background: #ffffff;
+    font-size: 11px;
+    font-weight: 700;
+    color: #334155;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    transition: all 0.2s ease;
+}
+
+.cw-small-nav-btn:hover {
+    background: #f1f5f9;
+    border-color: #94a3b8;
+}
+
+.cw-dots-holder {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.cw-dots-holder .fs-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: #cbd5e1;
+    cursor: pointer;
+    transition: all 0.25s ease;
+}
+
+.cw-dots-holder .fs-dot.active {
+    background: #0284c7;
+    width: 22px;
+    border-radius: 4px;
+}
+
+.cw-bottom-meta-wrap {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.cw-counter-chip {
+    font-size: 11px;
+    font-weight: 700;
+    color: #0f172a;
+    background: #f1f5f9;
+    padding: 3px 10px;
+    border-radius: 12px;
+    border: 1px solid #e2e8f0;
+}
+
+.cw-keyboard-legend {
+    font-size: 11px;
+    color: #94a3b8;
+}
+
+/* ==========================================================================
+   RESPONSIVIDADE E ADAPTAÇÃO PARA DIFERENTES RESOLUÇÕES
+   ========================================================================== */
+@media (max-width: 1280px) {
+    .cw-hero-section {
+        padding: 14px 24px;
+    }
+    .cw-data-section {
+        padding: 10px 24px 8px 24px;
+    }
+    .cw-air-card {
+        width: 460px;
+        padding: 14px 18px;
+    }
+    .cw-location-heading {
+        font-size: 18px;
+    }
+    .cw-wellness-item {
+        min-width: 170px;
+        padding: 10px 14px;
+    }
+    .cw-gauges-panel {
+        flex: 0 0 320px;
+    }
+    .cw-gauge-big-num {
+        font-size: 28px;
+    }
+    .cw-box-val {
+        font-size: 22px;
+    }
+}
+
+@media (max-height: 750px) {
+    .cw-hero-section {
+        padding: 10px 24px;
+    }
+    .cw-data-section {
+        padding: 8px 24px 6px 24px;
+    }
+    .cw-air-card {
+        padding: 10px 16px;
+        gap: 6px;
+    }
+    .cw-location-heading {
+        font-size: 17px;
+    }
+    .cw-air-value {
+        font-size: 19px;
+    }
+    .cw-gauge-center-area {
+        height: 80px;
+    }
+    .cw-canvas-holder canvas {
+        max-height: 80px !important;
+    }
+    .cw-gauge-big-num {
+        font-size: 24px;
+    }
+    .cw-box-val {
+        font-size: 20px;
+    }
+    .cw-bottom-control-bar {
+        height: 34px;
+        min-height: 34px;
+    }
+}

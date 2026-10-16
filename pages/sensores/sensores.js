@@ -44,17 +44,23 @@ document.addEventListener('DOMContentLoaded', function() {
     // Conectar via Socket.IO para atualizações em tempo real
     if (typeof io !== 'undefined') {
         const socket = io(API_BASE, { auth: { token: localStorage.getItem('sensorium_token') } });
+
+        socket.on('sensor_reading', (data) => {
+            setSensorLiveBadgeState(true);
+            loadDashboardData();
+        });
+
         socket.on('dashboard_update', (data) => {
-            console.log('Recebido update via WebSocket:', data);
             setSensorLiveBadgeState(true);
             loadDashboardData();
             
             // Se o modal do dispositivo atualizado estiver aberto, atualiza o histórico também
+            const devSerial = data?.numeroSerie || data?.numero_serie || data?.dispositivo_numero_serie;
             const modal = document.getElementById('sensorModal');
-            if (modal && modal.classList.contains('active')) {
-                const title = document.getElementById('modalSensorTitle').innerText;
-                if (title.includes(data.numeroSerie)) {
-                    fetchDeviceHistory(data.numeroSerie);
+            if (modal && modal.classList.contains('active') && devSerial) {
+                const title = document.getElementById('modalSensorTitle')?.innerText || '';
+                if (title.toLowerCase().includes(String(devSerial).toLowerCase())) {
+                    fetchDeviceHistory(devSerial);
                 }
             }
         });

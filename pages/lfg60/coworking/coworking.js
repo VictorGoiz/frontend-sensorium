@@ -21,7 +21,7 @@ let currentLimites = {
     formaldeido: { max_ideal: 0.05, max_aviso: 0.10, unit: 'mg/m³', label: 'Formaldeído (HCHO)' }
 };
 
-let lastProcessedReadingSignature = '';
+const deviceLastSignatures = new Map();
 let sensorBadgeWatchdog = null;
 let liveClockInterval = null;
 
@@ -323,30 +323,41 @@ async function fetchDevicesFromApi() {
 }
 
 function handleLiveSensorReading(reading) {
-    if (!reading || !reading.numeroSerie) return;
+    if (!reading) return;
+    const numSerie = reading.numeroSerie || reading.numero_serie || reading.dispositivo_numero_serie;
+    if (!numSerie) return;
 
-    const { numeroSerie, temperatura, umidade, co2, pm25, pm10, voc, formaldeido, led, status, timestamp } = reading;
+    const { temperatura, umidade, co2, pm25, pm10, voc, formaldeido, led, status, timestamp } = reading;
 
-    const sig = `${numeroSerie}_${timestamp}_${temperatura}_${umidade}_${co2}`;
-    if (lastProcessedReadingSignature === sig) return;
-    lastProcessedReadingSignature = sig;
+    const sig = `${numSerie}_${timestamp}_${temperatura}_${umidade}_${co2}_${pm25}_${voc}`;
+    if (deviceLastSignatures.get(numSerie) === sig) return;
+    deviceLastSignatures.set(numSerie, sig);
 
     setSensorLiveBadgeState(true);
 
-    const dev = currentDevices.find(d => d.numero_serie === numeroSerie);
+    let dev = currentDevices.find(d => d.numero_serie && d.numero_serie.trim().toLowerCase() === String(numSerie).trim().toLowerCase());
     if (!dev) {
+        dev = {
+            numero_serie: String(numSerie).trim(),
+            status: status || 'Operacional',
+            led: led || 'Verde',
+            unread_alerts: 0,
+            ultima_leitura: null
+        };
+        currentDevices.push(dev);
+        updateLfgDeviceSelect(currentDevices);
+        renderSensorCards(currentDevices);
         loadDashboardData();
-        return;
     }
 
     dev.ultima_leitura = {
-        temperatura: temperatura ?? null,
-        umidade: umidade ?? null,
-        co2: co2 ?? null,
-        pm25: pm25 ?? null,
-        pm10: pm10 ?? null,
-        voc: voc ?? null,
-        formaldeido: formaldeido ?? null,
+        temperatura: (temperatura !== null && temperatura !== undefined) ? Number(temperatura) : null,
+        umidade: (umidade !== null && umidade !== undefined) ? Number(umidade) : null,
+        co2: (co2 !== null && co2 !== undefined) ? Number(co2) : null,
+        pm25: (pm25 !== null && pm25 !== undefined) ? Number(pm25) : null,
+        pm10: (pm10 !== null && pm10 !== undefined) ? Number(pm10) : null,
+        voc: (voc !== null && voc !== undefined) ? Number(voc) : null,
+        formaldeido: (formaldeido !== null && formaldeido !== undefined) ? Number(formaldeido) : null,
         timestamp: timestamp || new Date().toISOString()
     };
     if (led !== undefined && led !== null) dev.led = led;
@@ -358,14 +369,14 @@ function handleLiveSensorReading(reading) {
     const modal = document.getElementById('sensorModal');
     if (modal && modal.classList.contains('active')) {
         const title = document.getElementById('modalSensorTitle')?.innerText || '';
-        if (title.includes(numeroSerie)) {
+        if (title.toLowerCase().includes(String(numSerie).toLowerCase())) {
             updateOpenModalValues(dev);
         }
     }
 
     if (document.body.classList.contains('fullscreen-active')) {
         const activeDev = currentDevices[fullscreenActiveIndex];
-        if (activeDev && activeDev.numero_serie === numeroSerie) {
+        if (activeDev && activeDev.numero_serie && activeDev.numero_serie.trim().toLowerCase() === String(numSerie).trim().toLowerCase()) {
             renderFullscreenDevice(fullscreenActiveIndex);
         }
     }

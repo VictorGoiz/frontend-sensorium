@@ -1,0 +1,630 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sensimonitor - Pressurização de Água Smart Fit</title>
+    <link rel="icon" type="image/png" href="../../img/logo_head.png">
+    <link rel="stylesheet" href="../pressurizacao.css">
+    <link rel="stylesheet" href="smartfit.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+    <script src="../../config.js"></script>
+</head>
+<body>
+    <div class="app-layout">
+        <!-- Sidebar Navigation -->
+        <aside class="sidebar">
+            <div class="logo-container">
+                <img src="../../img/logo_sensimonitor.png" alt="SensiMonitor" class="sidebar-logo">
+            </div>
+            <nav>
+                <a href="../../home/index.html" class="nav-item">Visão Geral</a>
+                <a href="../../sensores/index.html" class="nav-item">Sensores</a>
+                <a href="../../reles/index.html" class="nav-item">Relés</a>
+                
+                <!-- Dropdown Apresentação de Dispositivos -->
+                <div class="nav-dropdown open">
+                    <button class="nav-dropdown-toggle active" onclick="toggleNavDropdown(this)">
+                        <span>Dispositivos</span>
+                        <svg class="chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <polyline points="6 9 12 15 18 9"></polyline>
+                        </svg>
+                    </button>
+                    <div class="nav-dropdown-menu">
+                        <a href="../../chopeiras/index.html" class="nav-subitem">Chopeiras</a>
+                        <a href="../../lfg60/index.html" class="nav-subitem">LFG60</a>
+                        <a href="../../incendio/index.html" class="nav-subitem">Sistema de Incêndio</a>
+                        <a href="../index.html" class="nav-subitem">Pressurização Padrão</a>
+                        <a href="index.html" class="nav-subitem active">Pressurização Smart Fit</a>
+                        <a href="../../hidraulico/index.html" class="nav-subitem">Sistema Hidráulico</a>
+                    </div>
+                </div>
+            </nav>
+            <div class="user-info">
+                <a href="../../login/index.html" class="logout-btn">Sair</a>
+            </div>
+        </aside>
+
+        <!-- Main Content Presentation -->
+        <main class="main-content">
+            <header class="presentation-header">
+                <div class="header-brand">
+                    <div class="header-title-row">
+                        <h1>Sistema de Pressurização — Smart Fit</h1>
+                        <span class="badge-live-presentation" id="livePresentationBadge">
+                            <span class="dot"></span>
+                            <span id="liveBadgeText">AGUARDANDO DADOS</span>
+                        </span>
+                    </div>
+                    <p>Supervisão contínua da pressão hidráulica, bombas booster e abastecimento de duchas e vestiários da unidade Smart Fit</p>
+                </div>
+
+                <div class="header-actions">
+                    <select id="pressurizacaoSelect" class="select-presentation" onchange="onSelectPressurizacaoChange()">
+                        <option value="">Carregando estações...</option>
+                    </select>
+
+                    <select id="pressurizacaoPeriodSelect" class="select-presentation" style="min-width: 130px;" onchange="loadPressurizacaoChart(null, true)">
+                        <option value="all">Ao Vivo</option>
+                        <option value="1h">1 hora</option>
+                        <option value="6h">6 horas</option>
+                        <option value="24h">24 horas</option>
+                    </select>
+
+                    <button class="btn-presentation-action" onclick="openRegistrosModal()" title="Consultar histórico, exportar em CSV e gerenciar telemetria">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                            <polyline points="14 2 14 8 20 8"></polyline>
+                            <line x1="16" y1="13" x2="8" y2="13"></line>
+                            <line x1="16" y1="17" x2="8" y2="17"></line>
+                            <polyline points="10 9 9 9 8 9"></polyline>
+                        </svg>
+                        <span>Registros</span>
+                    </button>
+
+                    <button class="btn-fullscreen btn-fullscreen-smartfit" onclick="toggleFullscreen()" title="Abrir Tela Cheia Corporativa Smart Fit">
+                        <svg id="fullscreenIcon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"/>
+                        </svg>
+                        <span id="fullscreenText">Tela Cheia Smart Fit</span>
+                    </button>
+                </div>
+            </header>
+
+            <!-- 4 Executive Cards Row -->
+            <div class="executive-cards-grid">
+                <!-- Card 1: Pressão da Linha de Água -->
+                <div class="exec-card">
+                    <div class="exec-card-header">
+                        <h3>Pressão Atual (Sensor de Linha)</h3>
+                    </div>
+                    <div class="exec-main-value">
+                        <span id="execPressureVal" class="exec-number">--</span>
+                        <span class="exec-unit">psi</span>
+                    </div>
+                    <div class="exec-card-footer">
+                        <span class="exec-sublabel">Estação Booster:</span>
+                        <span id="execDeviceSerial" class="val-pill blue">--</span>
+                    </div>
+                </div>
+
+                <!-- Card 2: Relé 1 (Bomba Booster 1 - Principal) -->
+                <div class="exec-card">
+                    <div class="exec-card-header">
+                        <h3>Bomba 1 — Principal (Duchas)</h3>
+                    </div>
+                    <div class="exec-main-value">
+                        <span id="execR1Status" class="exec-number" style="font-size: 24px;">--</span>
+                    </div>
+                    <div class="exec-card-footer">
+                        <span>ON: <strong id="execR1On" class="val-pill green">--</strong> | OFF: <strong id="execR1Off" class="val-pill red">--</strong></span>
+                        <span>Partidas: <strong id="execR1Ac">--</strong></span>
+                    </div>
+                </div>
+
+                <!-- Card 3: Relé 2 (Bomba Booster 2 - Auxiliar) -->
+                <div class="exec-card">
+                    <div class="exec-card-header">
+                        <h3>Bomba 2 — Auxiliar / Apoio</h3>
+                    </div>
+                    <div class="exec-main-value">
+                        <span id="execR2Status" class="exec-number" style="font-size: 24px;">--</span>
+                    </div>
+                    <div class="exec-card-footer">
+                        <span>ON: <strong id="execR2On" class="val-pill green">--</strong> | OFF: <strong id="execR2Off" class="val-pill red">--</strong></span>
+                        <span>Partidas: <strong id="execR2Ac">--</strong></span>
+                    </div>
+                </div>
+
+                <!-- Card 4: Status Operacional Geral -->
+                <div class="exec-card">
+                    <div class="exec-card-header">
+                        <h3>Status Geral da Rede</h3>
+                    </div>
+                    <div class="exec-main-value">
+                        <span id="execTotalPressurizacao" class="exec-number">0</span>
+                        <span class="exec-unit">estações</span>
+                    </div>
+                    <div class="exec-card-footer">
+                        <span>Condição Operacional:</span>
+                        <span id="execSystemStatus" class="val-pill green">Normal</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Main Interactive Chart Presentation -->
+            <div class="presentation-chart-card">
+                <div class="chart-card-header">
+                    <div>
+                        <h2>Curva de Pressão em Tempo Real & Setpoints Hidráulicos</h2>
+                        <span class="chart-subtitle">Supervisão contínua da pressão de linha, histerese de acionamento das bombas e consumo</span>
+                    </div>
+                    <div class="chart-card-meta">
+                        <div class="legend-inline">
+                            <span class="legend-item"><span class="legend-line blue"></span> Pressão da Rede (psi)</span>
+                            <span class="legend-item"><span class="legend-line cyan"></span> Partida Bomba 1 (ON)</span>
+                            <span class="legend-item"><span class="legend-line orange"></span> Partida Bomba 2 (ON)</span>
+                            <span class="legend-item"><span class="legend-line green"></span> Pressão de Corte (OFF)</span>
+                        </div>
+                    </div>
+                </div>
+                <div class="chart-stage-wrapper">
+                    <canvas id="pressurizacaoChart"></canvas>
+                </div>
+            </div>
+
+            <!-- Grid de Estações / Centrais de Pressurização Monitoradas -->
+            <div class="pressurizacao-section-title">
+                <span>Centrais de Pressurização Conectadas</span>
+                <span id="pressurizacaoListSummary" style="font-size: 12px; color: var(--text-muted); font-weight: 400;">Atualização contínua</span>
+            </div>
+            <div id="pressurizacaoGrid" class="pressurizacao-devices-grid">
+                <div style="grid-column: 1/-1; padding: 20px; text-align: center; color: var(--text-muted); font-size: 13px;">Carregando estações de pressurização...</div>
+            </div>
+        </main>
+    </div>
+
+    <!-- ======================================================================
+         MODO TELA CHEIA CORPORATIVO DO CLIENTE SMART FIT
+         Top 45% com plano de fundo 'img/layoutRecepcaoSmartfit.png'
+         Bottom 55% com fundo branco padrão, manômetros, cards e gráfico
+         ====================================================================== -->
+    <div id="pressurizacaoFullscreenPresentation" class="sf-fullscreen-presentation">
+        <!-- ÁREA SUPERIOR (45% DA TELA) COM IMAGEM DE FUNDO DA RECEPÇÃO SMART FIT -->
+        <section class="sf-hero-section">
+            <div class="sf-hero-overlay"></div>
+
+            <!-- Barra Superior Flutuante sobre o Banner -->
+            <div class="sf-hero-top-bar">
+                <div class="sf-top-left-group">
+                    <div class="sf-brand-pill">
+                        <span class="sf-brand-bold">SMART FIT</span>
+                        <span class="sf-brand-sep">|</span>
+                        <span class="sf-brand-light">SENSIMONITOR</span>
+                    </div>
+
+                    <div class="sf-live-pill" id="fsLiveBadge">
+                        <span class="sf-live-dot"></span>
+                        <span id="sfLiveStatusText">AO VIVO</span>
+                    </div>
+
+                    <div class="sf-status-pill operacional" id="fsStatusPill">
+                        <span class="sf-status-dot" id="fsStatusDot"></span>
+                        <span id="fsStatusText">Operacional</span>
+                    </div>
+                </div>
+
+                <!-- Relógio Corporativo Central -->
+                <div class="sf-clock-widget">
+                    <span class="sf-clock-time" id="sfLiveClock">--:--:--</span>
+                    <span class="sf-clock-sep">•</span>
+                    <span class="sf-clock-date" id="sfLiveDate">Carregando data...</span>
+                </div>
+
+                <!-- Controles de Topo Direito -->
+                <div class="sf-top-right-group">
+                    <button class="sf-ctrl-btn sf-autoplay-btn" id="fsAutoplayBtn" onclick="toggleFullscreenAutoplay()" title="Alternar rotação automática (Espaço)">
+                        <svg id="fsAutoplayIcon" width="15" height="15" viewBox="0 0 24 24" fill="currentColor">
+                            <polygon points="5 3 19 12 5 21 5 3"></polygon>
+                        </svg>
+                        <span id="fsAutoplayText">Auto (8s)</span>
+                    </button>
+
+                    <select id="fsDeviceSelect" class="sf-device-select" onchange="onFsDeviceSelectChange(this.value)" title="Estação selecionada">
+                        <!-- Populated dynamically -->
+                    </select>
+
+                    <button class="sf-ctrl-btn sf-exit-btn" onclick="toggleFullscreen()" title="Sair da Tela Cheia (Esc)">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
+                            <line x1="18" y1="6" x2="6" y2="18"></line>
+                            <line x1="6" y1="6" x2="18" y2="18"></line>
+                        </svg>
+                        <span>Sair</span>
+                    </button>
+                </div>
+            </div>
+
+            <!-- CONTEÚDO PRINCIPAL SOBREPOSTO AO FUNDO DE 45% -->
+            <div class="sf-hero-content-row">
+                <!-- CARD INFORMATIVO DA PRESSURIZAÇÃO (LADO ESQUERDO) -->
+                <div class="sf-info-card">
+                    <div class="sf-info-card-header">
+                        <div class="sf-location-badge">
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                                <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path>
+                                <circle cx="12" cy="10" r="3"></circle>
+                            </svg>
+                            <span>Ambiente Monitorado</span>
+                        </div>
+                        <h2 class="sf-location-heading">Unidade Smart Fit — Rede de Pressurização</h2>
+                    </div>
+
+                    <div class="sf-status-highlight-box">
+                        <div class="sf-status-badge ideal" id="sfPressureStatusBadge">
+                            <div class="sf-status-icon-bubble">
+                                <!-- Ícone de Fluxo de Água / Pressurização Ideal -->
+                                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                    <path d="M12 2.69l5.66 5.66a8 8 0 1 1-11.31 0z"></path>
+                                </svg>
+                            </div>
+                            <div class="sf-status-meta">
+                                <span class="sf-status-label">Pressurização de Água</span>
+                                <strong class="sf-status-value" id="sfPressureStatusValue">Boa / Pressurizada</strong>
+                            </div>
+                        </div>
+
+                        <!-- Mini Indicadores Rápidos no Card -->
+                        <div class="sf-quick-stats">
+                            <div class="sf-quick-stat">
+                                <span class="sf-quick-stat-lbl">Pressão Atual</span>
+                                <strong class="sf-quick-stat-val" id="sfHeroPressureVal">-- psi</strong>
+                            </div>
+                            <div class="sf-quick-stat">
+                                <span class="sf-quick-stat-lbl">Bomba 1</span>
+                                <strong class="sf-quick-stat-val" id="sfHeroBomba1Val">--</strong>
+                            </div>
+                            <div class="sf-quick-stat">
+                                <span class="sf-quick-stat-lbl">Bomba 2</span>
+                                <strong class="sf-quick-stat-val" id="sfHeroBomba2Val">--</strong>
+                            </div>
+                        </div>
+                    </div>
+
+                    <p class="sf-info-card-desc" id="sfPressureStatusDesc">
+                        Rede hidráulica em pressão ideal. Abastecimento contínuo e equilibrado nas duchas, vestiários e bebedouros para a melhor experiência dos alunos.
+                    </p>
+
+                    <div class="sf-info-card-footer">
+                        <div class="sf-footer-item">
+                            <span class="sf-dot-subtle"></span>
+                            <span id="fsDeviceTitle">Estação --</span>
+                        </div>
+                        <div class="sf-footer-item" id="fsLastReadingTime">
+                            Última leitura: --
+                        </div>
+                    </div>
+                </div>
+
+                <!-- LADO DIREITO DO BANNER: DESTAQUES CORPORATIVOS DA REDE SMART FIT -->
+                <div class="sf-hero-highlights-panel">
+                    <div class="sf-highlight-item">
+                        <div class="sf-highlight-icon-wrap yellow">
+                            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <path d="M4 14.899A7 7 0 1 1 15.71 8h1.79a4.5 4.5 0 0 1 2.5 8.242"></path>
+                                <path d="M12 12v9"></path>
+                                <path d="m8 17 4 4 4-4"></path>
+                            </svg>
+                        </div>
+                        <div class="sf-highlight-text">
+                            <span class="sf-highlight-title">Conforto nos Vestiários</span>
+                            <strong class="sf-highlight-status" id="sfWellnessDuchas">Duchas em Fluxo Pleno</strong>
+                            <span class="sf-highlight-sub">Vazão equilibrada e contínua</span>
+                        </div>
+                    </div>
+
+                    <div class="sf-highlight-item">
+                        <div class="sf-highlight-icon-wrap blue">
+                            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <circle cx="12" cy="12" r="10"></circle>
+                                <polyline points="12 6 12 12 16 14"></polyline>
+                            </svg>
+                        </div>
+                        <div class="sf-highlight-text">
+                            <span class="sf-highlight-title">Recomposição Ágil</span>
+                            <strong class="sf-highlight-status" id="sfWellnessBooster">Booster em Standby</strong>
+                            <span class="sf-highlight-sub">Acionamento inteligente sob demanda</span>
+                        </div>
+                    </div>
+
+                    <div class="sf-highlight-item">
+                        <div class="sf-highlight-icon-wrap green">
+                            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path>
+                            </svg>
+                        </div>
+                        <div class="sf-highlight-text">
+                            <span class="sf-highlight-title">Estabilidade Hidráulica</span>
+                            <strong class="sf-highlight-status" id="sfWellnessSeguranca">100% Conforme</strong>
+                            <span class="sf-highlight-sub">Linha isenta de sobrepressão</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- ÁREA INFERIOR (55% DA TELA) COM FUNDO BRANCO PADRÃO, MANÔMETROS, CARDS E GRÁFICO -->
+        <section class="sf-data-section">
+            <div class="sf-data-content-wrap">
+                <!-- Coluna Esquerda: Manômetro de Pressão e Status das Bombas -->
+                <div class="sf-left-column">
+                    <!-- Card 1: Manômetro de Pressão -->
+                    <div class="sf-data-card sf-gauge-card" id="fsPressureGaugeCard">
+                        <div class="sf-card-top-row">
+                            <div>
+                                <span class="sf-card-category">Barrilete Hidráulico</span>
+                                <h3 class="sf-card-title">Pressão da Rede</h3>
+                            </div>
+                            <span class="sf-status-chip ideal" id="fsPressureEval">Estável</span>
+                        </div>
+
+                        <div class="sf-gauge-center-area">
+                            <div class="sf-canvas-holder">
+                                <canvas id="fsGaugePressureCanvas"></canvas>
+                            </div>
+                            <div class="sf-gauge-number-overlay">
+                                <span class="sf-gauge-big-num" id="fsTempVal">--</span>
+                                <span class="sf-gauge-unit">psi</span>
+                            </div>
+                        </div>
+
+                        <div class="sf-gauge-scale-row">
+                            <span>0 psi</span>
+                            <span class="sf-scale-pill fs-gauge-scale-mid">Faixa Ideal: 35.0 a 50.0 psi</span>
+                            <span>80 psi</span>
+                        </div>
+                    </div>
+
+                    <!-- Mini Grid de Bombas Booster -->
+                    <div class="sf-boosters-row">
+                        <!-- Bomba 1 -->
+                        <div class="sf-booster-card">
+                            <div class="sf-booster-header">
+                                <span class="sf-booster-name">Bomba 1 (Principal)</span>
+                                <span class="sf-relay-pill off" id="fsR1StateBadge">STANDBY</span>
+                            </div>
+                            <div class="sf-booster-status-val" id="fsR1StatusText">STANDBY</div>
+                            <div class="sf-booster-details">
+                                <div>Partida: <strong id="fsR1OnVal" class="sf-chip cyan">-- psi</strong></div>
+                                <div>Corte: <strong id="fsR1OffVal" class="sf-chip green">-- psi</strong></div>
+                                <div>Ciclos: <strong id="fsR1AcVal">--</strong></div>
+                            </div>
+                        </div>
+
+                        <!-- Bomba 2 -->
+                        <div class="sf-booster-card">
+                            <div class="sf-booster-header">
+                                <span class="sf-booster-name">Bomba 2 (Auxiliar)</span>
+                                <span class="sf-relay-pill off" id="fsR2StateBadge">STANDBY</span>
+                            </div>
+                            <div class="sf-booster-status-val" id="fsR2StatusText">STANDBY</div>
+                            <div class="sf-booster-details">
+                                <div>Partida: <strong id="fsR2OnVal" class="sf-chip orange">-- psi</strong></div>
+                                <div>Corte: <strong id="fsR2OffVal" class="sf-chip green">-- psi</strong></div>
+                                <div>Ciclos: <strong id="fsR2AcVal">--</strong></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Coluna Direita: Gráfico de Curva de Pressão em Tempo Real & Diagnóstico -->
+                <div class="sf-right-column">
+                    <!-- Card de Diagnóstico do Barrilete -->
+                    <div class="sf-diag-top-bar">
+                        <div class="sf-diag-info-item">
+                            <span class="sf-diag-lbl">Supervisão Hidropneumática:</span>
+                            <strong id="fsDiagStatusText" style="color: #059669;">PRESSURIZADO</strong>
+                        </div>
+                        <div class="sf-diag-info-item">
+                            <span class="sf-diag-lbl">Estabilidade de Linha:</span>
+                            <strong id="fsDiagStability" style="color: #059669;">Estável</strong>
+                        </div>
+                        <div class="sf-diag-info-item">
+                            <span class="sf-diag-lbl">Demanda Atual:</span>
+                            <strong id="fsDiagDemand">Normal / Estágio 1</strong>
+                        </div>
+                        <span class="sf-norm-pill" id="fsDiagChip">100% OPERACIONAL</span>
+                    </div>
+
+                    <!-- Gráfico Fullscreen em Tempo Real -->
+                    <div class="sf-chart-card">
+                        <div class="sf-chart-card-header">
+                            <div>
+                                <h3 class="sf-chart-title">Curva de Pressão em Tempo Real & Histerese</h3>
+                                <span class="sf-chart-subtitle">Oscilações contínuas, acionamento das bombas booster e recomposição hidropneumática</span>
+                            </div>
+                            <div class="sf-chart-legend">
+                                <span class="sf-legend-item"><span class="sf-legend-dot blue"></span> Pressão da Rede (psi)</span>
+                                <span class="sf-legend-item"><span class="sf-legend-dot cyan"></span> Partida Bomba 1 (ON)</span>
+                                <span class="sf-legend-item"><span class="sf-legend-dot orange"></span> Partida Bomba 2 (ON)</span>
+                                <span class="sf-legend-item"><span class="sf-legend-dot green"></span> Pressão de Corte (OFF)</span>
+                            </div>
+                        </div>
+                        <div class="sf-chart-canvas-box">
+                            <canvas id="fsPressurizacaoChart"></canvas>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Rodapé Sutil com Controles de Carrossel e Atalhos -->
+            <div class="sf-bottom-control-bar">
+                <div class="sf-nav-buttons-wrap">
+                    <button class="sf-small-nav-btn" onclick="navigateFullscreenCarousel(-1)" title="Estação Anterior (Seta Esquerda)">
+                        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="15 18 9 12 15 6"></polyline></svg>
+                        <span>Anterior</span>
+                    </button>
+
+                    <div class="sf-dots-holder" id="fsDotsContainer">
+                        <!-- Dynamic dots -->
+                    </div>
+
+                    <button class="sf-small-nav-btn" onclick="navigateFullscreenCarousel(1)" title="Próxima Estação (Seta Direita)">
+                        <span>Próxima</span>
+                        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="9 18 15 12 9 6"></polyline></svg>
+                    </button>
+                </div>
+
+                <div class="sf-bottom-meta-wrap">
+                    <span class="sf-counter-chip" id="fsDeviceCounterText">Estação 1 de 1</span>
+                    <span class="sf-keyboard-legend">
+                        Navegue com as setas <strong>&larr;</strong> <strong>&rarr;</strong> &bull; 
+                        <strong>Espaço</strong> para alternar rotação automática &bull; 
+                        <strong>Esc</strong> para sair
+                    </span>
+                </div>
+            </div>
+        </section>
+    </div>
+
+    <!-- Modal de Registro de Leituras e Telemetria -->
+    <div class="modal-registros-overlay" id="registrosModal" onclick="handleRegistrosModalBackdrop(event)">
+        <div class="modal-registros-container">
+            <div class="modal-registros-header">
+                <div>
+                    <h2>Histórico & Registros da Rede de Pressurização (Smart Fit)</h2>
+                    <p>Consulte telemetria de pressão, ciclos de bombas, exporte relatórios em CSV e gerencie registros</p>
+                </div>
+                <button class="modal-close-btn" onclick="closeRegistrosModal()" title="Fechar (ESC)">&times;</button>
+            </div>
+
+            <!-- Barra de Filtros e Ações -->
+            <div class="modal-registros-toolbar">
+                <div class="filter-group">
+                    <div class="filter-item">
+                        <label for="filterModalDispositivo">Estação / Booster</label>
+                        <select id="filterModalDispositivo" class="input-filter" onchange="filtrarRegistrosModal()">
+                            <option value="todos">Todas as Estações</option>
+                        </select>
+                    </div>
+                    <div class="filter-item">
+                        <label for="filterModalDataInicio">Data e Horário Inicial</label>
+                        <input type="datetime-local" id="filterModalDataInicio" class="input-filter" onkeydown="if(event.key==='Enter') filtrarRegistrosModal()">
+                    </div>
+                    <div class="filter-item">
+                        <label for="filterModalDataFim">Data e Horário Final</label>
+                        <input type="datetime-local" id="filterModalDataFim" class="input-filter" onkeydown="if(event.key==='Enter') filtrarRegistrosModal()">
+                    </div>
+                    <div class="filter-actions-buttons">
+                        <button class="btn-filter-primary" onclick="filtrarRegistrosModal()">
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <circle cx="11" cy="11" r="8"></circle>
+                                <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+                            </svg>
+                            Filtrar
+                        </button>
+                        <button class="btn-filter-secondary" onclick="limparFiltrosRegistrosModal()">Limpar</button>
+                    </div>
+                </div>
+
+                <div class="quick-date-presets">
+                    <span class="preset-label">Atalhos rápidos:</span>
+                    <button type="button" class="btn-preset-chip" onclick="aplicarAtalhoData('hoje')">Hoje</button>
+                    <button type="button" class="btn-preset-chip" onclick="aplicarAtalhoData('7dias')">Últimos 7 dias</button>
+                    <button type="button" class="btn-preset-chip" onclick="aplicarAtalhoData('30dias')">Últimos 30 dias</button>
+                </div>
+
+                <div class="action-group">
+                    <button class="btn-action-export" id="btnExportarCSV" onclick="exportarRegistrosCSV()" title="Exportar dados filtrados para planilha CSV">
+                        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                            <polyline points="7 10 12 15 17 10"></polyline>
+                            <line x1="12" y1="15" x2="12" y2="3"></line>
+                        </svg>
+                        <span>Exportar CSV</span>
+                    </button>
+                    <button class="btn-action-delete" onclick="abrirConfirmacaoExclusao()" title="Apagar registros no intervalo de datas definido">
+                        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <polyline points="3 6 5 6 21 6"></polyline>
+                            <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+                            <line x1="10" y1="11" x2="10" y2="17"></line>
+                            <line x1="14" y1="11" x2="14" y2="17"></line>
+                        </svg>
+                        <span>Apagar por Data</span>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Feedback Alert -->
+            <div id="modalRegistrosFeedback" class="modal-feedback-box" style="display: none;"></div>
+
+            <!-- Tabela de Registros -->
+            <div class="modal-table-container">
+                <table class="registros-table">
+                    <thead>
+                        <tr>
+                            <th>Estação / Booster</th>
+                            <th>Local / Unidade</th>
+                            <th>Data & Hora</th>
+                            <th>Pressão da Rede</th>
+                            <th>Bomba 1 ON</th>
+                            <th>Bomba 1 OFF</th>
+                            <th>Partidas Bomba 1</th>
+                            <th>Bomba 2 ON</th>
+                            <th>Bomba 2 OFF</th>
+                            <th>Partidas Bomba 2</th>
+                        </tr>
+                    </thead>
+                    <tbody id="registrosTableBody">
+                        <tr>
+                            <td colspan="10" class="table-state-message">Carregando leituras do banco de dados...</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <!-- Rodapé com Paginação e Totais -->
+            <div class="modal-registros-footer">
+                <span id="registrosTotalCount" class="registros-count-info">0 registros encontrados</span>
+                <div class="pagination-controls">
+                    <button id="btnPrevPage" class="btn-page" onclick="mudarPaginaRegistros(-1)" disabled>&larr; Anterior</button>
+                    <span id="registrosPageIndicator" class="page-indicator">Página 1 de 1</span>
+                    <button id="btnNextPage" class="btn-page" onclick="mudarPaginaRegistros(1)" disabled>Próxima &rarr;</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Submodal de Confirmação de Exclusão -->
+    <div class="modal-confirm-overlay" id="confirmDeleteModal">
+        <div class="modal-confirm-container">
+            <div class="modal-confirm-header">
+                <div class="icon-warning-badge">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path>
+                        <line x1="12" y1="9" x2="12" y2="13"></line>
+                        <line x1="12" y1="17" x2="12.01" y2="17"></line>
+                    </svg>
+                </div>
+                <h3>Confirmar Exclusão de Registros</h3>
+            </div>
+            <div class="modal-confirm-body">
+                <p>Tem certeza que deseja apagar permanentemente os registros de telemetria da pressurização de água no período selecionado?</p>
+                <div class="confirm-summary-box">
+                    <div><strong>Estação / Dispositivo:</strong> <span id="confirmDeleteDispositivo">Todas</span></div>
+                    <div><strong>Data Inicial:</strong> <span id="confirmDeleteDataInicio">--</span></div>
+                    <div><strong>Data Final:</strong> <span id="confirmDeleteDataFim">--</span></div>
+                </div>
+                <p class="warning-text">Esta ação não pode ser desfeita e os dados apagados não poderão ser recuperados.</p>
+            </div>
+            <div class="modal-confirm-actions">
+                <button class="btn-cancel-modal" onclick="fecharConfirmacaoExclusao()">Cancelar</button>
+                <button class="btn-confirm-delete" id="btnConfirmDeleteAction" onclick="executarExclusaoRegistros()">Sim, Apagar Registros</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="smartfit.js"></script>
+</body>
+</html>

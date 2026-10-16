@@ -1,0 +1,1087 @@
+/* ==========================================================================
+   SENSIMONITOR - ESTILIZAÇÃO CORPORATIVA SMART FIT (SISTEMA DE PRESSURIZAÇÃO)
+   Especializada para Modo Tela Cheia em Recepções, TVs e Painéis Corporativos
+   ========================================================================== */
+
+/* Botão de destaque Smart Fit no header */
+.btn-fullscreen-smartfit {
+    background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%) !important;
+    color: #ffffff !important;
+    border: none !important;
+    font-weight: 700 !important;
+    box-shadow: 0 2px 8px rgba(245, 158, 11, 0.32) !important;
+}
+
+.btn-fullscreen-smartfit:hover {
+    background: linear-gradient(135deg, #d97706 0%, #b45309 100%) !important;
+    transform: translateY(-1px);
+    box-shadow: 0 4px 14px rgba(245, 158, 11, 0.45) !important;
+}
+
+/* ==========================================================================
+   ESTRUTURA PRINCIPAL DE TELA CHEIA (FULLSCREEN PRESENTATION)
+   ========================================================================== */
+.sf-fullscreen-presentation {
+    display: none !important;
+}
+
+:fullscreen .app-layout,
+body.fullscreen-active .app-layout {
+    display: none !important;
+}
+
+:fullscreen .modal-registros-overlay,
+body.fullscreen-active .modal-registros-overlay {
+    display: none !important;
+}
+
+:fullscreen .sf-fullscreen-presentation,
+body.fullscreen-active .sf-fullscreen-presentation {
+    display: flex !important;
+    flex-direction: column !important;
+    position: fixed !important;
+    inset: 0 !important;
+    z-index: 999999 !important;
+    width: 100vw !important;
+    height: 100vh !important;
+    max-height: 100vh !important;
+    overflow: hidden !important;
+    background: #ffffff !important;
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif !important;
+    color: #0f172a !important;
+    box-sizing: border-box !important;
+    margin: 0 !important;
+    padding: 0 !important;
+}
+
+/* ==========================================================================
+   1. SEÇÃO HERO / SUPERIOR (45% DE ALTURA COM O PLANO DE FUNDO SMART FIT)
+   ========================================================================== */
+.sf-hero-section {
+    position: relative;
+    width: 100vw;
+    height: 45vh;
+    min-height: 45vh;
+    max-height: 45vh;
+    background-image: url('img/layoutRecepcaoSmartfit.png');
+    background-repeat: no-repeat;
+    background-position: center center;
+    background-size: cover;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    padding: 16px 36px;
+    box-sizing: border-box;
+    overflow: hidden;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.18);
+    z-index: 20;
+}
+
+/* Camada de sobreposição refinada para legibilidade máxima */
+.sf-hero-overlay {
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(
+        180deg, 
+        rgba(15, 23, 42, 0.60) 0%, 
+        rgba(15, 23, 42, 0.25) 45%, 
+        rgba(15, 23, 42, 0.55) 100%
+    );
+    pointer-events: none;
+    z-index: 1;
+}
+
+/* --- Barra Superior Flutuante sobre o Banner --- */
+.sf-hero-top-bar {
+    position: relative;
+    z-index: 10;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    width: 100%;
+}
+
+.sf-top-left-group {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.sf-brand-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    background: rgba(255, 255, 255, 0.94);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    padding: 5px 14px;
+    border-radius: 20px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+    border: 1px solid rgba(255, 255, 255, 0.75);
+}
+
+.sf-brand-bold {
+    font-size: 13px;
+    font-weight: 900;
+    color: #f59e0b;
+    letter-spacing: 0.6px;
+}
+
+.sf-brand-sep {
+    color: #cbd5e1;
+    font-weight: 300;
+}
+
+.sf-brand-light {
+    font-size: 12px;
+    font-weight: 700;
+    color: #0f172a;
+    letter-spacing: 0.3px;
+}
+
+.sf-live-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    background: rgba(16, 185, 129, 0.92);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    color: #ffffff;
+    padding: 5px 12px;
+    border-radius: 20px;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.5px;
+    box-shadow: 0 2px 8px rgba(16, 185, 129, 0.35);
+}
+
+.sf-live-dot {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: #ffffff;
+    animation: sfPulse 1.8s infinite;
+}
+
+@keyframes sfPulse {
+    0% { transform: scale(0.9); opacity: 0.7; box-shadow: 0 0 0 0 rgba(255, 255, 255, 0.7); }
+    70% { transform: scale(1.15); opacity: 1; box-shadow: 0 0 0 6px rgba(255, 255, 255, 0); }
+    100% { transform: scale(0.9); opacity: 0.7; box-shadow: 0 0 0 0 rgba(255, 255, 255, 0); }
+}
+
+.sf-status-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 5px 12px;
+    border-radius: 20px;
+    font-size: 11px;
+    font-weight: 700;
+    background: rgba(255, 255, 255, 0.90);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    color: #059669;
+    border: 1px solid rgba(167, 243, 208, 0.7);
+}
+
+.sf-status-pill.operacional {
+    color: #059669;
+    border-color: #a7f3d0;
+}
+
+.sf-status-pill.atencao {
+    color: #d97706;
+    border-color: #fde68a;
+}
+
+.sf-status-pill.critico {
+    color: #dc2626;
+    border-color: #fecaca;
+}
+
+.sf-status-dot {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: currentColor;
+}
+
+/* Relógio Corporativo Central */
+.sf-clock-widget {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    background: rgba(15, 23, 42, 0.60);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    border: 1px solid rgba(255, 255, 255, 0.18);
+    padding: 5px 16px;
+    border-radius: 20px;
+    color: #ffffff;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+}
+
+.sf-clock-time {
+    font-size: 14px;
+    font-weight: 800;
+    letter-spacing: 0.5px;
+    font-variant-numeric: tabular-nums;
+    color: #fbbf24;
+}
+
+.sf-clock-sep {
+    color: rgba(255, 255, 255, 0.4);
+    font-size: 12px;
+}
+
+.sf-clock-date {
+    font-size: 12px;
+    font-weight: 500;
+    color: #e2e8f0;
+}
+
+/* Controles de Topo Direito */
+.sf-top-right-group {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.sf-ctrl-btn {
+    height: 34px;
+    padding: 0 14px;
+    border-radius: 8px;
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    transition: all 0.2s ease;
+    border: none;
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.12);
+}
+
+.sf-autoplay-btn {
+    background: rgba(255, 255, 255, 0.90);
+    backdrop-filter: blur(6px);
+    color: #1e293b;
+    border: 1px solid rgba(255, 255, 255, 0.6);
+}
+
+.sf-autoplay-btn:hover {
+    background: #ffffff;
+    color: #d97706;
+    transform: translateY(-1px);
+}
+
+.sf-autoplay-btn.playing {
+    background: #f59e0b;
+    color: #ffffff;
+    border-color: #f59e0b;
+    box-shadow: 0 0 12px rgba(245, 158, 11, 0.4);
+}
+
+.sf-device-select {
+    height: 34px;
+    padding: 0 12px;
+    border-radius: 8px;
+    background: rgba(255, 255, 255, 0.92);
+    backdrop-filter: blur(6px);
+    border: 1px solid rgba(255, 255, 255, 0.6);
+    color: #0f172a;
+    font-size: 12px;
+    font-weight: 600;
+    outline: none;
+    cursor: pointer;
+}
+
+.sf-exit-btn {
+    background: rgba(254, 242, 242, 0.92);
+    backdrop-filter: blur(6px);
+    color: #dc2626;
+    border: 1px solid rgba(254, 202, 202, 0.8);
+}
+
+.sf-exit-btn:hover {
+    background: #dc2626;
+    color: #ffffff;
+    transform: translateY(-1px);
+}
+
+/* --- Linha de Conteúdo Principal do Banner (Sobreposto) --- */
+.sf-hero-content-row {
+    position: relative;
+    z-index: 10;
+    display: flex;
+    align-items: flex-end;
+    justify-content: space-between;
+    gap: 24px;
+    margin-bottom: 2px;
+}
+
+/* ==========================================================================
+   CARD INFORMATIVO DA PRESSURIZAÇÃO (LADO ESQUERDO) - DESTAQUE SMART FIT
+   ========================================================================== */
+.sf-info-card {
+    background: rgba(255, 255, 255, 0.94);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    border: 1px solid rgba(255, 255, 255, 0.9);
+    border-radius: 20px;
+    padding: 18px 24px 16px 24px;
+    box-shadow: 0 14px 38px rgba(0, 0, 0, 0.22), 0 2px 8px rgba(0, 0, 0, 0.08);
+    width: 530px;
+    max-width: 48vw;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    animation: sfFadeInLeft 0.4s ease;
+}
+
+@keyframes sfFadeInLeft {
+    from { opacity: 0; transform: translateX(-15px); }
+    to { opacity: 1; transform: translateX(0); }
+}
+
+.sf-info-card-header {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+}
+
+.sf-location-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.6px;
+    color: #d97706;
+}
+
+.sf-location-heading {
+    margin: 0;
+    font-size: 21px;
+    font-weight: 800;
+    color: #0f172a;
+    letter-spacing: -0.4px;
+    line-height: 1.2;
+}
+
+.sf-status-highlight-box {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 14px;
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
+    padding: 8px 14px;
+    border-radius: 14px;
+}
+
+.sf-status-badge {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.sf-status-icon-bubble {
+    width: 40px;
+    height: 40px;
+    border-radius: 12px;
+    background: #ecfdf5;
+    color: #059669;
+    border: 1px solid #a7f3d0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+}
+
+.sf-status-badge.atencao .sf-status-icon-bubble {
+    background: #fffbe8;
+    color: #d97706;
+    border-color: #fde68a;
+}
+
+.sf-status-badge.critico .sf-status-icon-bubble {
+    background: #fef2f2;
+    color: #dc2626;
+    border-color: #fecaca;
+}
+
+.sf-status-meta {
+    display: flex;
+    flex-direction: column;
+}
+
+.sf-status-label {
+    font-size: 11px;
+    font-weight: 600;
+    color: #64748b;
+    text-transform: uppercase;
+    letter-spacing: 0.4px;
+}
+
+.sf-status-value {
+    font-size: 21px;
+    font-weight: 900;
+    color: #059669;
+    line-height: 1.1;
+    letter-spacing: -0.5px;
+}
+
+.sf-status-badge.atencao .sf-status-value {
+    color: #d97706;
+}
+
+.sf-status-badge.critico .sf-status-value {
+    color: #dc2626;
+}
+
+.sf-quick-stats {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    border-left: 1px solid #e2e8f0;
+    padding-left: 14px;
+}
+
+.sf-quick-stat {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+}
+
+.sf-quick-stat-lbl {
+    font-size: 10px;
+    font-weight: 600;
+    color: #94a3b8;
+    text-transform: uppercase;
+}
+
+.sf-quick-stat-val {
+    font-size: 13px;
+    font-weight: 800;
+    color: #0f172a;
+}
+
+.sf-info-card-desc {
+    font-size: 12px;
+    line-height: 1.45;
+    color: #475569;
+    margin: 0;
+    font-weight: 500;
+}
+
+.sf-info-card-footer {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    border-top: 1px solid #f1f5f9;
+    padding-top: 8px;
+    font-size: 11px;
+    color: #64748b;
+}
+
+.sf-footer-item {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.sf-dot-subtle {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: #f59e0b;
+}
+
+/* --- Painel de Destaques no Lado Direito do Banner --- */
+.sf-hero-highlights-panel {
+    display: flex;
+    gap: 14px;
+    align-items: stretch;
+}
+
+.sf-highlight-item {
+    background: rgba(255, 255, 255, 0.92);
+    backdrop-filter: blur(14px);
+    -webkit-backdrop-filter: blur(14px);
+    border: 1px solid rgba(255, 255, 255, 0.85);
+    border-radius: 16px;
+    padding: 12px 18px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.16);
+    min-width: 200px;
+    animation: sfFadeInRight 0.4s ease;
+}
+
+@keyframes sfFadeInRight {
+    from { opacity: 0; transform: translateX(15px); }
+    to { opacity: 1; transform: translateX(0); }
+}
+
+.sf-highlight-icon-wrap {
+    width: 40px;
+    height: 40px;
+    border-radius: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+}
+
+.sf-highlight-icon-wrap.yellow {
+    background: #fffbeb;
+    color: #d97706;
+}
+
+.sf-highlight-icon-wrap.blue {
+    background: #e0f2fe;
+    color: #0284c7;
+}
+
+.sf-highlight-icon-wrap.green {
+    background: #ecfdf5;
+    color: #059669;
+}
+
+.sf-highlight-text {
+    display: flex;
+    flex-direction: column;
+}
+
+.sf-highlight-title {
+    font-size: 10px;
+    font-weight: 700;
+    color: #64748b;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.sf-highlight-status {
+    font-size: 13.5px;
+    font-weight: 800;
+    color: #0f172a;
+    line-height: 1.2;
+}
+
+.sf-highlight-sub {
+    font-size: 11px;
+    color: #64748b;
+    font-weight: 500;
+}
+
+/* ==========================================================================
+   2. SEÇÃO DE DADOS INFERIOR (55% DE ALTURA COM FUNDO BRANCO PADRÃO)
+   ========================================================================== */
+.sf-data-section {
+    position: relative;
+    width: 100vw;
+    height: 55vh;
+    min-height: 55vh;
+    max-height: 55vh;
+    background: #ffffff;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    padding: 14px 36px 10px 36px;
+    box-sizing: border-box;
+    overflow: hidden;
+    z-index: 10;
+}
+
+.sf-data-content-wrap {
+    display: flex;
+    align-items: stretch;
+    gap: 20px;
+    flex: 1;
+    min-height: 0;
+    max-width: 1720px;
+    margin: 0 auto;
+    width: 100%;
+}
+
+/* --- Coluna Esquerda: Manômetro e Bombas --- */
+.sf-left-column {
+    flex: 0 0 410px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    justify-content: space-between;
+}
+
+.sf-data-card {
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
+    border-radius: 14px;
+    padding: 12px 18px 10px 18px;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.03);
+    transition: all 0.25s ease;
+}
+
+.sf-data-card:hover {
+    border-color: #cbd5e1;
+    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.06);
+}
+
+.sf-gauge-card {
+    flex: 1;
+    min-height: 0;
+}
+
+.sf-card-top-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+}
+
+.sf-card-category {
+    font-size: 10px;
+    font-weight: 700;
+    text-transform: uppercase;
+    color: #64748b;
+    letter-spacing: 0.5px;
+    display: block;
+}
+
+.sf-card-title {
+    margin: 2px 0 0 0;
+    font-size: 15px;
+    font-weight: 800;
+    color: #0f172a;
+    letter-spacing: -0.2px;
+}
+
+.sf-status-chip {
+    font-size: 10px;
+    font-weight: 800;
+    text-transform: uppercase;
+    padding: 2px 8px;
+    border-radius: 12px;
+}
+
+.sf-status-chip.ideal {
+    background: #ecfdf5;
+    color: #059669;
+}
+
+.sf-status-chip.aviso {
+    background: #fffbe8;
+    color: #d97706;
+}
+
+.sf-status-chip.critico {
+    background: #fef2f2;
+    color: #dc2626;
+}
+
+.sf-gauge-center-area {
+    position: relative;
+    width: 100%;
+    height: 105px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin: 1px 0;
+}
+
+.sf-canvas-holder {
+    width: 100%;
+    height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.sf-canvas-holder canvas {
+    max-height: 105px !important;
+}
+
+.sf-gauge-number-overlay {
+    position: absolute;
+    bottom: 4px;
+    left: 50%;
+    transform: translateX(-50%);
+    display: flex;
+    align-items: baseline;
+    gap: 3px;
+    pointer-events: none;
+}
+
+.sf-gauge-big-num {
+    font-size: 32px;
+    font-weight: 900;
+    color: #0f172a;
+    line-height: 1;
+    letter-spacing: -1px;
+}
+
+.sf-gauge-unit {
+    font-size: 16px;
+    font-weight: 700;
+    color: #64748b;
+}
+
+.sf-gauge-scale-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    font-size: 10px;
+    font-weight: 600;
+    color: #94a3b8;
+    border-top: 1px solid #f1f5f9;
+    padding-top: 5px;
+}
+
+.sf-scale-pill {
+    background: #f0fdf4;
+    color: #059669;
+    font-weight: 700;
+    padding: 2px 8px;
+    border-radius: 10px;
+    font-size: 10px;
+}
+
+/* Mini Grid de Bombas Booster */
+.sf-boosters-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+}
+
+.sf-booster-card {
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
+    border-radius: 12px;
+    padding: 10px 12px;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    transition: all 0.2s ease;
+}
+
+.sf-booster-card:hover {
+    border-color: #cbd5e1;
+    background: #ffffff;
+}
+
+.sf-booster-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.sf-booster-name {
+    font-size: 11px;
+    font-weight: 700;
+    color: #334155;
+}
+
+.sf-relay-pill {
+    font-size: 9.5px;
+    font-weight: 800;
+    padding: 2px 6px;
+    border-radius: 10px;
+}
+
+.sf-relay-pill.on {
+    background: #ecfdf5;
+    color: #059669;
+}
+
+.sf-relay-pill.off {
+    background: #f1f5f9;
+    color: #64748b;
+}
+
+.sf-booster-status-val {
+    font-size: 17px;
+    font-weight: 900;
+    color: #0f172a;
+    margin: 4px 0;
+}
+
+.sf-booster-details {
+    font-size: 10.5px;
+    color: #64748b;
+    border-top: 1px dashed #e2e8f0;
+    padding-top: 4px;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.sf-chip {
+    font-weight: 700;
+    padding: 1px 4px;
+    border-radius: 3px;
+    font-size: 10px;
+}
+
+.sf-chip.cyan { background: #ecfeff; color: #0891b2; }
+.sf-chip.green { background: #ecfdf5; color: #059669; }
+.sf-chip.orange { background: #fff7ed; color: #ea580c; }
+
+/* --- Coluna Direita: Diagnóstico e Gráfico em Tempo Real --- */
+.sf-right-column {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+/* Barra de Diagnóstico Superior */
+.sf-diag-top-bar {
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
+    border-radius: 12px;
+    padding: 8px 16px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+
+.sf-diag-info-item {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 12px;
+}
+
+.sf-diag-lbl {
+    color: #64748b;
+    font-weight: 600;
+}
+
+.sf-norm-pill {
+    background: #ecfdf5;
+    color: #059669;
+    font-size: 11px;
+    font-weight: 800;
+    padding: 3px 10px;
+    border-radius: 10px;
+    border: 1px solid #a7f3d0;
+}
+
+/* Card do Gráfico em Tempo Real */
+.sf-chart-card {
+    flex: 1;
+    min-height: 0;
+    background: #ffffff;
+    border: 1px solid #e2e8f0;
+    border-radius: 14px;
+    padding: 14px 18px;
+    display: flex;
+    flex-direction: column;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.03);
+}
+
+.sf-chart-card-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-end;
+    margin-bottom: 8px;
+    border-bottom: 1px solid #f1f5f9;
+    padding-bottom: 6px;
+}
+
+.sf-chart-title {
+    margin: 0;
+    font-size: 15px;
+    font-weight: 800;
+    color: #0f172a;
+    letter-spacing: -0.2px;
+}
+
+.sf-chart-subtitle {
+    font-size: 11px;
+    color: #64748b;
+    font-weight: 500;
+}
+
+.sf-chart-legend {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+}
+
+.sf-legend-item {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    font-size: 11px;
+    color: #64748b;
+    font-weight: 600;
+}
+
+.sf-legend-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+}
+
+.sf-legend-dot.blue { background: #0284c7; }
+.sf-legend-dot.cyan { background: #06b6d4; }
+.sf-legend-dot.orange { background: #f97316; }
+.sf-legend-dot.green { background: #10b981; }
+
+.sf-chart-canvas-box {
+    flex: 1;
+    position: relative;
+    width: 100%;
+    min-height: 160px;
+}
+
+.sf-chart-canvas-box canvas {
+    width: 100% !important;
+    height: 100% !important;
+}
+
+/* --- Rodapé da Área Branca (Controles e Atalhos) --- */
+.sf-bottom-control-bar {
+    height: 40px;
+    min-height: 40px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    border-top: 1px solid #f1f5f9;
+    margin-top: 4px;
+    padding-top: 4px;
+}
+
+.sf-nav-buttons-wrap {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.sf-small-nav-btn {
+    height: 30px;
+    padding: 0 12px;
+    border-radius: 6px;
+    border: 1px solid #cbd5e1;
+    background: #ffffff;
+    font-size: 11px;
+    font-weight: 700;
+    color: #334155;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    transition: all 0.2s ease;
+}
+
+.sf-small-nav-btn:hover {
+    background: #f1f5f9;
+    border-color: #94a3b8;
+}
+
+.sf-dots-holder {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.sf-dots-holder .fs-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: #cbd5e1;
+    cursor: pointer;
+    transition: all 0.25s ease;
+}
+
+.sf-dots-holder .fs-dot.active {
+    background: #f59e0b;
+    width: 22px;
+    border-radius: 4px;
+}
+
+.sf-bottom-meta-wrap {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.sf-counter-chip {
+    font-size: 11px;
+    font-weight: 700;
+    color: #0f172a;
+    background: #f1f5f9;
+    padding: 3px 10px;
+    border-radius: 12px;
+    border: 1px solid #e2e8f0;
+}
+
+.sf-keyboard-legend {
+    font-size: 11px;
+    color: #94a3b8;
+}
+
+/* ==========================================================================
+   RESPONSIVIDADE PARA DIFERENTES RESOLUÇÕES
+   ========================================================================== */
+@media (max-width: 1280px) {
+    .sf-hero-section {
+        padding: 14px 24px;
+    }
+    .sf-data-section {
+        padding: 10px 24px 8px 24px;
+    }
+    .sf-info-card {
+        width: 460px;
+        padding: 14px 18px;
+    }
+    .sf-location-heading {
+        font-size: 18px;
+    }
+    .sf-highlight-item {
+        min-width: 170px;
+        padding: 10px 14px;
+    }
+    .sf-left-column {
+        flex: 0 0 350px;
+    }
+}
+
+@media (max-height: 750px) {
+    .sf-hero-section {
+        padding: 10px 24px;
+    }
+    .sf-data-section {
+        padding: 8px 24px 6px 24px;
+    }
+    .sf-info-card {
+        padding: 10px 16px;
+        gap: 6px;
+    }
+    .sf-location-heading {
+        font-size: 17px;
+    }
+    .sf-status-value {
+        font-size: 19px;
+    }
+    .sf-gauge-center-area {
+        height: 80px;
+    }
+    .sf-canvas-holder canvas {
+        max-height: 80px !important;
+    }
+    .sf-gauge-big-num {
+        font-size: 24px;
+    }
+    .sf-bottom-control-bar {
+        height: 34px;
+        min-height: 34px;
+    }
+}

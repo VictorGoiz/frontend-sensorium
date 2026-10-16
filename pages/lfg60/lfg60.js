@@ -190,12 +190,17 @@ document.addEventListener('DOMContentLoaded', function() {
             setSensorLiveBadgeState(false);
         });
 
-        // Rede de segurança leve: ressincroniza lista e alertas periodicamente,
-        // recuperando qualquer evento perdido sem o custo de refetch por leitura.
+        // Polling CONTÍNUO dos dispositivos (mesmo padrão do chopeiras): garante
+        // que a tela fique sempre correta mesmo que algum push do socket não
+        // chegue (ex.: PM2 em cluster, reconexão, perda de pacote). O push via
+        // socket continua dando a atualização INSTANTÂNEA quando disponível; o
+        // dedupe por assinatura evita processar a mesma leitura duas vezes.
+        setInterval(fetchDevicesFromApi, 1000);
+        // Alertas + ressincronização completa num ritmo mais espaçado.
         setInterval(loadDashboardData, 15000);
     } else {
         console.warn('[LFG60] Socket.IO not loaded. Falling back to polling.');
-        setInterval(loadDashboardData, 10000);
+        setInterval(loadDashboardData, 2000);
     }
 
     // Fullscreen change listener

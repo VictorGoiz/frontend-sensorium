@@ -14,7 +14,15 @@ let currentLimites = {
 };
 // Assinatura da última leitura processada: evita atualizar a mesma leitura duas
 // vezes quando 'sensor_reading' e 'dashboard_update' chegam juntos (push duplo).
-let lastProcessedReadingSignature = '';
+// Controle de precisão do tempo real, POR DISPOSITIVO:
+// - lastReadingKeyBySerial: leitura já exibida (leitura_id do banco; assinatura
+//   completa das 7 variáveis como fallback) -> não reaplica a mesma leitura quando
+//   'sensor_reading' e 'dashboard_update' chegam juntos.
+// - Uma leitura só substitui a exibida se for MAIS NOVA (leitura_id maior). Isso
+//   impede que uma resposta de polling atrasada "volte" a tela para um valor antigo.
+const lastReadingKeyBySerial = new Map();
+let devicesFetchInFlight = false;
+let alertsRefreshTimer = null;
 let sensorBadgeWatchdog = null;
 let simulationStepCount = 0;
 
@@ -176,13 +184,13 @@ document.addEventListener('DOMContentLoaded', function() {
         });
 
         socket.on('dashboard_update', (data) => {
-            if (data?.data && data.type === 'sensor_data') {
-                // Novo formato: já traz os dados -> atualização in-place.
-                handleLiveSensorReading(data.data);
+            // Eventos de chopeiras / incêndio / pressurização também chegam nesta sala
+            // da empresa; eles NÃO são desta tela e não devem disparar recargas.
+            if (!data || data.type !== 'sensor_data') return;
+            if (data.data) {
+                handleLiveSensorReading(data.data);   // formato atual: já traz a leitura
             } else {
-                // Formato legado (apenas aviso): mantém o refetch debounced.
-                console.log('[LFG60] WebSocket update received:', data);
-                triggerDashboardUpdate(data);
+                triggerDashboardUpdate(data);         // backend antigo: só o aviso
             }
         });
 
@@ -259,6 +267,17 @@ function getAuthHeaders() {
 // 1. DEVICES AND READINGS FROM API / SIMULATION
 // ----------------------------------------------------
 async function fetchDevicesFromApi() {
+    // Evita requisições sobrepostas (uma resposta antiga chegando depois de uma nova).
+    if (devicesFetchInFlight) return;
+    devicesFetchInFlight = true;
+    try {
+        await fetchDevicesFromApiImpl();
+    } finally {
+        devicesFetchInFlight = false;
+    }
+}
+
+async function fetchDevicesFromApiImpl() {
     try {
         let loadedData = null;
         try {
@@ -279,7 +298,7 @@ async function fetchDevicesFromApi() {
         }
 
         if (loadedData !== null && loadedData.length > 0) {
-            currentDevices = loadedData;
+            currentDevices = mergeDevicesPreservingNewest(loadedData);
         } else if (USE_SIMULATED_LFG60) {
             currentDevices = JSON.parse(JSON.stringify(SIMULATED_LFG60_DEVICES));
         } else {
@@ -314,29 +333,84 @@ async function fetchDevicesFromApi() {
 }
 
 /**
+ * Identifica uma leitura: leitura_id do banco (preciso e monotônico) ou, se o
+ * backend ainda não enviar o id, uma assinatura com TODAS as variáveis.
+ */
+function readingKey(numeroSerie, r) {
+    if (!r) return '';
+    if (r.leitura_id !== undefined && r.leitura_id !== null) return `id:${r.leitura_id}`;
+    return `sig:${numeroSerie}|${r.timestamp}|${r.temperatura}|${r.umidade}|${r.co2}|${r.pm25}|${r.pm10}|${r.voc}|${r.formaldeido}|${r.led}`;
+}
+
+/** true se `incoming` é ESTRITAMENTE mais nova que `current`. */
+function isStrictlyNewerReading(incoming, current) {
+    if (!incoming) return false;
+    if (!current) return true;
+    const a = incoming.leitura_id, b = current.leitura_id;
+    if (a !== undefined && a !== null && b !== undefined && b !== null) return Number(a) > Number(b);
+    const ta = String(incoming.timestamp || ''), tb = String(current.timestamp || '');
+    return ta > tb;
+}
+
+/**
+ * Junta a resposta do REST com o que já está na tela SEM regredir: se o dispositivo
+ * já exibe uma leitura igual ou mais nova (ex.: recebida via push enquanto esta
+ * requisição estava em trânsito), ela é mantida.
+ */
+function mergeDevicesPreservingNewest(rows) {
+    return rows.map(row => {
+        const existing = currentDevices.find(d => d.numero_serie === row.numero_serie);
+        if (existing && existing.ultima_leitura && !isStrictlyNewerReading(row.ultima_leitura, existing.ultima_leitura)) {
+            return { ...row, ultima_leitura: existing.ultima_leitura, led: existing.led, status: existing.status };
+        }
+        if (row.ultima_leitura) {
+            lastReadingKeyBySerial.set(row.numero_serie, readingKey(row.numero_serie, row.ultima_leitura));
+        }
+        return row;
+    });
+}
+
+/** Atualiza alertas no máximo a cada 1,5 s quando o LED/status de algum dispositivo muda. */
+function scheduleAlertsRefresh() {
+    if (alertsRefreshTimer) return;
+    alertsRefreshTimer = setTimeout(() => {
+        alertsRefreshTimer = null;
+        fetchAlertsFromApi();
+    }, 1500);
+}
+
+/**
  * Recebe uma leitura completa via Socket.IO (push) e atualiza TODAS as variáveis
- * do dispositivo no lugar, sem refazer o fetch de toda a lista. Deduplica para
- * não processar a mesma leitura duas vezes quando 'sensor_reading' e
- * 'dashboard_update' chegam juntos para a mesma leitura.
+ * do dispositivo no lugar — card, resumo, modal e tela cheia — sem refazer o fetch
+ * da lista. Ignora duplicatas (mesma leitura) e leituras fora de ordem (mais antigas).
  */
 function handleLiveSensorReading(reading) {
     if (!reading || !reading.numeroSerie) return;
 
-    const { numeroSerie, temperatura, umidade, co2, pm25, pm10, voc, formaldeido, led, status, timestamp } = reading;
+    const { numeroSerie, temperatura, umidade, co2, pm25, pm10, voc, formaldeido, led, status, timestamp, leitura_id } = reading;
 
-    // Evita processar a mesma leitura duas vezes (push duplicado do backend).
-    const sig = `${numeroSerie}_${timestamp}_${temperatura}_${umidade}_${co2}`;
-    if (lastProcessedReadingSignature === sig) return;
-    lastProcessedReadingSignature = sig;
+    const key = readingKey(numeroSerie, reading);
+    if (lastReadingKeyBySerial.get(numeroSerie) === key) return;
 
     setSensorLiveBadgeState(true);
 
     const dev = currentDevices.find(d => d.numero_serie === numeroSerie);
     if (!dev) {
-        // Dispositivo ainda não está na lista (recém-criado): ressincroniza a lista completa.
-        loadDashboardData();
+        // Dispositivo ainda não está na lista (recém-vinculado): busca a lista.
+        fetchDevicesFromApi();
         return;
     }
+
+    // Leitura fora de ordem (mais antiga que a já exibida): não regride a tela.
+    const cur = dev.ultima_leitura;
+    if (cur && leitura_id !== undefined && leitura_id !== null && cur.leitura_id !== undefined && cur.leitura_id !== null
+        && Number(leitura_id) < Number(cur.leitura_id)) {
+        return;
+    }
+
+    lastReadingKeyBySerial.set(numeroSerie, key);
+    const prevLed = dev.led;
+    const prevStatus = dev.status;
 
     dev.ultima_leitura = {
         temperatura: temperatura ?? null,
@@ -346,16 +420,17 @@ function handleLiveSensorReading(reading) {
         pm10: pm10 ?? null,
         voc: voc ?? null,
         formaldeido: formaldeido ?? null,
-        timestamp: timestamp || new Date().toISOString()
+        timestamp: timestamp || new Date().toISOString(),
+        leitura_id: leitura_id ?? null
     };
     if (led !== undefined && led !== null) dev.led = led;
     if (status !== undefined && status !== null) dev.status = status;
 
-    // Atualização in-place do card (temperatura, umidade, CO2, gauges e badge).
+    // Card (temperatura, umidade, CO2, gauges e badge) + resumo do topo.
     updateSingleSensorCardInPlace(dev);
     updateDashboardSummary(currentDevices);
 
-    // Se o modal de detalhes deste dispositivo estiver aberto, atualiza as 7 variáveis.
+    // Modal de detalhes aberto neste dispositivo: atualiza as 7 variáveis.
     const modal = document.getElementById('sensorModal');
     if (modal && modal.classList.contains('active')) {
         const title = document.getElementById('modalSensorTitle')?.innerText || '';
@@ -364,12 +439,17 @@ function handleLiveSensorReading(reading) {
         }
     }
 
-    // Se a tela cheia estiver ativa neste dispositivo, atualiza a telemetria.
+    // Tela cheia exibindo este dispositivo: atualiza a telemetria.
     if (document.body.classList.contains('fullscreen-active')) {
         const activeDev = currentDevices[fullscreenActiveIndex];
         if (activeDev && activeDev.numero_serie === numeroSerie) {
             renderFullscreenDevice(fullscreenActiveIndex);
         }
+    }
+
+    // LED/status mudou -> novos alertas podem ter sido gerados.
+    if (prevLed !== dev.led || prevStatus !== dev.status) {
+        scheduleAlertsRefresh();
     }
 }
 

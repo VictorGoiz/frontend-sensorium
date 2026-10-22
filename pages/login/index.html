@@ -37,71 +37,54 @@
                 <h2>Cada sensor em tempo real.<br><span class="grad-text">Cada alerta antes do problema.</span></h2>
                 <p class="info-desc">Telemetria via MQTT, painéis ao vivo e alertas por faixa de operação para todos os sistemas da sua operação, em uma única plataforma.</p>
 
-                <!-- Painel ilustrativo: fluxo de telemetria dos sistemas até a plataforma -->
+                <!-- Painel ilustrativo: fluxo de telemetria dos sensores até a plataforma -->
                 <div class="telemetry-panel" aria-hidden="true">
                     <div class="panel-head">
                         <span class="panel-title">Fluxo de telemetria</span>
                         <span class="panel-pipeline">Sensores <i></i> MQTT <i></i> API <i></i> Painel</span>
                     </div>
 
-                    <svg class="flow-svg" viewBox="0 0 520 206" preserveAspectRatio="xMidYMid meet">
+                    <svg class="flow-svg" viewBox="0 0 520 210" preserveAspectRatio="xMidYMid meet">
                         <defs>
-                            <linearGradient id="gLine" x1="0" x2="1">
-                                <stop offset="0" stop-color="#38bdf8" stop-opacity="0.15"/>
-                                <stop offset="1" stop-color="#3b82f6" stop-opacity="0.7"/>
-                            </linearGradient>
-                            <linearGradient id="gLineR" x1="1" x2="0">
-                                <stop offset="0" stop-color="#38bdf8" stop-opacity="0.15"/>
-                                <stop offset="1" stop-color="#3b82f6" stop-opacity="0.7"/>
-                            </linearGradient>
                             <radialGradient id="gHub">
-                                <stop offset="0" stop-color="#1d4ed8" stop-opacity="0.55"/>
-                                <stop offset="1" stop-color="#1d4ed8" stop-opacity="0"/>
+                                <stop offset="0" stop-color="#0058ec" stop-opacity="0.18"/>
+                                <stop offset="1" stop-color="#0058ec" stop-opacity="0"/>
                             </radialGradient>
                         </defs>
 
-                        <!-- Conexões -->
-                        <path id="p1" class="flow-line" d="M96,40 C170,40 190,105 260,105" stroke="url(#gLine)"/>
-                        <path id="p2" class="flow-line" d="M96,170 C170,170 190,105 260,105" stroke="url(#gLine)"/>
-                        <path id="p3" class="flow-line" d="M424,40 C350,40 330,105 260,105" stroke="url(#gLineR)"/>
-                        <path id="p4" class="flow-line" d="M424,170 C350,170 330,105 260,105" stroke="url(#gLineR)"/>
+                        <!-- Conexões dos sensores até a plataforma -->
+                        <path id="p1" class="flow-line" d="M70,34 C165,34 165,105 260,105"/>
+                        <path id="p2" class="flow-line" d="M34,105 C147,105 147,105 260,105"/>
+                        <path id="p3" class="flow-line" d="M70,176 C165,176 165,105 260,105"/>
+                        <path id="p4" class="flow-line" d="M450,34 C355,34 355,105 260,105"/>
+                        <path id="p5" class="flow-line" d="M486,105 C373,105 373,105 260,105"/>
+                        <path id="p6" class="flow-line" d="M450,176 C355,176 355,105 260,105"/>
 
                         <!-- Pacotes de dados percorrendo as conexões -->
-                        <circle r="3.2" class="packet"><animateMotion dur="2.6s" repeatCount="indefinite"><mpath href="#p1"/></animateMotion></circle>
-                        <circle r="3.2" class="packet"><animateMotion dur="3.1s" begin="0.8s" repeatCount="indefinite"><mpath href="#p2"/></animateMotion></circle>
-                        <circle r="3.2" class="packet"><animateMotion dur="2.9s" begin="0.4s" repeatCount="indefinite"><mpath href="#p3"/></animateMotion></circle>
-                        <circle r="3.2" class="packet"><animateMotion dur="3.4s" begin="1.2s" repeatCount="indefinite"><mpath href="#p4"/></animateMotion></circle>
+                        <circle r="3.2" class="packet"><animateMotion dur="2.6s" begin="0s" repeatCount="indefinite"><mpath href="#p1"/></animateMotion></circle>
                         <circle r="2.2" class="packet alt"><animateMotion dur="2.6s" begin="1.3s" repeatCount="indefinite"><mpath href="#p1"/></animateMotion></circle>
-                        <circle r="2.2" class="packet alt"><animateMotion dur="2.9s" begin="1.9s" repeatCount="indefinite"><mpath href="#p3"/></animateMotion></circle>
+                        <circle r="3.2" class="packet"><animateMotion dur="3.2s" begin="0.8s" repeatCount="indefinite"><mpath href="#p2"/></animateMotion></circle>
+                        <circle r="3.2" class="packet"><animateMotion dur="2.9s" begin="0.4s" repeatCount="indefinite"><mpath href="#p3"/></animateMotion></circle>
+                        <circle r="2.2" class="packet alt"><animateMotion dur="2.9s" begin="1.7s" repeatCount="indefinite"><mpath href="#p3"/></animateMotion></circle>
+                        <circle r="3.2" class="packet"><animateMotion dur="3.4s" begin="1.2s" repeatCount="indefinite"><mpath href="#p4"/></animateMotion></circle>
+                        <circle r="3.2" class="packet"><animateMotion dur="2.7s" begin="1.6s" repeatCount="indefinite"><mpath href="#p5"/></animateMotion></circle>
+                        <circle r="2.2" class="packet alt"><animateMotion dur="2.7s" begin="2.9s" repeatCount="indefinite"><mpath href="#p5"/></animateMotion></circle>
+                        <circle r="3.2" class="packet"><animateMotion dur="3.0s" begin="0.6s" repeatCount="indefinite"><mpath href="#p6"/></animateMotion></circle>
 
                         <!-- Central (plataforma) -->
-                        <circle cx="260" cy="105" r="58" fill="url(#gHub)"/>
+                        <circle cx="260" cy="105" r="62" fill="url(#gHub)"/>
                         <circle cx="260" cy="105" r="30" class="hub-pulse"/>
                         <circle cx="260" cy="105" r="30" class="hub-pulse d2"/>
-                        <circle cx="260" cy="105" r="26" class="hub-core"/>
-                        <image href="../img/logo_head.png" x="244" y="89" width="32" height="32"/>
+                        <circle cx="260" cy="105" r="27" class="hub-core"/>
+                        <image href="../img/logo_head.png" x="243" y="88" width="34" height="34"/>
 
-                        <!-- Sistemas monitorados -->
-                        <g class="node">
-                            <circle cx="96" cy="40" r="5" class="node-dot"/><circle cx="96" cy="40" r="5" class="node-ping"/>
-                            <rect x="2" y="27" width="84" height="26" rx="13" class="node-pill"/>
-                            <text x="44" y="44.5" class="node-label">Chopeiras</text>
-                        </g>
-                        <g class="node">
-                            <circle cx="96" cy="170" r="5" class="node-dot"/><circle cx="96" cy="170" r="5" class="node-ping d2"/>
-                            <rect x="2" y="157" width="84" height="26" rx="13" class="node-pill"/>
-                            <text x="44" y="174.5" class="node-label">Ar · LFG60</text>
-                        </g>
-                        <g class="node">
-                            <circle cx="424" cy="40" r="5" class="node-dot warn"/><circle cx="424" cy="40" r="5" class="node-ping d3"/>
-                            <rect x="434" y="27" width="84" height="26" rx="13" class="node-pill"/>
-                            <text x="476" y="44.5" class="node-label">Incêndio</text>
-                        </g>
-                        <g class="node">
-                            <circle cx="424" cy="170" r="5" class="node-dot"/><circle cx="424" cy="170" r="5" class="node-ping d4"/>
-                            <rect x="434" y="157" width="84" height="26" rx="13" class="node-pill"/>
-                            <text x="476" y="174.5" class="node-label">Pressurização</text>
-                        </g>
+                        <!-- Sensores -->
+                        <g class="node"><circle cx="70" cy="34" r="11" class="node-halo"/><circle cx="70" cy="34" r="6" class="node-ping d1"/><circle cx="70" cy="34" r="6" class="node-dot"/></g>
+                        <g class="node"><circle cx="34" cy="105" r="11" class="node-halo"/><circle cx="34" cy="105" r="6" class="node-ping d2"/><circle cx="34" cy="105" r="6" class="node-dot"/></g>
+                        <g class="node"><circle cx="70" cy="176" r="11" class="node-halo"/><circle cx="70" cy="176" r="6" class="node-ping d3"/><circle cx="70" cy="176" r="6" class="node-dot"/></g>
+                        <g class="node"><circle cx="450" cy="34" r="11" class="node-halo"/><circle cx="450" cy="34" r="6" class="node-ping d4"/><circle cx="450" cy="34" r="6" class="node-dot"/></g>
+                        <g class="node"><circle cx="486" cy="105" r="11" class="node-halo"/><circle cx="486" cy="105" r="6" class="node-ping d5"/><circle cx="486" cy="105" r="6" class="node-dot"/></g>
+                        <g class="node"><circle cx="450" cy="176" r="11" class="node-halo"/><circle cx="450" cy="176" r="6" class="node-ping d6"/><circle cx="450" cy="176" r="6" class="node-dot"/></g>
                     </svg>
 
                     <!-- Curva contínua de leitura com faixa de operação -->

@@ -6,43 +6,141 @@
     <title>Sensimonitor - Login</title>
     <link rel="icon" type="image/png" href="../img/logo_head.png">
     <link rel="stylesheet" href="login.css">
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
     <script src="../config.js"></script>
 </head>
 <body>
-    <div class="bg-animation">
+    <!-- Fundo animado: aurora em tons da marca, grade em perspectiva e partículas -->
+    <div class="bg-animation" aria-hidden="true">
         <div class="circle circle-1"></div>
         <div class="circle circle-2"></div>
         <div class="circle circle-3"></div>
+        <div class="bg-grid"></div>
+        <div class="bg-noise"></div>
+        <span class="spark s1"></span><span class="spark s2"></span><span class="spark s3"></span>
+        <span class="spark s4"></span><span class="spark s5"></span><span class="spark s6"></span>
     </div>
-    
+
     <div class="split-layout">
-        <!-- Lado Esquerdo: Informações -->
+        <!-- Lado Esquerdo: Proposta da plataforma -->
         <div class="info-side">
             <div class="info-content">
                 <div class="logo-container left-logo">
-                    <img src="../img/logo_sensimonitor.png" alt="SensiMonitor" class="login-logo">
+                    <div class="brand-mark">
+                        <img src="../img/logo_head.png" alt="" class="brand-mark-img">
+                        <span class="brand-ring"></span>
+                    </div>
+                    <span class="brand-name">Sensi<strong>Monitor</strong></span>
                 </div>
-                <h2>Controle Total, Zero Desperdício.</h2>
-                <p class="info-desc">A plataforma definitiva de monitoramento IoT para redes de choppeiras. Antecipe problemas e garanta a temperatura perfeita.</p>
-                
+
+                <span class="eyebrow"><span class="live-dot"></span>Monitoramento inteligente de sensores IoT</span>
+                <h2>Cada sensor em tempo real.<br><span class="grad-text">Cada alerta antes do problema.</span></h2>
+                <p class="info-desc">Telemetria via MQTT, painéis ao vivo e alertas por faixa de operação para todos os sistemas da sua operação, em uma única plataforma.</p>
+
+                <!-- Painel ilustrativo: fluxo de telemetria dos sistemas até a plataforma -->
+                <div class="telemetry-panel" aria-hidden="true">
+                    <div class="panel-head">
+                        <span class="panel-title">Fluxo de telemetria</span>
+                        <span class="panel-pipeline">Sensores <i></i> MQTT <i></i> API <i></i> Painel</span>
+                    </div>
+
+                    <svg class="flow-svg" viewBox="0 0 520 206" preserveAspectRatio="xMidYMid meet">
+                        <defs>
+                            <linearGradient id="gLine" x1="0" x2="1">
+                                <stop offset="0" stop-color="#38bdf8" stop-opacity="0.15"/>
+                                <stop offset="1" stop-color="#3b82f6" stop-opacity="0.7"/>
+                            </linearGradient>
+                            <linearGradient id="gLineR" x1="1" x2="0">
+                                <stop offset="0" stop-color="#38bdf8" stop-opacity="0.15"/>
+                                <stop offset="1" stop-color="#3b82f6" stop-opacity="0.7"/>
+                            </linearGradient>
+                            <radialGradient id="gHub">
+                                <stop offset="0" stop-color="#1d4ed8" stop-opacity="0.55"/>
+                                <stop offset="1" stop-color="#1d4ed8" stop-opacity="0"/>
+                            </radialGradient>
+                        </defs>
+
+                        <!-- Conexões -->
+                        <path id="p1" class="flow-line" d="M96,40 C170,40 190,105 260,105" stroke="url(#gLine)"/>
+                        <path id="p2" class="flow-line" d="M96,170 C170,170 190,105 260,105" stroke="url(#gLine)"/>
+                        <path id="p3" class="flow-line" d="M424,40 C350,40 330,105 260,105" stroke="url(#gLineR)"/>
+                        <path id="p4" class="flow-line" d="M424,170 C350,170 330,105 260,105" stroke="url(#gLineR)"/>
+
+                        <!-- Pacotes de dados percorrendo as conexões -->
+                        <circle r="3.2" class="packet"><animateMotion dur="2.6s" repeatCount="indefinite"><mpath href="#p1"/></animateMotion></circle>
+                        <circle r="3.2" class="packet"><animateMotion dur="3.1s" begin="0.8s" repeatCount="indefinite"><mpath href="#p2"/></animateMotion></circle>
+                        <circle r="3.2" class="packet"><animateMotion dur="2.9s" begin="0.4s" repeatCount="indefinite"><mpath href="#p3"/></animateMotion></circle>
+                        <circle r="3.2" class="packet"><animateMotion dur="3.4s" begin="1.2s" repeatCount="indefinite"><mpath href="#p4"/></animateMotion></circle>
+                        <circle r="2.2" class="packet alt"><animateMotion dur="2.6s" begin="1.3s" repeatCount="indefinite"><mpath href="#p1"/></animateMotion></circle>
+                        <circle r="2.2" class="packet alt"><animateMotion dur="2.9s" begin="1.9s" repeatCount="indefinite"><mpath href="#p3"/></animateMotion></circle>
+
+                        <!-- Central (plataforma) -->
+                        <circle cx="260" cy="105" r="58" fill="url(#gHub)"/>
+                        <circle cx="260" cy="105" r="30" class="hub-pulse"/>
+                        <circle cx="260" cy="105" r="30" class="hub-pulse d2"/>
+                        <circle cx="260" cy="105" r="26" class="hub-core"/>
+                        <image href="../img/logo_head.png" x="244" y="89" width="32" height="32"/>
+
+                        <!-- Sistemas monitorados -->
+                        <g class="node">
+                            <circle cx="96" cy="40" r="5" class="node-dot"/><circle cx="96" cy="40" r="5" class="node-ping"/>
+                            <rect x="2" y="27" width="84" height="26" rx="13" class="node-pill"/>
+                            <text x="44" y="44.5" class="node-label">Chopeiras</text>
+                        </g>
+                        <g class="node">
+                            <circle cx="96" cy="170" r="5" class="node-dot"/><circle cx="96" cy="170" r="5" class="node-ping d2"/>
+                            <rect x="2" y="157" width="84" height="26" rx="13" class="node-pill"/>
+                            <text x="44" y="174.5" class="node-label">Ar · LFG60</text>
+                        </g>
+                        <g class="node">
+                            <circle cx="424" cy="40" r="5" class="node-dot warn"/><circle cx="424" cy="40" r="5" class="node-ping d3"/>
+                            <rect x="434" y="27" width="84" height="26" rx="13" class="node-pill"/>
+                            <text x="476" y="44.5" class="node-label">Incêndio</text>
+                        </g>
+                        <g class="node">
+                            <circle cx="424" cy="170" r="5" class="node-dot"/><circle cx="424" cy="170" r="5" class="node-ping d4"/>
+                            <rect x="434" y="157" width="84" height="26" rx="13" class="node-pill"/>
+                            <text x="476" y="174.5" class="node-label">Pressurização</text>
+                        </g>
+                    </svg>
+
+                    <!-- Curva contínua de leitura com faixa de operação -->
+                    <div class="wave-box">
+                        <div class="wave-band"></div>
+                        <svg class="wave-svg" viewBox="0 0 800 120" preserveAspectRatio="none">
+                            <defs>
+                                <linearGradient id="gWave" x1="0" x2="0" y1="0" y2="1">
+                                    <stop offset="0" stop-color="#3b82f6" stop-opacity="0.35"/>
+                                    <stop offset="1" stop-color="#3b82f6" stop-opacity="0"/>
+                                </linearGradient>
+                            </defs>
+                            <g class="wave-track">
+                                <path class="wave-fill" d="M0,50.1 L8,45.7 L16,45.3 L24,46.6 L32,46.6 L40,44.3 L48,41.0 L56,39.3 L64,41.1 L72,45.8 L80,50.7 L88,52.4 L96,49.6 L104,43.5 L112,37.6 L120,34.6 L128,35.4 L136,38.0 L144,40.0 L152,39.7 L160,38.2 L168,38.3 L176,42.5 L184,50.9 L192,61.3 L200,69.9 L208,74.3 L216,74.7 L224,73.4 L232,73.4 L240,75.7 L248,79.0 L256,80.7 L264,78.9 L272,74.2 L280,69.3 L288,67.6 L296,70.4 L304,76.5 L312,82.4 L320,85.4 L328,84.6 L336,82.0 L344,80.0 L352,80.3 L360,81.8 L368,81.7 L376,77.5 L384,69.1 L392,58.7 L400,50.1 L408,45.7 L416,45.3 L424,46.6 L432,46.6 L440,44.3 L448,41.0 L456,39.3 L464,41.1 L472,45.8 L480,50.7 L488,52.4 L496,49.6 L504,43.5 L512,37.6 L520,34.6 L528,35.4 L536,38.0 L544,40.0 L552,39.7 L560,38.2 L568,38.3 L576,42.5 L584,50.9 L592,61.3 L600,69.9 L608,74.3 L616,74.7 L624,73.4 L632,73.4 L640,75.7 L648,79.0 L656,80.7 L664,78.9 L672,74.2 L680,69.3 L688,67.6 L696,70.4 L704,76.5 L712,82.4 L720,85.4 L728,84.6 L736,82.0 L744,80.0 L752,80.3 L760,81.8 L768,81.7 L776,77.5 L784,69.1 L792,58.7 L800,50.1 L808,45.7 L816,45.3 L824,46.6 L832,46.6 L840,44.3 L848,41.0 L856,39.3 L864,41.1 L872,45.8 L880,50.7 L888,52.4 L896,49.6 L904,43.5 L912,37.6 L920,34.6 L928,35.4 L936,38.0 L944,40.0 L952,39.7 L960,38.2 L968,38.3 L976,42.5 L984,50.9 L992,61.3 L1000,69.9 L1008,74.3 L1016,74.7 L1024,73.4 L1032,73.4 L1040,75.7 L1048,79.0 L1056,80.7 L1064,78.9 L1072,74.2 L1080,69.3 L1088,67.6 L1096,70.4 L1104,76.5 L1112,82.4 L1120,85.4 L1128,84.6 L1136,82.0 L1144,80.0 L1152,80.3 L1160,81.8 L1168,81.7 L1176,77.5 L1184,69.1 L1192,58.7 L1200,50.1 L1200,120 L0,120 Z"/>
+                                <path class="wave-line" d="M0,50.1 L8,45.7 L16,45.3 L24,46.6 L32,46.6 L40,44.3 L48,41.0 L56,39.3 L64,41.1 L72,45.8 L80,50.7 L88,52.4 L96,49.6 L104,43.5 L112,37.6 L120,34.6 L128,35.4 L136,38.0 L144,40.0 L152,39.7 L160,38.2 L168,38.3 L176,42.5 L184,50.9 L192,61.3 L200,69.9 L208,74.3 L216,74.7 L224,73.4 L232,73.4 L240,75.7 L248,79.0 L256,80.7 L264,78.9 L272,74.2 L280,69.3 L288,67.6 L296,70.4 L304,76.5 L312,82.4 L320,85.4 L328,84.6 L336,82.0 L344,80.0 L352,80.3 L360,81.8 L368,81.7 L376,77.5 L384,69.1 L392,58.7 L400,50.1 L408,45.7 L416,45.3 L424,46.6 L432,46.6 L440,44.3 L448,41.0 L456,39.3 L464,41.1 L472,45.8 L480,50.7 L488,52.4 L496,49.6 L504,43.5 L512,37.6 L520,34.6 L528,35.4 L536,38.0 L544,40.0 L552,39.7 L560,38.2 L568,38.3 L576,42.5 L584,50.9 L592,61.3 L600,69.9 L608,74.3 L616,74.7 L624,73.4 L632,73.4 L640,75.7 L648,79.0 L656,80.7 L664,78.9 L672,74.2 L680,69.3 L688,67.6 L696,70.4 L704,76.5 L712,82.4 L720,85.4 L728,84.6 L736,82.0 L744,80.0 L752,80.3 L760,81.8 L768,81.7 L776,77.5 L784,69.1 L792,58.7 L800,50.1 L808,45.7 L816,45.3 L824,46.6 L832,46.6 L840,44.3 L848,41.0 L856,39.3 L864,41.1 L872,45.8 L880,50.7 L888,52.4 L896,49.6 L904,43.5 L912,37.6 L920,34.6 L928,35.4 L936,38.0 L944,40.0 L952,39.7 L960,38.2 L968,38.3 L976,42.5 L984,50.9 L992,61.3 L1000,69.9 L1008,74.3 L1016,74.7 L1024,73.4 L1032,73.4 L1040,75.7 L1048,79.0 L1056,80.7 L1064,78.9 L1072,74.2 L1080,69.3 L1088,67.6 L1096,70.4 L1104,76.5 L1112,82.4 L1120,85.4 L1128,84.6 L1136,82.0 L1144,80.0 L1152,80.3 L1160,81.8 L1168,81.7 L1176,77.5 L1184,69.1 L1192,58.7 L1200,50.1"/>
+                            </g>
+                        </svg>
+                        <span class="wave-scan"></span>
+                        <span class="wave-caption">Leitura contínua · faixa de operação</span>
+                    </div>
+                </div>
+
                 <div class="features-list">
                     <div class="feature-item">
                         <div class="feature-text">
-                            <strong>Prevenção de Congelamento</strong>
-                            <span>Alertas dinâmicos antes da temperatura atingir o ponto crítico (-2.5 °C).</span>
+                            <strong>Tempo real de ponta a ponta</strong>
+                            <span>Do sensor ao painel no mesmo instante, sem recarregar a tela.</span>
                         </div>
                     </div>
                     <div class="feature-item">
                         <div class="feature-text">
-                            <strong>Monitoramento Georreferenciado</strong>
-                            <span>Acompanhe o mapa de saúde térmica e a posição de cada equipamento em tempo real.</span>
+                            <strong>Alertas por faixa</strong>
+                            <span>Operacional, atenção ou crítico avaliado a cada leitura.</span>
                         </div>
                     </div>
                     <div class="feature-item">
                         <div class="feature-text">
-                            <strong>Dashboard Inteligente</strong>
-                            <span>Análise de dados de temperatura para manutenção preditiva e redução de custos.</span>
+                            <strong>Relatórios com IA</strong>
+                            <span>Histórico, exportação e pareceres técnicos automatizados.</span>
                         </div>
                     </div>
                 </div>
@@ -51,21 +149,32 @@
 
         <!-- Lado Direito: Login -->
         <div class="login-side">
+            <!-- Arcos de sinal (referência ao símbolo da marca) -->
+            <div class="signal-arcs" aria-hidden="true">
+                <span></span><span></span><span></span>
+            </div>
+
             <div class="login-box" id="loginBox">
                 <div class="login-mobile-logo">
-                    <img src="../img/logo_sensimonitor.png" alt="SensiMonitor" class="login-logo-mobile">
-                    
+                    <img src="../img/logo_head.png" alt="" class="login-logo-mobile">
+                    <span class="brand-name">Sensi<strong>Monitor</strong></span>
                 </div>
                 <h3 class="login-title">Acesse o Sistema</h3>
                 <p class="subtitle">Insira suas credenciais corporativas</p>
                 <form id="loginForm">
                     <div class="input-group">
                         <label for="email">E-mail corporativo</label>
-                        <input type="email" id="email" placeholder="usuario@empresa.com.br" required autocomplete="email">
+                        <div class="input-shell">
+                            <input type="email" id="email" placeholder="usuario@empresa.com.br" required autocomplete="email">
+                            <span class="input-glow"></span>
+                        </div>
                     </div>
                     <div class="input-group">
                         <label for="password">Senha</label>
-                        <input type="password" id="password" placeholder="••••••••" required>
+                        <div class="input-shell">
+                            <input type="password" id="password" placeholder="••••••••" required>
+                            <span class="input-glow"></span>
+                        </div>
                     </div>
                     <div class="options">
                         <label class="remember">
@@ -78,11 +187,11 @@
                         <span class="loader hidden"></span>
                     </button>
                 </form>
+                <p class="secure-note"><span class="secure-bar"></span>Acesso restrito a usuários autorizados</p>
             </div>
         </div>
     </div>
-    
+
     <script src="login.js"></script>
 </body>
 </html>
-

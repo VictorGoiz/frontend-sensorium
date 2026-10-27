@@ -2,7 +2,7 @@
    SENSORIUM - LFG60 APRESENTAÇÃO
    Utiliza o sistema visual do transmissor LFG60 (sensores.css)
    ==================================================== */
-@import url('../sensores/sensores.css');
+/* sensores.css é carregado direto no HTML (antes desta folha). */
 
 /* --- Manômetros Digitais nos Cards de Sensores --- */
 .sensor-card {

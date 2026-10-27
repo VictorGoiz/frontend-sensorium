@@ -1,0 +1,8 @@
+/* ==========================================================================
+   SENSIMONITOR DESIGN SYSTEM — ENTRYPOINT PRINCIPAL (main.css)
+   ========================================================================== */
+@import url('./_tokens.css');
+@import url('./_layout.css');
+@import url('./_cards.css');
+@import url('./_fullscreen.css');
+@import url('./_modals.css');

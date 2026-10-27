@@ -171,17 +171,6 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    function showToast(message, type = 'success') {
-        const toast = document.getElementById('toast');
-        if (!toast) return;
-
-        toast.className = `toast-feedback ${type === 'success' ? 'toast-success' : 'toast-error'}`;
-        toast.innerText = message;
-        toast.style.display = 'block';
-
-        setTimeout(() => {
-            toast.style.display = 'none';
-        }, 3500);
-    }
+    // showToast é provido globalmente por shared/ui/toast.js
 });
 

@@ -3,6 +3,21 @@
 // Integração direta com a API LLM (ai.sensimonitor.com.br)
 // ==========================================================================
 
+// Proteção da rota (mesma regra das demais páginas de administração): só superadmin.
+(function () {
+    let user = null;
+    try { user = JSON.parse(localStorage.getItem('sensorium_user') || 'null'); } catch (e) {}
+    if (!localStorage.getItem('sensorium_token') || !user) {
+        window.location.replace('../login/index.html');
+        throw new Error('Sessão ausente: redirecionando para o login.');
+    }
+    if (user.perfil !== 'superadmin') {
+        alert('Acesso negado. Apenas Super Admins podem acessar esta página.');
+        window.location.replace('../home/index.html');
+        throw new Error('Acesso negado ao módulo de relatórios.');
+    }
+})();
+
 // URL base da API LLM SensiMonitor
 const LLM_API_BASE = window.LLM_API_BASE || "https://ai.sensimonitor.com.br/api";
 
@@ -701,8 +716,8 @@ async function loadScheduleStatus() {
             scheduleStatusInfo.innerHTML = `
                 <div class="schedule-status-row"><span><strong>Sistema:</strong></span> <span>${targetSys === "chopeiras" ? "Chopeiras & Relés" : "Transmissor LFG60"}</span></div>
                 <div class="schedule-status-row"><span><strong>Status:</strong></span> <span>${data.active ? '<span style="color:#10b981; font-weight:600;">Ativo (PDF + Excel)</span>' : '<span style="color:#ef4444; font-weight:600;">Pausado</span>'}</span></div>
-                <div class="schedule-status-row"><span><strong>Horário Configurado:</strong></span> <span>${data.time || "08:00"} (${data.timezone || "America/Sao_Paulo"})</span></div>
-                <div class="schedule-status-row"><span><strong>Destinatário:</strong></span> <span>${data.recipient || "Não configurado"}</span></div>
+                <div class="schedule-status-row"><span><strong>Horário Configurado:</strong></span> <span>${escapeHtml(data.time || "08:00")} (${escapeHtml(data.timezone || "America/Sao_Paulo")})</span></div>
+                <div class="schedule-status-row"><span><strong>Destinatário:</strong></span> <span>${escapeHtml(data.recipient || "Não configurado")}</span></div>
                 <div class="schedule-status-row"><span><strong>Último Disparo:</strong></span> <span>${lastRunFormatted}</span></div>
             `;
         }

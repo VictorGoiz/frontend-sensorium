@@ -1,20 +1,21 @@
+// O backend ainda não tem rotas /api/hidraulico nem eventos de socket para este tipo:
+// a tela roda em MODO DEMONSTRAÇÃO (dados de shared/mocks/hidraulico.mock.js), sem
+// chamadas que só gerariam 404. Quando a API existir, troque semApiHidraulico por fetch.
+const HIDRAULICO_DEMO = true;
+const semApiHidraulico = () => Promise.reject(new Error('Rotas /api/hidraulico ainda não existem (modo demonstração).'));
+
 let currentHidraulicos = [];
 let selectedDeviceSerial = '';
 let socketInstance = null;
 let isUpdatingDashboard = false;
 let lastDevicesSignature = '';
 let lastProcessedReadingSignature = '';
-let liveBadgeWatchdog = null;
 let hidraulicoChartInstance = null;
 let fluidTelemetry = null;
 
 // Fullscreen Presentation & Carousel State
-let fullscreenActiveIndex = 0;
-let fsAutoplayInterval = null;
-const fsAutoplayDuration = 8000;
 let fsGaugeChartInstance = null;
 let fsHidraulicoChartInstance = null;
-let fsKeyboardListenerAttached = false;
 
 // Estado do Modal de Registros
 let registrosCurrentPage = 1;
@@ -25,169 +26,66 @@ let registrosDataItems = [];
 let totalRegistrosCount = 0;
 let mockRegistrosHistory = [];
 
-// ----------------------------------------------------
-// DISPOSITIVOS SIMULADOS DE EXEMPLO (DEMONSTRAÇÃO FRONTEND)
-// ----------------------------------------------------
-const SIMULATED_HIDRAULICO_DEVICES = [
-    {
-        numero_serie: 'HPU-01',
-        nome: 'Prensa Hidráulica Estampagem 500T',
-        cliente: 'Planta Metalúrgica Automotiva',
-        status: 'Operacional',
-        isSimulated: true,
-        ultima_leitura: {
-            sensor1: 158.5, // Pressão do circuito em bar
-            rele1_on: 130.0, // Carga da bomba principal em bar
-            rele1_off: 180.0, // Alívio / Corte da bomba em bar
-            rele1_acionamentos: 342,
-            rele1_estado: 0, // Standby / em alívio
-            rele2_on: 115.0, // Bomba de recirculação / filtragem
-            rele2_off: 180.0,
-            rele2_acionamentos: 88,
-            rele2_estado: 0,
-            timestamp: new Date().toISOString()
-        }
-    },
-    {
-        numero_serie: 'HPU-02',
-        nome: 'Central Hidráulica Injetora 02',
-        cliente: 'Fundição & Usinagem de Precisão',
-        status: 'Operacional',
-        isSimulated: true,
-        ultima_leitura: {
-            sensor1: 142.0,
-            rele1_on: 125.0,
-            rele1_off: 175.0,
-            rele1_acionamentos: 215,
-            rele1_estado: 0,
-            rele2_on: 110.0,
-            rele2_off: 175.0,
-            rele2_acionamentos: 45,
-            rele2_estado: 0,
-            timestamp: new Date().toISOString()
-        }
-    },
-    {
-        numero_serie: 'HPU-03',
-        nome: 'Sistema Hidropneumático - Laminador',
-        cliente: 'Siderurgia Nacional',
-        status: 'Operacional',
-        isSimulated: true,
-        ultima_leitura: {
-            sensor1: 165.0,
-            rele1_on: 140.0,
-            rele1_off: 190.0,
-            rele1_acionamentos: 510,
-            rele1_estado: 0,
-            rele2_on: 120.0,
-            rele2_off: 190.0,
-            rele2_acionamentos: 112,
-            rele2_estado: 0,
-            timestamp: new Date().toISOString()
-        }
-    }
-];
+// Controlador compartilhado da badge de transmissão (../../shared/ui/live-badge.js)
+const liveBadgeCtrl = window.SensoriumLiveBadge
+    ? window.SensoriumLiveBadge.createLiveBadgeController()
+    : null;
 
-/**
- * Atualiza o estado da badge de transmissão (Verde pulsante se ao vivo, Cinza se sem dados)
- */
+// Tela cheia / carrossel: mecânica em ../../shared/ui/fullscreen-presenter.js
+const fsCarousel = window.SensoriumFullscreen.bindFullscreenCarousel({
+    getDevices: () => currentHidraulicos,
+    render: (index) => renderFullscreenStation(index),
+    standardSelectId: 'hidraulicoSelect',
+    formatOptionLabel: (d, i, n) => `${d.numero_serie} - ${d.nome || 'Unidade'} (${i + 1}/${n})`,
+    emptyOptionLabel: 'Nenhuma unidade',
+    dotTitlePrefix: 'Ir para unidade',
+    labels: { enter: 'Tela Cheia', exit: 'Sair Tela Cheia' },
+    swapIcon: false,
+});
+
 function setLiveBadgeState(isLive) {
-    const badge = document.getElementById('livePresentationBadge');
-    const badgeText = document.getElementById('liveBadgeText');
-    if (!badge) return;
-
-    if (isLive) {
-        badge.classList.add('active');
-        if (badgeText) badgeText.innerText = 'TRANSMISSÃO AO VIVO';
-
-        if (liveBadgeWatchdog) clearTimeout(liveBadgeWatchdog);
-        liveBadgeWatchdog = setTimeout(() => {
-            setLiveBadgeState(false);
-        }, 15000);
-    } else {
-        badge.classList.remove('active');
-        if (badgeText) badgeText.innerText = 'AGUARDANDO DADOS';
-    }
+    if (liveBadgeCtrl) liveBadgeCtrl.setState(isLive);
 }
 
 document.addEventListener('DOMContentLoaded', function() {
-    const userStr = localStorage.getItem('sensorium_user');
-    if (userStr) {
-        try {
-            const user = JSON.parse(userStr);
-            if (user.perfil === 'apresentacao') {
-                document.querySelectorAll('.sidebar nav > a.nav-item').forEach(el => {
-                    el.style.display = 'none';
-                });
-            }
-        } catch (e) {}
-    }
-
-    initRealtimeConnection();
+    if (!HIDRAULICO_DEMO) initRealtimeConnection();
     loadHidraulicoData();
 
-    // Sincronização periódica da telemetria a cada 1.5s
-    setInterval(() => {
-        loadHidraulicoData(true);
-    }, 1500);
+    // Sincronização periódica inteligente da telemetria a cada 1.5s
+    if (window.SensoriumRealtime) {
+        window.SensoriumRealtime.startSmartPolling(() => loadHidraulicoData(true), 1500);
+    } else {
+        setInterval(() => loadHidraulicoData(true), 1500);
+    }
 
     // Simulação contínua dos dados para quando a rota do backend ainda não existir
     setInterval(simulateLiveHidraulicoStep, 1000);
 
-    // Monitora mudanças de tela cheia para atualizar botão e modo apresentação
-    document.addEventListener('fullscreenchange', handleFullscreenChange);
-    document.addEventListener('webkitfullscreenchange', handleFullscreenChange);
 });
 
 /**
- * Inicializa conexão Socket.IO para streaming em tempo real
+ * Inicializa conexão Socket.IO para streaming em tempo real.
+ * Só o evento deste tipo de dispositivo; leituras mais antigas que a exibida
+ * (ou repetidas, já que o backend envia hidraulico_reading e dashboard_update juntos) são ignoradas.
  */
 function initRealtimeConnection() {
-    if (typeof io !== 'undefined') {
-        try {
-            const socketUrl = window.API_BASE || (window.location.origin.includes(':') ? window.location.origin : 'http://localhost:3000');
-            socketInstance = io(socketUrl, {
-                auth: { token: localStorage.getItem('sensorium_token') },
-                reconnection: true,
-                reconnectionAttempts: Infinity,
-                reconnectionDelay: 1000,
-                transports: ['websocket', 'polling']
-            });
-
-            socketInstance.on('connect', () => {
-                console.log('[Hidráulico Socket] Conectado em tempo real.');
-            });
-
-            socketInstance.on('hidraulico_reading', (data) => {
-                handleLiveHidraulicoReading(data);
-            });
-
-            socketInstance.on('rele_reading', (data) => {
-                handleLiveHidraulicoReading(data);
-            });
-
-            socketInstance.on('dashboard_update', (data) => {
-                if (data?.data && (data.type === 'hidraulico_data' || data.type === 'reles_data')) {
-                    handleLiveHidraulicoReading(data.data);
-                } else {
-                    loadHidraulicoData(true);
-                }
-            });
-
-            socketInstance.on('disconnect', () => {
-                console.warn('[Hidráulico Socket] Desconectado.');
-                setLiveBadgeState(false);
-            });
-        } catch (err) {
-            console.error('[Hidráulico Socket] Erro ao conectar:', err);
-            setLiveBadgeState(false);
-        }
-    }
-}
-
-function getAuthHeaders() {
-    const token = localStorage.getItem('sensorium_token');
-    return token ? { 'Authorization': `Bearer ${token}` } : {};
+    if (!window.SensoriumRealtime) return;
+    const receber = (data) => {
+        if (!data || !data.numeroSerie) return;
+        const dev = currentHidraulicos.find(d => d.numero_serie === data.numeroSerie);
+        if (!window.SensoriumRealtime.isNewerReading(data, dev && dev.ultima_leitura)) return;
+        handleLiveHidraulicoReading(data);
+    };
+    socketInstance = window.SensoriumRealtime.createRealtimeSocket({
+        logPrefix: 'Hidráulico',
+        events: {
+            hidraulico_reading: receber,
+            dashboard_update: (pacote) => {
+                if (pacote?.type === 'hidraulico_data' && pacote.data) receber(pacote.data);
+            }
+        },
+        onDisconnect: () => setLiveBadgeState(false)
+    });
 }
 
 /**
@@ -201,7 +99,7 @@ async function loadHidraulicoData(silent = false) {
         let loadedData = null;
 
         try {
-            const res = await fetch(`${API_BASE}/api/hidraulico`, {
+            const res = await semApiHidraulico(`${API_BASE}/api/hidraulico`, {
                 headers: getAuthHeaders()
             });
             if (res.ok) {
@@ -215,7 +113,7 @@ async function loadHidraulicoData(silent = false) {
         }
 
         if (loadedData !== null && loadedData.length > 0) {
-            currentHidraulicos = loadedData;
+            currentHidraulicos = window.SensoriumRealtime ? window.SensoriumRealtime.mergeKeepingNewest(currentHidraulicos, loadedData) : loadedData;
         } else if (currentHidraulicos.length === 0) {
             currentHidraulicos = JSON.parse(JSON.stringify(SIMULATED_HIDRAULICO_DEVICES));
         }
@@ -225,7 +123,7 @@ async function loadHidraulicoData(silent = false) {
         updateExecutiveSummary(currentHidraulicos);
 
         if (document.body.classList.contains('fullscreen-active')) {
-            renderFullscreenStation(fullscreenActiveIndex);
+            renderFullscreenStation(fsCarousel.getActiveIndex());
         }
 
         const hasData = currentHidraulicos.length > 0 && currentHidraulicos.some(d => d.ultima_leitura && d.ultima_leitura.sensor1 !== null && d.ultima_leitura.sensor1 !== undefined);
@@ -263,79 +161,13 @@ async function loadHidraulicoData(silent = false) {
 
 /**
  * Simulação contínua do ciclo de carga, alívio e recirculação da HPU
+ * (Dados e motor simulados em ../../shared/mocks/hidraulico.mock.js)
  */
-let simStep = 0;
 function simulateLiveHidraulicoStep() {
     if (!currentHidraulicos || currentHidraulicos.length === 0) return;
-    simStep++;
-
-    let hasSimulated = false;
-
-    currentHidraulicos.forEach((dev) => {
-        if (dev.isSimulated || dev.numero_serie.startsWith('HPU-')) {
-            hasSimulated = true;
-            if (!dev.ultima_leitura) {
-                dev.ultima_leitura = {
-                    sensor1: 155.0,
-                    rele1_on: 130.0,
-                    rele1_off: 180.0,
-                    rele1_acionamentos: 300,
-                    rele1_estado: 0,
-                    rele2_on: 115.0,
-                    rele2_off: 180.0,
-                    rele2_acionamentos: 75,
-                    rele2_estado: 0,
-                    timestamp: new Date().toISOString()
-                };
-            }
-
-            const l = dev.ultima_leitura;
-            const r1_on = Number(l.rele1_on || 130.0);
-            const r1_off = Number(l.rele1_off || 180.0);
-            const r2_on = Number(l.rele2_on || 115.0);
-
-            // Simula consumo dos atuadores e ciclo da bomba
-            let currentP = Number(l.sensor1);
-            let b1 = l.rele1_estado || 0;
-            let b2 = l.rele2_estado || 0;
-
-            if (b1 === 1 || b2 === 1) {
-                // Bomba em carga: pressão hidráulica sobe rapidamente
-                currentP += 4.5 + (Math.random() * 1.2);
-                if (currentP >= r1_off) {
-                    currentP = r1_off;
-                    b1 = 0;
-                    b2 = 0;
-                }
-            } else {
-                // Em alívio: acionamento dos cilindros consome óleo e pressão cai suavemente
-                currentP -= 1.8 + (Math.random() * 0.8);
-                if (currentP <= r2_on) {
-                    b1 = 1;
-                    b2 = 1; // Demanda muito alta: ambas as bombas operam
-                    l.rele1_acionamentos = (l.rele1_acionamentos || 0) + 1;
-                    l.rele2_acionamentos = (l.rele2_acionamentos || 0) + 1;
-                } else if (currentP <= r1_on) {
-                    b1 = 1; // Liga bomba de óleo principal
-                    l.rele1_acionamentos = (l.rele1_acionamentos || 0) + 1;
-                }
-            }
-
-            l.sensor1 = Number(currentP.toFixed(1));
-            l.rele1_estado = b1;
-            l.rele2_estado = b2;
-            l.timestamp = new Date().toISOString();
-
-            // Avaliação de status
-            if (currentP < 70.0) {
-                dev.status = 'Crítico';
-            } else if (currentP > 210.0) {
-                dev.status = 'Atenção';
-            } else {
-                dev.status = 'Operacional';
-            }
-        }
-    });
+    const hasSimulated = typeof stepHidraulicoSimulation === 'function'
+        ? stepHidraulicoSimulation(currentHidraulicos)
+        : false;
 
     if (hasSimulated) {
         setLiveBadgeState(true);
@@ -343,7 +175,7 @@ function simulateLiveHidraulicoStep() {
         updateExecutiveSummary(currentHidraulicos);
 
         if (document.body.classList.contains('fullscreen-active')) {
-            renderFullscreenStation(fullscreenActiveIndex);
+            renderFullscreenStation(fsCarousel.getActiveIndex());
         }
 
         if (selectedDeviceSerial) {
@@ -390,9 +222,9 @@ function handleLiveHidraulicoReading(reading) {
     }
 
     if (document.body.classList.contains('fullscreen-active')) {
-        const activeDev = currentHidraulicos[fullscreenActiveIndex];
+        const activeDev = currentHidraulicos[fsCarousel.getActiveIndex()];
         if (activeDev && activeDev.numero_serie === numeroSerie) {
-            renderFullscreenStation(fullscreenActiveIndex);
+            renderFullscreenStation(fsCarousel.getActiveIndex());
         }
     }
 }
@@ -566,19 +398,19 @@ function renderHidraulicoGrid(devices) {
         const timeStr = u.timestamp ? new Date(u.timestamp).toLocaleTimeString('pt-BR') : 'Sem leitura';
 
         return `
-            <div class="hidraulico-card ${isSel ? 'selected' : ''}" id="hpu-card-${dev.numero_serie}" data-serie="${dev.numero_serie}" onclick="selectStationForChart('${dev.numero_serie}')">
+            <div class="hidraulico-card ${isSel ? 'selected' : ''}" id="hpu-card-${escapeHtml(dev.numero_serie)}" data-serie="${escapeHtml(dev.numero_serie)}" onclick="selectStationForChart(this.dataset.serie)">
                 <div class="hidraulico-card-header">
-                    <span class="hidraulico-card-title">Unidade #${dev.numero_serie}</span>
-                    <span class="status-dot-fine ${dotClass}" title="${dev.status || 'Operacional'}"></span>
+                    <span class="hidraulico-card-title">Unidade #${escapeHtml(dev.numero_serie)}</span>
+                    <span class="status-dot-fine ${dotClass}" title="${escapeHtml(dev.status || 'Operacional')}"></span>
                 </div>
                 <div class="hidraulico-card-body">
                     <div class="hidraulico-row">
                         <span>Pressão Atual:</span>
-                        <strong class="hidraulico-live-val hidraulico-pressure-val" id="pval-${dev.numero_serie}" style="color: var(--primary-blue); font-size: 14px;">${pressureDisplay}</strong>
+                        <strong class="hidraulico-live-val hidraulico-pressure-val" id="pval-${escapeHtml(dev.numero_serie)}" style="color: var(--primary-blue); font-size: 14px;">${pressureDisplay}</strong>
                     </div>
                     <div class="hidraulico-row">
                         <span>Última Transmissão:</span>
-                        <span class="hidraulico-time-val" id="ptime-${dev.numero_serie}">${timeStr}</span>
+                        <span class="hidraulico-time-val" id="ptime-${escapeHtml(dev.numero_serie)}">${timeStr}</span>
                     </div>
                 </div>
             </div>
@@ -657,7 +489,7 @@ async function loadHidraulicoChart(serial, forcePeriodChange = false) {
     let hasLoadedRemote = false;
     try {
         const queryParams = new URLSearchParams({ serial: devSerial, period: period });
-        const res = await fetch(`${API_BASE}/api/hidraulico/historico?${queryParams.toString()}`, {
+        const res = await semApiHidraulico(`${API_BASE}/api/hidraulico/historico?${queryParams.toString()}`, {
             headers: getAuthHeaders()
         });
         if (res.ok) {
@@ -782,157 +614,13 @@ async function loadHidraulicoChart(serial, forcePeriodChange = false) {
 // ====================================================
 // FULLSCREEN PRESENTATION MODE (CARROSSEL COM CARDS E GRÁFICO)
 // ====================================================
-function toggleFullscreen() {
-    if (!document.fullscreenElement && !document.webkitFullscreenElement) {
-        if (document.documentElement.requestFullscreen) {
-            document.documentElement.requestFullscreen();
-        } else if (document.documentElement.webkitRequestFullscreen) {
-            document.documentElement.webkitRequestFullscreen();
-        }
-    } else {
-        if (document.exitFullscreen) {
-            document.exitFullscreen();
-        } else if (document.webkitExitFullscreen) {
-            document.webkitExitFullscreen();
-        }
-    }
-}
-
-function handleFullscreenChange() {
-    const isFs = !!(document.fullscreenElement || document.webkitFullscreenElement);
-    const fsText = document.getElementById('fullscreenText');
-    if (fsText) {
-        fsText.innerText = isFs ? 'Sair Tela Cheia' : 'Tela Cheia';
-    }
-
-    document.body.classList.toggle('fullscreen-active', isFs);
-
-    if (isFs) {
-        setupFullscreenPresentation();
-    } else {
-        stopFsAutoplay();
-    }
-}
-
-function setupFullscreenPresentation() {
-    if (!fsKeyboardListenerAttached) {
-        document.addEventListener('keydown', handleFullscreenKeydown);
-        fsKeyboardListenerAttached = true;
-    }
-
-    populateFsDeviceSelect();
-
-    const standardSelect = document.getElementById('hidraulicoSelect');
-    if (standardSelect && standardSelect.value && currentHidraulicos && currentHidraulicos.length > 0) {
-        const foundIdx = currentHidraulicos.findIndex(d => d.numero_serie === standardSelect.value);
-        if (foundIdx >= 0) fullscreenActiveIndex = foundIdx;
-    }
-
-    renderFullscreenStation(fullscreenActiveIndex);
-    startFsAutoplay();
-}
-
-function populateFsDeviceSelect() {
-    const select = document.getElementById('fsDeviceSelect');
-    if (!select) return;
-
-    if (!currentHidraulicos || currentHidraulicos.length === 0) {
-        select.innerHTML = '<option value="">Nenhuma unidade</option>';
-        return;
-    }
-
-    select.innerHTML = currentHidraulicos.map((d, idx) => `
-        <option value="${d.numero_serie}">${d.numero_serie} - ${d.nome || 'Unidade'} (${idx + 1}/${currentHidraulicos.length})</option>
-    `).join('');
-}
-
-function onFsDeviceSelectChange(selectedSerial) {
-    if (!selectedSerial || !currentHidraulicos) return;
-    const idx = currentHidraulicos.findIndex(d => d.numero_serie === selectedSerial);
-    if (idx >= 0) {
-        renderFullscreenStation(idx);
-    }
-}
-
-function handleFullscreenKeydown(e) {
-    if (!document.body.classList.contains('fullscreen-active')) return;
-
-    if (e.key === 'ArrowLeft') {
-        e.preventDefault();
-        navigateFullscreenCarousel(-1);
-    } else if (e.key === 'ArrowRight') {
-        e.preventDefault();
-        navigateFullscreenCarousel(1);
-    } else if (e.key === ' ' || e.code === 'Space') {
-        e.preventDefault();
-        toggleFullscreenAutoplay();
-    }
-}
-
-function navigateFullscreenCarousel(direction) {
-    if (!currentHidraulicos || currentHidraulicos.length === 0) return;
-    fullscreenActiveIndex += direction;
-    if (fullscreenActiveIndex < 0) fullscreenActiveIndex = currentHidraulicos.length - 1;
-    if (fullscreenActiveIndex >= currentHidraulicos.length) fullscreenActiveIndex = 0;
-
-    renderFullscreenStation(fullscreenActiveIndex);
-}
-
-function toggleFullscreenAutoplay() {
-    if (fsAutoplayInterval) {
-        stopFsAutoplay();
-    } else {
-        startFsAutoplay();
-    }
-}
-
-function startFsAutoplay() {
-    stopFsAutoplay();
-    const btn = document.getElementById('fsAutoplayBtn');
-    const txt = document.getElementById('fsAutoplayText');
-    const icon = document.getElementById('fsAutoplayIcon');
-
-    if (btn) btn.classList.add('playing');
-    if (txt) txt.innerText = 'Pausar (8s)';
-    if (icon) icon.innerHTML = '<rect x="6" y="4" width="4" height="16"></rect><rect x="14" y="4" width="4" height="16"></rect>';
-
-    fsAutoplayInterval = setInterval(() => {
-        navigateFullscreenCarousel(1);
-    }, fsAutoplayDuration);
-}
-
-function stopFsAutoplay() {
-    if (fsAutoplayInterval) {
-        clearInterval(fsAutoplayInterval);
-        fsAutoplayInterval = null;
-    }
-    const btn = document.getElementById('fsAutoplayBtn');
-    const txt = document.getElementById('fsAutoplayText');
-    const icon = document.getElementById('fsAutoplayIcon');
-
-    if (btn) btn.classList.remove('playing');
-    if (txt) txt.innerText = 'Auto (8s)';
-    if (icon) icon.innerHTML = '<polygon points="5 3 19 12 5 21 5 3"></polygon>';
-}
-
-function renderFsDots() {
-    const container = document.getElementById('fsDotsContainer');
-    if (!container || !currentHidraulicos) return;
-
-    container.innerHTML = currentHidraulicos.map((_, idx) => `
-        <div class="fs-dot ${idx === fullscreenActiveIndex ? 'active' : ''}" onclick="renderFullscreenStation(${idx})" title="Ir para unidade ${idx + 1}"></div>
-    `).join('');
-}
-
 /**
  * Renderiza a unidade HPU ativa no Modo Tela Cheia com os 4 Cards e o Gráfico dedicado
  */
 function renderFullscreenStation(index) {
     if (!currentHidraulicos || currentHidraulicos.length === 0) return;
 
-    if (index < 0) index = currentHidraulicos.length - 1;
-    if (index >= currentHidraulicos.length) index = 0;
-    fullscreenActiveIndex = index;
+    index = fsCarousel.setActiveIndex(index);
 
     const dev = currentHidraulicos[index];
     const u = dev.ultima_leitura || {};
@@ -1065,69 +753,14 @@ function renderFullscreenStation(index) {
     renderFullscreenChart(dev);
 
     // 7. Sincroniza select, dots e contador
-    renderFsDots();
+    fsCarousel.renderFsDots();
     const select = document.getElementById('fsDeviceSelect');
     if (select && select.value !== dev.numero_serie) {
         select.value = dev.numero_serie;
     }
     const counterEl = document.getElementById('fsDeviceCounterText');
     if (counterEl) {
-        counterEl.innerText = `Unidade ${fullscreenActiveIndex + 1} de ${currentHidraulicos.length}`;
-    }
-}
-
-function updateFsGaugeChart(value, min, max, fillColor) {
-    const canvas = document.getElementById('fsGaugePressureCanvas');
-    if (!canvas || typeof Chart === 'undefined') return;
-
-    const val = (value !== null && value !== undefined && !isNaN(value)) ? Number(value) : min;
-    const clamped = Math.max(min, Math.min(max, val));
-    const progress = clamped - min;
-    const remaining = max - clamped;
-
-    if (fsGaugeChartInstance) {
-        try {
-            if (fsGaugeChartInstance.canvas === canvas) {
-                fsGaugeChartInstance.data.datasets[0].data = [progress, remaining];
-                fsGaugeChartInstance.data.datasets[0].backgroundColor = [fillColor, '#e2e8f0'];
-                fsGaugeChartInstance.update('none');
-                return;
-            } else {
-                fsGaugeChartInstance.destroy();
-                fsGaugeChartInstance = null;
-            }
-        } catch (e) {
-            fsGaugeChartInstance = null;
-        }
-    }
-
-    try {
-        const ctx = canvas.getContext('2d');
-        fsGaugeChartInstance = new Chart(ctx, {
-            type: 'doughnut',
-            data: {
-                datasets: [{
-                    data: [progress, remaining],
-                    backgroundColor: [fillColor, '#e2e8f0'],
-                    borderWidth: 0,
-                    circumference: 180,
-                    rotation: 270,
-                    borderRadius: [4, 4]
-                }]
-            },
-            options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                cutout: '74%',
-                animation: false,
-                plugins: {
-                    tooltip: { enabled: false },
-                    legend: { display: false }
-                }
-            }
-        });
-    } catch (err) {
-        console.warn('Erro ao criar manômetro fullscreen:', err);
+        counterEl.innerText = `Unidade ${fsCarousel.getActiveIndex() + 1} de ${currentHidraulicos.length}`;
     }
 }
 
@@ -1247,25 +880,16 @@ function renderFullscreenChart(dev) {
 
 /**
  * Modal de Registros e Histórico
+ * (Utilitários compartilhados em ../../shared/ui/registros-modal.js)
  */
 function openRegistrosModal(serialFilter) {
     const modal = document.getElementById('registrosModal');
     if (!modal) return;
 
     modal.classList.add('active');
+    document.addEventListener('keydown', handleRegistrosEscKey);
     populateModalDeviceFilter(serialFilter);
     filtrarRegistrosModal();
-}
-
-function closeRegistrosModal() {
-    const modal = document.getElementById('registrosModal');
-    if (modal) modal.classList.remove('active');
-}
-
-function handleRegistrosModalBackdrop(e) {
-    if (e.target.id === 'registrosModal') {
-        closeRegistrosModal();
-    }
 }
 
 function populateModalDeviceFilter(selectedSerial) {
@@ -1282,42 +906,6 @@ function populateModalDeviceFilter(selectedSerial) {
         }
         select.appendChild(opt);
     });
-}
-
-function aplicarAtalhoData(tipo) {
-    const ini = document.getElementById('filterModalDataInicio');
-    const fim = document.getElementById('filterModalDataFim');
-    if (!ini || !fim) return;
-
-    const now = new Date();
-    const formatInput = (d) => {
-        const pad = (n) => String(n).padStart(2, '0');
-        return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
-    };
-
-    fim.value = formatInput(now);
-
-    const past = new Date(now);
-    if (tipo === 'hoje') {
-        past.setHours(0, 0, 0, 0);
-    } else if (tipo === '7dias') {
-        past.setDate(past.getDate() - 7);
-    } else if (tipo === '30dias') {
-        past.setDate(past.getDate() - 30);
-    }
-
-    ini.value = formatInput(past);
-    filtrarRegistrosModal();
-}
-
-function limparFiltrosRegistrosModal() {
-    const ini = document.getElementById('filterModalDataInicio');
-    const fim = document.getElementById('filterModalDataFim');
-    const dev = document.getElementById('filterModalDispositivo');
-    if (ini) ini.value = '';
-    if (fim) fim.value = '';
-    if (dev) dev.value = 'todos';
-    filtrarRegistrosModal();
 }
 
 async function filtrarRegistrosModal() {
@@ -1340,7 +928,7 @@ async function filtrarRegistrosModal() {
             dataFim: dataFim
         });
 
-        const res = await fetch(`${API_BASE}/api/hidraulico/registros?${queryParams.toString()}`, {
+        const res = await semApiHidraulico(`${API_BASE}/api/hidraulico/registros?${queryParams.toString()}`, {
             headers: getAuthHeaders()
         });
 
@@ -1429,16 +1017,16 @@ function renderRegistrosPage() {
         const timeFormatted = new Date(item.timestamp).toLocaleString('pt-BR');
         return `
             <tr>
-                <td><strong>${item.numero_serie}</strong></td>
-                <td>${item.nome || 'Unidade HPU'}</td>
+                <td><strong>${escapeHtml(item.numero_serie)}</strong></td>
+                <td>${escapeHtml(item.nome || 'Unidade HPU')}</td>
                 <td>${timeFormatted}</td>
                 <td><strong style="color: ${getPressureColor(item.sensor1)};">${Number(item.sensor1).toFixed(1)} bar</strong></td>
                 <td>${Number(item.rele1_on).toFixed(1)} bar</td>
                 <td>${Number(item.rele1_off).toFixed(1)} bar</td>
-                <td>${item.rele1_ac}</td>
+                <td>${escapeHtml(item.rele1_ac)}</td>
                 <td>${Number(item.rele2_on).toFixed(1)} bar</td>
                 <td>${Number(item.rele2_off).toFixed(1)} bar</td>
-                <td>${item.rele2_ac}</td>
+                <td>${escapeHtml(item.rele2_ac)}</td>
             </tr>
         `;
     }).join('');
@@ -1464,7 +1052,7 @@ async function exportarRegistrosCSV() {
             dataFim: dataFim
         });
 
-        const res = await fetch(`${API_BASE}/api/hidraulico/exportar-csv?${queryParams.toString()}`, {
+        const res = await semApiHidraulico(`${API_BASE}/api/hidraulico/exportar-csv?${queryParams.toString()}`, {
             headers: getAuthHeaders()
         });
 
@@ -1509,11 +1097,6 @@ function abrirConfirmacaoExclusao() {
     if (modal) modal.classList.add('active');
 }
 
-function fecharConfirmacaoExclusao() {
-    const modal = document.getElementById('confirmDeleteModal');
-    if (modal) modal.classList.remove('active');
-}
-
 async function executarExclusaoRegistros() {
     fecharConfirmacaoExclusao();
 
@@ -1530,7 +1113,7 @@ async function executarExclusaoRegistros() {
             dataFim: dataFim
         });
 
-        const res = await fetch(`${API_BASE}/api/hidraulico/registros?${queryParams.toString()}`, {
+        const res = await semApiHidraulico(`${API_BASE}/api/hidraulico/registros?${queryParams.toString()}`, {
             method: 'DELETE',
             headers: getAuthHeaders()
         });
@@ -1541,20 +1124,7 @@ async function executarExclusaoRegistros() {
         }
     } catch (e) {}
 
-    const feedback = document.getElementById('modalRegistrosFeedback');
-    if (feedback) {
-        feedback.className = 'modal-feedback-box success';
-        feedback.innerText = feedbackMsg;
-        feedback.style.display = 'block';
-        setTimeout(() => { feedback.style.display = 'none'; }, 4000);
-    }
+    exibirFeedbackModal(feedbackMsg, 'success');
     registrosCurrentPage = 1;
     filtrarRegistrosModal();
-}
-
-function toggleNavDropdown(btn) {
-    const dropdown = btn.closest('.nav-dropdown');
-    if (dropdown) {
-        dropdown.classList.toggle('open');
-    }
 }

@@ -8,26 +8,14 @@
     <!-- Reaproveitamos o css da home para o layout base, e adicionamos um admin.css para os forms -->
     <link rel="stylesheet" href="../home/home.css">
     <link rel="stylesheet" href="admin.css">
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
     <script src="../config.js"></script>
 </head>
 <body>
     <div id="toast" class="toast-feedback"></div>
     <div class="app-layout">
-        <aside class="sidebar">
-            <div class="logo-container">
-                <img src="../img/logo_sensimonitor.png" alt="SensiMonitor Admin" class="sidebar-logo">
-                <span class="admin-badge">Admin</span>
-            </div>
-            <nav>
-                <a href="index.html" class="nav-item active">Cadastrar</a>
-                <a href="dispositivos.html" class="nav-item">Gerenciar Dispositivos</a>
-                <a href="relatorios.html" class="nav-item">Relatórios</a>
-            </nav>
-            <div class="user-info">
-                <a href="../login/index.html" class="logout-btn" onclick="localStorage.removeItem('sensorium_user'); localStorage.removeItem('sensorium_token');">Sair</a>
-            </div>
-        </aside>
+        <aside class="sidebar" data-menu="admin"></aside>
+        <script src="../../shared/ui/sidebar.js"></script>
 
         <main class="main-content">
             <header>
@@ -120,6 +108,7 @@
         </main>
     </div>
 
+    <script src="../../shared/ui/toast.js"></script>
     <script src="admin.js"></script>
 </body>
 </html>

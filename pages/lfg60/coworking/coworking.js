@@ -1,3 +1,32 @@
+// Tela cheia / carrossel: mecânica em shared/ui/fullscreen-presenter.js
+const fsCarousel = window.SensoriumFullscreen.bindFullscreenCarousel({
+    getDevices: () => currentDevices,
+    render: (index) => renderFullscreenDevice(index),
+    standardSelectId: 'lfgDeviceSelect',
+    formatOptionLabel: (d, i, n) => `Espaço Coworking (${i + 1}/${n})`,
+    emptyOptionLabel: 'Espaço Coworking (Sem dados)',
+    dotTitlePrefix: 'Ir para transmissor',
+    dotsContainerId: 'fsCarouselDots',
+    labels: { enter: 'Tela Cheia Coworking', exit: 'Sair da Tela Cheia' },
+    swapIcon: true,
+    autoStart: false,
+    playingClass: 'active',
+    restartAutoplayOnNavigate: true,
+    onEmpty: () => renderFullscreenEmptyState(),
+    onFullscreenToggle: (isFs) => {
+        if (!isFs) setTimeout(updateCarouselState, 250);
+    }
+});
+
+// Central de alertas: shared/ui/alerts-popover.js (endpoints do LFG60)
+window.SensoriumAlerts.configure({
+    basePath: '/api/lfg60/alertas',
+    onUpdate: (naoLidos) => {
+        const sub = document.getElementById('cardAlertasSub');
+        if (sub) sub.innerText = naoLidos > 0 ? `${naoLidos} alerta(s) pendente(s)` : 'Nenhum alerta pendente';
+    }
+});
+
 /**
  * ============================================================================
  * SENSIMONITOR - LFG60 COWORKING CLIENT (3º ANDAR)
@@ -7,8 +36,6 @@
 
 let mapInstance = null;
 let currentDevices = [];
-let currentAlerts = [];
-let activeAlertFilter = 'todos';
 
 // Limites e Ranges Prescritos dinâmicos (atualizados do banco)
 let currentLimites = {
@@ -33,62 +60,11 @@ let alertsRefreshTimer = null;
 let sensorBadgeWatchdog = null;
 let liveClockInterval = null;
 
-const USE_SIMULATED_LFG60 = false;
-const SIMULATED_LFG60_DEVICES = [
-    {
-        numero_serie: 'LFG60-CW-01',
-        nome: 'Espaço Coworking - 3º Andar (Principal)',
-        cliente: 'Coworking Corporativo',
-        status: 'Operational',
-        led: 'Green',
-        isSimulated: true,
-        ultima_leitura: {
-            temperatura: 22.8,
-            umidade: 52.0,
-            co2: 520,
-            pm25: 8.4,
-            pm10: 15.2,
-            voc: 0.11,
-            formaldeido: 0.015,
-            timestamp: new Date().toISOString()
-        }
-    }
-];
+const USE_SIMULATED_LFG60 = typeof window.USE_SIMULATED_LFG60 !== 'undefined' ? window.USE_SIMULATED_LFG60 : !!window.SENSORIUM_DEMO;
+const SIMULATED_LFG60_DEVICES = window.SIMULATED_LFG60_COWORKING_DEVICES || window.SIMULATED_LFG60_DEVICES || [];
 
-/**
- * Tradutores e Auxiliares
- */
-function translateLed(led) {
-    if (!led) return 'Verde';
-    const l = String(led).toLowerCase();
-    if (l === 'vermelho' || l === 'red') return 'Vermelho';
-    if (l === 'amarelo' || l === 'yellow') return 'Amarelo';
-    if (l === 'verde' || l === 'green') return 'Verde';
-    return led;
-}
+// translateLed, translateStatus e translateParamKey são providos por config.js / shared/core/formatters.js
 
-function translateStatus(st) {
-    if (!st) return 'Operacional';
-    const s = String(st).toLowerCase();
-    if (s === 'operacional' || s === 'operational') return 'Operacional';
-    if (s === 'atenção' || s === 'atencao' || s === 'warning') return 'Atenção';
-    if (s === 'crítico' || s === 'critico' || s === 'critical') return 'Crítico';
-    if (s === 'normal') return 'Normal';
-    return st;
-}
-
-function translateParamKey(param) {
-    const map = {
-        'temperatura': 'Temperatura Ambiente',
-        'umidade': 'Umidade Relativa',
-        'co2': 'Dióxido de Carbono (CO₂)',
-        'pm25': 'Partículas Finas (PM2.5)',
-        'pm10': 'Partículas Inaláveis (PM10)',
-        'voc': 'Compostos Orgânicos (VOC)',
-        'formaldeido': 'Formaldeído (HCHO)'
-    };
-    return map[param] || param;
-}
 
 function setSensorLiveBadgeState(isLive) {
     const badge = document.getElementById('livePresentationBadge');
@@ -199,9 +175,6 @@ document.addEventListener('DOMContentLoaded', function() {
         setInterval(loadDashboardData, 2000);
     }
 
-    // Ouvintes de Tela Cheia
-    document.addEventListener('fullscreenchange', handleFullscreenChange);
-    document.addEventListener('webkitfullscreenchange', handleFullscreenChange);
 
     // Carrossel fora de tela cheia
     const container = document.getElementById('sensorListContainer');
@@ -223,35 +196,11 @@ document.addEventListener('DOMContentLoaded', function() {
 });
 
 // ============================================================================
-// RELÓGIO CORPORATIVO EM TEMPO REAL
+// RELÓGIO CORPORATIVO EM TEMPO REAL (shared/ui/live-badge.js)
 // ============================================================================
 function startLiveClock() {
-    updateClockDisplay();
-    if (liveClockInterval) clearInterval(liveClockInterval);
-    liveClockInterval = setInterval(updateClockDisplay, 1000);
-}
-
-function updateClockDisplay() {
-    const timeEl = document.getElementById('cwLiveClock');
-    const dateEl = document.getElementById('cwLiveDate');
-    if (!timeEl && !dateEl) return;
-
-    const now = new Date();
-    
-    // Hora formato 24h: HH:MM:SS
-    const hours = String(now.getHours()).padStart(2, '0');
-    const mins = String(now.getMinutes()).padStart(2, '0');
-    const secs = String(now.getSeconds()).padStart(2, '0');
-    if (timeEl) timeEl.innerText = `${hours}:${mins}:${secs}`;
-
-    // Data por extenso: "Quarta-feira, 14 de Outubro"
-    if (dateEl) {
-        const diasSemana = ['Domingo', 'Segunda-feira', 'Terça-feira', 'Quarta-feira', 'Quinta-feira', 'Sexta-feira', 'Sábado'];
-        const meses = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'];
-        const diaSemana = diasSemana[now.getDay()];
-        const dia = now.getDate();
-        const mes = meses[now.getMonth()];
-        dateEl.innerText = `${diaSemana}, ${dia} de ${mes}`;
+    if (window.SensoriumLiveBadge && typeof window.SensoriumLiveBadge.startCorporateClock === 'function') {
+        liveClockInterval = window.SensoriumLiveBadge.startCorporateClock('cwLiveClock', 'cwLiveDate');
     }
 }
 
@@ -280,11 +229,6 @@ async function loadDashboardData() {
         fetchDevicesFromApi(),
         fetchAlertsFromApi()
     ]);
-}
-
-function getAuthHeaders() {
-    const token = localStorage.getItem('sensorium_token');
-    return token ? { 'Authorization': `Bearer ${token}` } : {};
 }
 
 async function fetchDevicesFromApi() {
@@ -458,9 +402,9 @@ function handleLiveSensorReading(reading) {
 
     // Tela cheia exibindo este dispositivo: atualiza a telemetria.
     if (document.body.classList.contains('fullscreen-active')) {
-        const activeDev = currentDevices[fullscreenActiveIndex];
+        const activeDev = currentDevices[fsCarousel.getActiveIndex()];
         if (activeDev && activeDev.numero_serie === numeroSerie) {
-            renderFullscreenDevice(fullscreenActiveIndex);
+            renderFullscreenDevice(fsCarousel.getActiveIndex());
         }
     }
 
@@ -700,10 +644,10 @@ function renderSensorCards(devices) {
         const translatedSt = translateStatus(statusRaw);
 
         return `
-            <div class="sensor-card ${isAlert ? 'alert' : ''}" id="sensor-card-${dev.numero_serie}" onclick="openDeviceDetailModal('${dev.numero_serie}')">
+            <div class="sensor-card ${isAlert ? 'alert' : ''}" id="sensor-card-${escapeHtml(dev.numero_serie)}" data-serie="${escapeHtml(dev.numero_serie)}" onclick="openDeviceDetailModal(this.dataset.serie)">
                 <div class="sensor-header">
                     <h4>Espaço Coworking (3º Andar)</h4>
-                    <div class="header-status-badge ${statusClass}" id="status-badge-${dev.numero_serie}">
+                    <div class="header-status-badge ${statusClass}" id="status-badge-${escapeHtml(dev.numero_serie)}">
                         <span class="status-dot ${dotClass}" title="LED: ${translateLed(led)}"></span>
                         <span>${translatedSt}</span>
                     </div>
@@ -713,9 +657,9 @@ function renderSensorCards(devices) {
                     <!-- Temperatura -->
                     <div class="manometro-box">
                         <div class="manometro-canvas-wrapper">
-                            <canvas id="gauge-temp-${dev.numero_serie}"></canvas>
+                            <canvas id="gauge-temp-${escapeHtml(dev.numero_serie)}"></canvas>
                             <div class="manometro-center-info">
-                                <span class="manometro-val" id="temp-val-${dev.numero_serie}" style="color: ${tempColor};">${tempDisplay}</span>
+                                <span class="manometro-val" id="temp-val-${escapeHtml(dev.numero_serie)}" style="color: ${tempColor};">${tempDisplay}</span>
                                 <span class="manometro-label">Temperatura</span>
                             </div>
                         </div>
@@ -723,15 +667,15 @@ function renderSensorCards(devices) {
                             <span>0°C</span>
                             <span>50°C</span>
                         </div>
-                        <div class="manometro-ideal-badge">Ideal: ${(currentLimites.temperatura?.min_ideal ?? 18)}°C a ${(currentLimites.temperatura?.max_ideal ?? 26)}°C</div>
+                        <div class="manometro-ideal-badge">Ideal: ${(escapeHtml(currentLimites.temperatura?.min_ideal ?? 18))}°C a ${(escapeHtml(currentLimites.temperatura?.max_ideal ?? 26))}°C</div>
                     </div>
 
                     <!-- Umidade -->
                     <div class="manometro-box">
                         <div class="manometro-canvas-wrapper">
-                            <canvas id="gauge-umid-${dev.numero_serie}"></canvas>
+                            <canvas id="gauge-umid-${escapeHtml(dev.numero_serie)}"></canvas>
                             <div class="manometro-center-info">
-                                <span class="manometro-val" id="umid-val-${dev.numero_serie}" style="color: ${umidColor};">${umidDisplay}</span>
+                                <span class="manometro-val" id="umid-val-${escapeHtml(dev.numero_serie)}" style="color: ${umidColor};">${umidDisplay}</span>
                                 <span class="manometro-label">Umidade</span>
                             </div>
                         </div>
@@ -739,14 +683,14 @@ function renderSensorCards(devices) {
                             <span>0%</span>
                             <span>100%</span>
                         </div>
-                        <div class="manometro-ideal-badge">Ideal: ${(currentLimites.umidade?.min_ideal ?? 30)}% a ${(currentLimites.umidade?.max_ideal ?? 60)}%</div>
+                        <div class="manometro-ideal-badge">Ideal: ${(escapeHtml(currentLimites.umidade?.min_ideal ?? 30))}% a ${(escapeHtml(currentLimites.umidade?.max_ideal ?? 60))}%</div>
                     </div>
                 </div>
 
                 <div class="sensor-card-footer">
                     <div class="sensor-extra-pill">
                         <span>CO₂:</span>
-                        <strong id="co2-val-${dev.numero_serie}">${co2Text}</strong>
+                        <strong id="co2-val-${escapeHtml(dev.numero_serie)}">${co2Text}</strong>
                     </div>
                     <div class="sensor-details-hint">
                         <span>Ver detalhes</span>
@@ -782,7 +726,7 @@ function updateLfgDeviceSelect(devices) {
     const currentVal = select.value || 'all';
     let optionsHtml = '<option value="all">Todos os Dispositivos</option>';
     devices.forEach(d => {
-        optionsHtml += `<option value="${d.numero_serie}">Transmissor ${d.numero_serie}</option>`;
+        optionsHtml += `<option value="${escapeHtml(d.numero_serie)}">Transmissor ${escapeHtml(d.numero_serie)}</option>`;
     });
 
     select.innerHTML = optionsHtml;
@@ -879,108 +823,8 @@ function updateCarouselState() {
 
 // ============================================================================
 // 6. APRESENTAÇÃO DE TELA CHEIA CORPORATIVA (CLIENTE COWORKING)
+// (toggleFullscreen provido por shared/ui/fullscreen-presenter.js)
 // ============================================================================
-let fullscreenActiveIndex = 0;
-let fsAutoplayInterval = null;
-const fsAutoplayDuration = 8000;
-let fsGaugeTempChart = null;
-let fsGaugeUmidChart = null;
-let fsKeyboardListenerAttached = false;
-
-function toggleFullscreen() {
-    if (!document.fullscreenElement && !document.webkitFullscreenElement) {
-        if (document.documentElement.requestFullscreen) {
-            document.documentElement.requestFullscreen();
-        } else if (document.documentElement.webkitRequestFullscreen) {
-            document.documentElement.webkitRequestFullscreen();
-        }
-    } else {
-        if (document.exitFullscreen) {
-            document.exitFullscreen();
-        } else if (document.webkitExitFullscreen) {
-            document.webkitExitFullscreen();
-        }
-    }
-}
-
-function handleFullscreenChange() {
-    const isFull = !!(document.fullscreenElement || document.webkitFullscreenElement);
-    const textEl = document.getElementById('fullscreenText');
-    const iconEl = document.getElementById('fullscreenIcon');
-    document.body.classList.toggle('fullscreen-active', isFull);
-    
-    if (textEl) {
-        textEl.innerText = isFull ? 'Sair da Tela Cheia' : 'Tela Cheia Coworking';
-    }
-    if (iconEl) {
-        if (isFull) {
-            iconEl.innerHTML = '<path d="M8 3v3a2 2 0 0 1-2 2H3m18 0h-3a2 2 0 0 1-2-2V3m0 18v-3a2 2 0 0 1 2-2h3M3 16h3a2 2 0 0 1 2 2v3"/>';
-        } else {
-            iconEl.innerHTML = '<path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"/>';
-        }
-    }
-
-    if (isFull) {
-        setupFullscreenPresentation();
-    } else {
-        stopFullscreenAutoplay();
-        setTimeout(updateCarouselState, 250);
-    }
-}
-
-function setupFullscreenPresentation() {
-    if (!fsKeyboardListenerAttached) {
-        document.addEventListener('keydown', handleFullscreenKeydown);
-        fsKeyboardListenerAttached = true;
-    }
-
-    populateFsDeviceSelect();
-
-    const standardSelect = document.getElementById('lfgDeviceSelect');
-    if (standardSelect && standardSelect.value !== 'all' && currentDevices && currentDevices.length > 0) {
-        const foundIdx = currentDevices.findIndex(d => d.numero_serie === standardSelect.value);
-        if (foundIdx >= 0) fullscreenActiveIndex = foundIdx;
-    }
-
-    renderFullscreenDevice(fullscreenActiveIndex);
-}
-
-function populateFsDeviceSelect() {
-    const select = document.getElementById('fsDeviceSelect');
-    if (!select) return;
-
-    if (!currentDevices || currentDevices.length === 0) {
-        select.innerHTML = '<option value="">Espaço Coworking (Sem dados)</option>';
-        return;
-    }
-
-    select.innerHTML = currentDevices.map((d, idx) => `
-        <option value="${d.numero_serie}">Espaço Coworking (${idx + 1}/${currentDevices.length})</option>
-    `).join('');
-}
-
-function onFsDeviceSelectChange(selectedSerial) {
-    if (!selectedSerial || !currentDevices) return;
-    const idx = currentDevices.findIndex(d => d.numero_serie === selectedSerial);
-    if (idx >= 0) {
-        renderFullscreenDevice(idx);
-    }
-}
-
-function handleFullscreenKeydown(e) {
-    if (!document.body.classList.contains('fullscreen-active')) return;
-
-    if (e.key === 'ArrowLeft') {
-        e.preventDefault();
-        navigateFullscreenCarousel(-1);
-    } else if (e.key === 'ArrowRight') {
-        e.preventDefault();
-        navigateFullscreenCarousel(1);
-    } else if (e.key === ' ' || e.code === 'Space') {
-        e.preventDefault();
-        toggleFullscreenAutoplay();
-    }
-}
 
 function getParamEvaluation(param, val) {
     if (val === null || val === undefined || isNaN(val)) {
@@ -1010,50 +854,8 @@ function getParamEvaluation(param, val) {
     }
 }
 
-function updateFullscreenGaugeChart(chartInstance, canvasId, value, min, max, fillColor) {
-    const val = (value !== null && value !== undefined && !isNaN(value)) ? Number(value) : min;
-    const clamped = Math.max(min, Math.min(max, val));
-    const progress = clamped - min;
-    const remaining = max - clamped;
-
-    if (chartInstance) {
-        chartInstance.data.datasets[0].data = [progress, remaining];
-        chartInstance.data.datasets[0].backgroundColor = [fillColor, '#e2e8f0'];
-        chartInstance.update('none');
-        return chartInstance;
-    }
-
-    const canvas = document.getElementById(canvasId);
-    if (!canvas || typeof Chart === 'undefined') return null;
-
-    const ctx = canvas.getContext('2d');
-    return new Chart(ctx, {
-        type: 'doughnut',
-        data: {
-            datasets: [{
-                data: [progress, remaining],
-                backgroundColor: [fillColor, '#e2e8f0'],
-                borderWidth: 0,
-                circumference: 180,
-                rotation: 270,
-                borderRadius: [6, 6]
-            }]
-        },
-        options: {
-            responsive: true,
-            maintainAspectRatio: false,
-            cutout: '74%',
-            animation: { duration: 150 },
-            plugins: {
-                tooltip: { enabled: false },
-                legend: { display: false }
-            }
-        }
-    });
-}
-
 function renderFullscreenEmptyState() {
-    fullscreenActiveIndex = 0;
+    fsCarousel.setActiveIndex(0);
 
     const titleEl = document.getElementById('fsDeviceTitle');
     if (titleEl) titleEl.innerText = 'Transmissor --';
@@ -1078,8 +880,8 @@ function renderFullscreenEmptyState() {
     const umidValEl = document.getElementById('fsUmidVal');
     if (umidValEl) umidValEl.innerText = '--';
 
-    fsGaugeTempChart = updateFullscreenGaugeChart(fsGaugeTempChart, 'fsGaugeTempCanvas', 0, 0, 50, '#e2e8f0');
-    fsGaugeUmidChart = updateFullscreenGaugeChart(fsGaugeUmidChart, 'fsGaugeUmidCanvas', 0, 0, 100, '#e2e8f0');
+    updateFsGaugeChart(0, 0, 50, '#e2e8f0', 'fsGaugeTempCanvas', 6);
+    updateFsGaugeChart(0, 0, 100, '#e2e8f0', 'fsGaugeUmidCanvas', 6);
 
     ['co2', 'pm25', 'pm10', 'voc', 'formaldeido'].forEach(p => {
         updateFsVarCard(p, null, () => '--', p);
@@ -1091,7 +893,7 @@ function renderFullscreenEmptyState() {
     if (fsGaugeMids[0]) fsGaugeMids[0].innerText = `Faixa Ideal: ${(tCfg.min_ideal ?? 18)}° a ${(tCfg.max_ideal ?? 26)}°C`;
     if (fsGaugeMids[1]) fsGaugeMids[1].innerText = `Faixa Ideal: ${(uCfg.min_ideal ?? 30)}% a ${(uCfg.max_ideal ?? 60)}%`;
 
-    renderFsDots();
+    fsCarousel.renderFsDots();
     const counterEl = document.getElementById('fsDeviceCounterText');
     if (counterEl) counterEl.innerText = 'Aguardando vinculação';
 }
@@ -1102,9 +904,7 @@ function renderFullscreenDevice(index) {
         return;
     }
 
-    if (index < 0) index = currentDevices.length - 1;
-    if (index >= currentDevices.length) index = 0;
-    fullscreenActiveIndex = index;
+    index = fsCarousel.setActiveIndex(index);
 
     const dev = currentDevices[index];
     const l = dev.ultima_leitura || {};
@@ -1241,8 +1041,8 @@ function renderFullscreenDevice(index) {
         umidChipEl.innerText = umidEval.text;
     }
 
-    fsGaugeTempChart = updateFullscreenGaugeChart(fsGaugeTempChart, 'fsGaugeTempCanvas', tempVal, 0, 50, tempColor);
-    fsGaugeUmidChart = updateFullscreenGaugeChart(fsGaugeUmidChart, 'fsGaugeUmidCanvas', umidVal, 0, 100, umidColor);
+    updateFsGaugeChart(tempVal, 0, 50, tempColor, 'fsGaugeTempCanvas', 6);
+    updateFsGaugeChart(umidVal, 0, 100, umidColor, 'fsGaugeUmidCanvas', 6);
 
     // 4.1 Atualiza legendas dinâmicas de faixa ideal a partir dos limites configurados no banco
     const tCfg = currentLimites.temperatura || { min_ideal: 18, max_ideal: 26 };
@@ -1276,10 +1076,10 @@ function renderFullscreenDevice(index) {
     }
 
     // 7. Atualiza Navegação (Dots e Contador)
-    renderFsDots();
+    fsCarousel.renderFsDots();
     const counterEl = document.getElementById('fsDeviceCounterText');
     if (counterEl) {
-        counterEl.innerText = `Dispositivo ${fullscreenActiveIndex + 1} de ${currentDevices.length}`;
+        counterEl.innerText = `Dispositivo ${fsCarousel.getActiveIndex() + 1} de ${currentDevices.length}`;
     }
 
     const select = document.getElementById('fsDeviceSelect');
@@ -1320,74 +1120,13 @@ function updateFsVarCard(paramKey, rawVal, formatFn, evalKey) {
     }
 }
 
-function renderFsDots() {
-    const dotsContainer = document.getElementById('fsCarouselDots');
-    if (!dotsContainer || !currentDevices) return;
-
-    dotsContainer.innerHTML = currentDevices.map((_, idx) => `
-        <div class="fs-dot ${idx === fullscreenActiveIndex ? 'active' : ''}" 
-             onclick="renderFullscreenDevice(${idx})" 
-             title="Ir para transmissor ${idx + 1}"></div>
-    `).join('');
-}
-
-function navigateFullscreenCarousel(direction) {
-    renderFullscreenDevice(fullscreenActiveIndex + direction);
-
-    if (fsAutoplayInterval) {
-        clearInterval(fsAutoplayInterval);
-        fsAutoplayInterval = setInterval(() => {
-            navigateFullscreenCarousel(1);
-        }, fsAutoplayDuration);
-    }
-}
-
-function toggleFullscreenAutoplay() {
-    if (fsAutoplayInterval) {
-        stopFullscreenAutoplay();
-    } else {
-        startFullscreenAutoplay();
-    }
-}
-
-function startFullscreenAutoplay() {
-    if (fsAutoplayInterval) clearInterval(fsAutoplayInterval);
-    fsAutoplayInterval = setInterval(() => {
-        navigateFullscreenCarousel(1);
-    }, fsAutoplayDuration);
-
-    const btn = document.getElementById('fsAutoplayBtn');
-    const text = document.getElementById('fsAutoplayText');
-    const icon = document.getElementById('fsAutoplayIcon');
-    if (btn) btn.classList.add('active');
-    if (text) text.innerText = 'Pausar (8s)';
-    if (icon) {
-        icon.innerHTML = '<rect x="6" y="4" width="4" height="16"></rect><rect x="14" y="4" width="4" height="16"></rect>';
-    }
-}
-
-function stopFullscreenAutoplay() {
-    if (fsAutoplayInterval) {
-        clearInterval(fsAutoplayInterval);
-        fsAutoplayInterval = null;
-    }
-    const btn = document.getElementById('fsAutoplayBtn');
-    const text = document.getElementById('fsAutoplayText');
-    const icon = document.getElementById('fsAutoplayIcon');
-    if (btn) btn.classList.remove('active');
-    if (text) text.innerText = 'Auto (8s)';
-    if (icon) {
-        icon.innerHTML = '<polygon points="5 3 19 12 5 21 5 3"></polygon>';
-    }
-}
-
 function updateFullscreenTelemetry() {
     if (!currentDevices || currentDevices.length === 0) {
         renderFullscreenEmptyState();
         return;
     }
-    populateFsDeviceSelect();
-    renderFullscreenDevice(fullscreenActiveIndex);
+    fsCarousel.populateFsDeviceSelect();
+    renderFullscreenDevice(fsCarousel.getActiveIndex());
 }
 
 // ============================================================================
@@ -1477,7 +1216,7 @@ async function fetchDeviceHistory(numeroSerie) {
                     return `
                         <div style="display: flex; justify-content: space-between; padding: 4px 0; border-bottom: 1px solid #1e293b;">
                             <span>${time}</span>
-                            <span>Temp: <strong>${item.temperatura ?? '--'}°C</strong> | Umid: <strong>${item.umidade ?? '--'}%</strong> | CO₂: <strong>${item.co2 ?? '--'} ppm</strong></span>
+                            <span>Temp: <strong>${escapeHtml(item.temperatura ?? '--')}°C</strong> | Umid: <strong>${escapeHtml(item.umidade ?? '--')}%</strong> | CO₂: <strong>${escapeHtml(item.co2 ?? '--')} ppm</strong></span>
                         </div>
                     `;
                 }).join('');
@@ -1530,7 +1269,7 @@ async function openPrescribedRangesModal() {
             html += `
             <tr data-param="${key}">
                 <td style="white-space: nowrap;"><strong>${translatedLabel}</strong></td>
-                <td>${l.unit}</td>
+                <td>${escapeHtml(l.unit)}</td>
                 <td style="white-space: nowrap;">
                     ${hasMin ? 
                         `<input type="number" step="${step}" class="input-limite" data-field="min_ideal" value="${minIdealVal}" style="${inputStyle}"> a 
@@ -1623,100 +1362,6 @@ async function savePrescribedRanges() {
 // ============================================================================
 // CENTRAL DE ALERTAS
 // ============================================================================
-async function fetchAlertsFromApi() {
-    try {
-        const res = await fetch(`${API_BASE}/api/lfg60/alertas`, {
-            headers: getAuthHeaders()
-        });
-        if (res.ok) {
-            const result = await res.json();
-            currentAlerts = result.data || result || [];
-            updateAlertsUI();
-        }
-    } catch (e) {
-        console.warn('[Coworking] Erro ao buscar alertas:', e.message);
-    }
-}
-
-function updateAlertsUI() {
-    const badge = document.getElementById('headerAlertBadge');
-    const cardCount = document.getElementById('cardCountAlertas');
-    const cardAlertasSub = document.getElementById('cardAlertasSub');
-
-    const unreadCount = currentAlerts.filter(a => !a.lido).length;
-
-    if (badge) {
-        badge.innerText = unreadCount;
-        badge.style.display = unreadCount > 0 ? 'flex' : 'none';
-    }
-
-    if (cardCount) cardCount.innerText = unreadCount;
-    if (cardAlertasSub) {
-        cardAlertasSub.innerText = unreadCount > 0 ? `${unreadCount} alerta(s) pendente(s)` : 'Nenhum alerta pendente';
-    }
-
-    renderAlertsList();
-}
-
-function toggleHeaderAlerts() {
-    const popover = document.getElementById('headerAlertsPopover');
-    if (popover) popover.classList.toggle('active');
-}
-
-function filterAlerts(filterType, btnEl) {
-    activeAlertFilter = filterType;
-    const filterTabs = document.querySelectorAll('.popover-filters .filter-tab');
-    filterTabs.forEach(tab => tab.classList.remove('active'));
-    if (btnEl) btnEl.classList.add('active');
-    renderAlertsList();
-}
-
-function renderAlertsList() {
-    const listEl = document.getElementById('headerAlertsList');
-    if (!listEl) return;
-
-    let filtered = currentAlerts;
-    if (activeAlertFilter !== 'todos') {
-        filtered = currentAlerts.filter(a => {
-            const t = (a.tipo || a.gravidade || '').toLowerCase();
-            return t === activeAlertFilter.toLowerCase();
-        });
-    }
-
-    if (filtered.length === 0) {
-        listEl.innerHTML = '<div style="padding: 16px; text-align: center; color: #94a3b8; font-size: 13px;">Nenhum alerta para o filtro selecionado.</div>';
-        return;
-    }
-
-    listEl.innerHTML = filtered.map(a => {
-        const time = new Date(a.criado_em || a.timestamp || Date.now()).toLocaleTimeString('pt-BR');
-        return `
-            <div class="alert-item ${a.lido ? 'read' : 'unread'}" style="padding: 10px; border-bottom: 1px solid #1e293b; font-size: 12px;">
-                <div style="display: flex; justify-content: space-between; margin-bottom: 3px;">
-                    <strong style="color: ${a.tipo === 'Critico' ? '#ef4444' : '#f59e0b'};">${a.tipo || 'Aviso'}</strong>
-                    <span style="color: #64748b; font-size: 11px;">${time}</span>
-                </div>
-                <div style="color: #cbd5e1;">${a.mensagem || a.descricao || 'Desvio detectado'}</div>
-            </div>
-        `;
-    }).join('');
-}
-
-async function markAllAlertsAsRead() {
-    try {
-        const res = await fetch(`${API_BASE}/api/lfg60/alertas/limpar-todos`, {
-            method: 'PUT',
-            headers: getAuthHeaders()
-        });
-        if (res.ok) {
-            currentAlerts.forEach(a => a.lido = true);
-            updateAlertsUI();
-        }
-    } catch (e) {
-        console.error('Erro ao marcar alertas como lidos:', e);
-    }
-}
-
 // Fechamento de modais ao clicar no overlay
 document.addEventListener('click', function(e) {
     const sensorModal = document.getElementById('sensorModal');

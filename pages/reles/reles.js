@@ -1,13 +1,14 @@
 let mapInstance = null;
 let currentDevices = [];
-let currentAlerts = [];
-let activeAlertFilter = 'todos';
 let historyChartInstance = null;
 let socketInstance = null;
 let isUpdatingDashboard = false;
 let lastDevicesSignature = '';
 let lastChartSignature = '';
 let releBadgeWatchdog = null;
+let isFetchingDevices = false;
+let lastChartRefreshAt = 0;
+let lastChartReadingKey = '';
 
 /**
  * Atualiza o estado da badge de transmissão ao vivo
@@ -41,10 +42,11 @@ document.addEventListener('DOMContentLoaded', function() {
     initRealtimeConnection();
     loadDashboardData();
 
-    // Polling contínuo ultrarrápido (150ms) para streaming contínuo em milissegundos
-    setInterval(() => {
-        loadDashboardData(true);
-    }, 150);
+    // Tempo real chega pelo socket; o polling é só a rede de segurança.
+    // Relés a cada 0,5 s (sem sobrepor requisições) e alertas a cada 15 s.
+    const poll = window.SensoriumRealtime ? window.SensoriumRealtime.startSmartPolling : (cb, ms) => setInterval(cb, ms);
+    poll(() => fetchDevicesFromApi(), 500);
+    poll(() => fetchAlertsFromApi(), 15000);
 
     // Fechar popover de alertas ao clicar fora
     document.addEventListener('click', function(e) {
@@ -64,60 +66,28 @@ document.addEventListener('DOMContentLoaded', function() {
 });
 
 /**
- * Inicializa conexão WebSocket com Socket.IO
+ * Tempo real (Socket.IO): 'rele_reading' e o 'dashboard_update' do tipo 'reles_data'
+ * (o backend emite os dois juntos; leituras repetidas ou mais antigas são ignoradas).
  */
 function initRealtimeConnection() {
-    if (typeof io !== 'undefined') {
-        try {
-            const socketUrl = window.API_BASE || (window.location.origin.includes(':') ? window.location.origin : 'http://localhost:3000');
-            socketInstance = io(socketUrl, {
-                auth: { token: localStorage.getItem('sensorium_token') },
-                reconnection: true,
-                reconnectionAttempts: Infinity,
-                reconnectionDelay: 1000,
-                transports: ['websocket', 'polling']
-            });
-
-            socketInstance.on('connect', () => {
-                console.log('[Socket.IO] Conectado em tempo real ao servidor.');
-            });
-
-            // Recepção instantânea de leituras em milissegundos
-            socketInstance.on('rele_reading', (data) => {
-                handleLiveReading(data);
-            });
-
-            socketInstance.on('dashboard_update', (data) => {
-                if (data?.data && data.type === 'reles_data') {
-                    handleLiveReading(data.data);
-                } else {
-                    loadDashboardData(false);
-                }
-
-                // Se o modal estiver aberto e o dispositivo corresponder, atualiza o modal na hora
-                const modal = document.getElementById('sensorModal');
-                if (modal && modal.classList.contains('active')) {
-                    const title = document.getElementById('modalSensorTitle')?.innerText || '';
-                    if (!data?.numeroSerie || title.includes(data.numeroSerie)) {
-                        const currentModalDev = currentDevices.find(d => title.includes(d.numero_serie));
-                        if (currentModalDev) {
-                            updateModalLiveValues(currentModalDev);
-                        }
-                    }
-                }
-            });
-
-            socketInstance.on('disconnect', () => {
-                console.warn('[Socket.IO] Desconectado. Tentando reconectar...');
-                setReleLiveBadgeState(false);
-            });
-        } catch (err) {
-            console.error('[Socket.IO] Erro ao inicializar conexão:', err);
-            setReleLiveBadgeState(false);
-        }
-    } else {
-        console.warn('Socket.IO não disponível. Usando polling contínuo.');
+    if (!window.SensoriumRealtime) {
+        console.warn('Socket.IO não disponível. Usando polling.');
+        return;
     }
+    const receber = (data) => {
+        if (!data || !data.numeroSerie) return;
+        const dev = currentDevices.find(d => d.numero_serie === data.numeroSerie);
+        if (!window.SensoriumRealtime.isNewerReading(data, dev && dev.ultima_leitura)) return;
+        handleLiveReading(data);
+    };
+    socketInstance = window.SensoriumRealtime.createRealtimeSocket({
+        logPrefix: 'Relés',
+        events: {
+            rele_reading: receber,
+            dashboard_update: (pacote) => { if (pacote?.type === 'reles_data' && pacote.data) receber(pacote.data); }
+        },
+        onDisconnect: () => setReleLiveBadgeState(false)
+    });
 }
 
 /**
@@ -142,12 +112,13 @@ function handleLiveReading(reading) {
             rele2_on,
             rele2_off,
             rele2_acionamentos,
-            timestamp: timestamp || new Date()
+            timestamp: timestamp || new Date().toISOString(),
+            leitura_id: reading.leitura_id ?? dev.ultima_leitura?.leitura_id
         };
     }
 
     // 2. Atualiza os valores do Card específico instantaneamente
-    const cardEl = document.querySelector(`.sensor-card[data-serie="${numeroSerie}"]`);
+    const cardEl = document.querySelector(`.sensor-card[data-serie="${CSS.escape(String(numeroSerie))}"]`);
     if (cardEl) {
         const pressureEl = cardEl.querySelector('.pressure-live-val');
         if (pressureEl && sensor1 !== null && sensor1 !== undefined) {
@@ -222,15 +193,12 @@ async function loadDashboardData(silent = false) {
     }
 }
 
-function getAuthHeaders() {
-    const token = localStorage.getItem('sensorium_token');
-    return token ? { 'Authorization': `Bearer ${token}` } : {};
-}
-
 /**
  * Busca a lista de relés e suas últimas leituras
  */
 async function fetchDevicesFromApi() {
+    if (isFetchingDevices) return;
+    isFetchingDevices = true;
     try {
         const res = await fetch(`${API_BASE}/api/reles`, {
             headers: getAuthHeaders()
@@ -239,7 +207,9 @@ async function fetchDevicesFromApi() {
         const result = await res.json();
 
         if (result.success && Array.isArray(result.data)) {
-            currentDevices = result.data;
+            currentDevices = window.SensoriumRealtime
+                ? window.SensoriumRealtime.mergeKeepingNewest(currentDevices, result.data)
+                : result.data;
             renderSensorCards(currentDevices);
             updateDashboardSummary(currentDevices);
             populateDeviceSelect(currentDevices);
@@ -251,10 +221,18 @@ async function fetchDevicesFromApi() {
                 setReleLiveBadgeState(false);
             }
 
-            // Atualiza o gráfico se houver dispositivo selecionado
+            // Histórico do gráfico: só quando a última leitura do relé selecionado
+            // mudou (e o socket não a trouxe) ou a cada 15 s.
             const select = document.getElementById('releDeviceSelect');
             if (select && select.value) {
-                loadAndRenderHistoryChart(select.value, false);
+                const sel = currentDevices.find(d => d.numero_serie === select.value);
+                const u = sel?.ultima_leitura || {};
+                const key = `${select.value}_${u.leitura_id ?? ''}_${u.timestamp ?? ''}`;
+                if (key !== lastChartReadingKey || Date.now() - lastChartRefreshAt > 15000) {
+                    lastChartReadingKey = key;
+                    lastChartRefreshAt = Date.now();
+                    loadAndRenderHistoryChart(select.value, false);
+                }
             }
 
             // Atualiza modal se estiver aberto
@@ -269,6 +247,8 @@ async function fetchDevicesFromApi() {
         }
     } catch (err) {
         console.warn('[Relés] Erro ao buscar relés:', err.message);
+    } finally {
+        isFetchingDevices = false;
     }
 }
 
@@ -322,10 +302,10 @@ function renderSensorCards(devices) {
         const timeStr = l.timestamp ? new Date(l.timestamp).toLocaleTimeString('pt-BR') : 'Sem leitura';
 
         return `
-            <div class="sensor-card ${isAlert ? 'alert' : ''}" data-serie="${dev.numero_serie}" onclick="openDeviceDetailModal('${dev.numero_serie}')">
+            <div class="sensor-card ${isAlert ? 'alert' : ''}" data-serie="${escapeHtml(dev.numero_serie)}" onclick="openDeviceDetailModal(this.dataset.serie)">
                 <div class="sensor-header">
                     <div style="display:flex; align-items:center; gap:8px;">
-                        <h4>Relé ${dev.numero_serie}</h4>
+                        <h4>Relé ${escapeHtml(dev.numero_serie)}</h4>
                         <span class="status-dot ${dotClass}" title="Status: ${statusText}"></span>
                     </div>
                     <span class="time-live-val" style="font-size: 10px; color: #94a3b8;">${timeStr}</span>
@@ -787,117 +767,8 @@ function closeSensorModal() {
 }
 
 /**
- * Alertas e Avisos
+ * Alertas e Avisos no Header e toggleNavDropdown são providos por
+ * shared/ui/alerts-popover.js e config.js.
  */
-async function fetchAlertsFromApi() {
-    try {
-        const res = await fetch(`${API_BASE}/api/alertas?unreadOnly=true`, {
-            headers: getAuthHeaders()
-        });
-        if (!res.ok) throw new Error('Falha ao buscar alertas.');
-        const result = await res.json();
 
-        if (result.success) {
-            currentAlerts = result.data || [];
-            updateHeaderAlertBadge(result.summary ? result.summary.unread : currentAlerts.length);
-            renderAlertsList();
-
-            const cardCountAlertas = document.getElementById('cardCountAlertas');
-            if (cardCountAlertas) cardCountAlertas.innerText = result.summary ? result.summary.unread : currentAlerts.length;
-        }
-    } catch (err) {
-        console.warn('[Alertas] Erro ao carregar alertas:', err.message);
-    }
-}
-
-function updateHeaderAlertBadge(unreadCount) {
-    const badge = document.getElementById('headerAlertBadge');
-    if (!badge) return;
-
-    badge.innerText = unreadCount;
-    if (unreadCount > 0) {
-        badge.style.display = 'flex';
-    } else {
-        badge.style.display = 'none';
-    }
-}
-
-function toggleHeaderAlerts() {
-    const popover = document.getElementById('headerAlertsPopover');
-    if (!popover) return;
-    popover.classList.toggle('active');
-}
-
-function filterAlerts(filterType, element) {
-    activeAlertFilter = filterType;
-
-    const tabs = document.querySelectorAll('.popover-filters .filter-tab');
-    tabs.forEach(t => t.classList.remove('active'));
-    if (element) element.classList.add('active');
-
-    renderAlertsList();
-}
-
-function renderAlertsList() {
-    const list = document.getElementById('headerAlertsList');
-    if (!list) return;
-
-    let filtered = currentAlerts;
-    if (activeAlertFilter === 'Critico') {
-        filtered = currentAlerts.filter(a => a.nivel === 'Critico');
-    } else if (activeAlertFilter === 'Aviso') {
-        filtered = currentAlerts.filter(a => a.nivel === 'Aviso');
-    }
-
-    if (filtered.length === 0) {
-        list.innerHTML = `<div class="alerts-empty">Nenhum aviso ou alerta pendente no momento.</div>`;
-        return;
-    }
-
-    list.innerHTML = filtered.map(a => {
-        const isCrit = a.nivel === 'Critico';
-        const dateStr = a.created_at ? new Date(a.created_at).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }) : '';
-        
-        return `
-            <div class="alert-item-card ${isCrit ? 'critico' : ''}">
-                <div class="alert-item-header">
-                    <span class="alert-device-name">Dispositivo: ${a.dispositivo_numero_serie}</span>
-                    <span class="alert-badge-pill ${isCrit ? 'critico' : 'aviso'}">${a.nivel}</span>
-                </div>
-                <div class="alert-msg-text"><strong>${a.parametro}:</strong> ${a.mensagem}</div>
-                <div class="alert-item-footer">
-                    <span>${dateStr}</span>
-                    <button class="btn-read-alert" onclick="markAlertAsRead(${a.id})">Marcar Lido</button>
-                </div>
-            </div>
-        `;
-    }).join('');
-}
-
-async function markAlertAsRead(alertId) {
-    try {
-        const res = await fetch(`${API_BASE}/api/alertas/${alertId}/lido`, {
-            method: 'PUT',
-            headers: getAuthHeaders()
-        });
-        if (res.ok) fetchAlertsFromApi();
-    } catch (e) {}
-}
-
-async function markAllAlertsAsRead() {
-    try {
-        const res = await fetch(`${API_BASE}/api/alertas/limpar-todos`, {
-            method: 'PUT',
-            headers: getAuthHeaders()
-        });
-        if (res.ok) fetchAlertsFromApi();
-    } catch (e) {}
-}
-
-function toggleNavDropdown(btn) {
-    const dropdown = btn.closest('.nav-dropdown');
-    if (dropdown) {
-        dropdown.classList.toggle('open');
-    }
-}
 

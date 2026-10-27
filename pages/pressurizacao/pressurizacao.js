@@ -4,187 +4,83 @@ let socketInstance = null;
 let isUpdatingDashboard = false;
 let lastDevicesSignature = '';
 let lastProcessedReadingSignature = '';
-let liveBadgeWatchdog = null;
 let pressurizacaoChartInstance = null;
 let fluidTelemetry = null;
 
 // Fullscreen Presentation & Carousel State
-let fullscreenActiveIndex = 0;
-let fsAutoplayInterval = null;
-const fsAutoplayDuration = 8000;
 let fsGaugeChartInstance = null;
+let fsChartSerial = '';
+let fsChartLoadedAt = 0;
+const fsChartInstanceReady = () => !!fsPressurizacaoChartInstance;
 let fsPressurizacaoChartInstance = null;
-let fsKeyboardListenerAttached = false;
 
 // Estado do Modal de Registros
 let registrosCurrentPage = 1;
 let registrosTotalPages = 1;
 const registrosPageLimit = 20;
 let isFetchingRegistros = false;
+let mockRegistrosHistory = [];
 
-// ----------------------------------------------------
-// DISPOSITIVOS SIMULADOS DE EXEMPLO (DEMONSTRAÇÃO FRONTEND)
-// ----------------------------------------------------
-const SIMULATED_PRESSURIZACAO_DEVICES = [
-    {
-        numero_serie: 'PRESS-01',
-        nome: 'Barrilete Principal - Torre A',
-        cliente: 'Edifício Corporativo Horizon',
-        status: 'Operacional',
-        isSimulated: true,
-        ultima_leitura: {
-            sensor1: 44.5, // Pressão em psi
-            rele1_on: 35.0,
-            rele1_off: 50.0,
-            rele1_acionamentos: 142,
-            rele1_estado: 0, // Desligada (pressão acima do mín)
-            rele2_on: 32.0,
-            rele2_off: 50.0,
-            rele2_acionamentos: 38,
-            rele2_estado: 0,
-            timestamp: new Date().toISOString()
-        }
-    },
-    {
-        numero_serie: 'PRESS-02',
-        nome: 'Estação Elevatória - Bloco B',
-        cliente: 'Residencial Reserva das Águas',
-        status: 'Operacional',
-        isSimulated: true,
-        ultima_leitura: {
-            sensor1: 38.2,
-            rele1_on: 30.0,
-            rele1_off: 48.0,
-            rele1_acionamentos: 96,
-            rele1_estado: 0,
-            rele2_on: 28.0,
-            rele2_off: 48.0,
-            rele2_acionamentos: 19,
-            rele2_estado: 0,
-            timestamp: new Date().toISOString()
-        }
-    },
-    {
-        numero_serie: 'PRESS-03',
-        nome: 'Booster Hidropneumático - Subsolo',
-        cliente: 'Centro Logístico Integrado',
-        status: 'Operacional',
-        isSimulated: true,
-        ultima_leitura: {
-            sensor1: 48.0,
-            rele1_on: 40.0,
-            rele1_off: 60.0,
-            rele1_acionamentos: 215,
-            rele1_estado: 0,
-            rele2_on: 36.0,
-            rele2_off: 60.0,
-            rele2_acionamentos: 52,
-            rele2_estado: 0,
-            timestamp: new Date().toISOString()
-        }
-    }
-];
+// Controlador compartilhado da badge de transmissão (../../shared/ui/live-badge.js)
+const liveBadgeCtrl = window.SensoriumLiveBadge
+    ? window.SensoriumLiveBadge.createLiveBadgeController()
+    : null;
 
-/**
- * Atualiza o estado da badge de transmissão (Verde pulsante se ao vivo, Cinza se sem dados)
- */
+// Tela cheia / carrossel: mecânica em ../../shared/ui/fullscreen-presenter.js
+const fsCarousel = window.SensoriumFullscreen.bindFullscreenCarousel({
+    getDevices: () => currentPressurizacoes,
+    render: (index) => renderFullscreenStation(index),
+    standardSelectId: 'pressurizacaoSelect',
+    formatOptionLabel: (d, i, n) => `${d.numero_serie} - ${d.nome || 'Estação'} (${i + 1}/${n})`,
+    emptyOptionLabel: 'Nenhuma estação',
+    dotTitlePrefix: 'Ir para estação',
+    labels: { enter: 'Tela Cheia', exit: 'Sair Tela Cheia' },
+    swapIcon: false,
+});
+
 function setLiveBadgeState(isLive) {
-    const badge = document.getElementById('livePresentationBadge');
-    const badgeText = document.getElementById('liveBadgeText');
-    if (!badge) return;
-
-    if (isLive) {
-        badge.classList.add('active');
-        if (badgeText) badgeText.innerText = 'TRANSMISSÃO AO VIVO';
-
-        if (liveBadgeWatchdog) clearTimeout(liveBadgeWatchdog);
-        liveBadgeWatchdog = setTimeout(() => {
-            setLiveBadgeState(false);
-        }, 15000);
-    } else {
-        badge.classList.remove('active');
-        if (badgeText) badgeText.innerText = 'AGUARDANDO DADOS';
-    }
+    if (liveBadgeCtrl) liveBadgeCtrl.setState(isLive);
 }
 
 document.addEventListener('DOMContentLoaded', function() {
-    const userStr = localStorage.getItem('sensorium_user');
-    if (userStr) {
-        try {
-            const user = JSON.parse(userStr);
-            if (user.perfil === 'apresentacao') {
-                document.querySelectorAll('.sidebar nav > a.nav-item').forEach(el => {
-                    el.style.display = 'none';
-                });
-            }
-        } catch (e) {}
-    }
-
     initRealtimeConnection();
     loadPressurizacaoData();
 
-    // Sincronização periódica da telemetria a cada 1.5s
-    setInterval(() => {
-        loadPressurizacaoData(true);
-    }, 1500);
+    // Sincronização periódica inteligente da telemetria a cada 1.5s
+    if (window.SensoriumRealtime) {
+        window.SensoriumRealtime.startSmartPolling(() => loadPressurizacaoData(true), 1500);
+    } else {
+        setInterval(() => loadPressurizacaoData(true), 1500);
+    }
 
-    // Simulação contínua dos dados para quando a rota do backend ainda não existir
-    setInterval(simulateLivePressurizacaoStep, 1000);
+    // Simulação só no modo demonstração (?demo=1)
+    if (window.SENSORIUM_DEMO) setInterval(simulateLivePressurizacaoStep, 1000);
 
-    // Monitora mudanças de tela cheia para atualizar botão e modo apresentação
-    document.addEventListener('fullscreenchange', handleFullscreenChange);
-    document.addEventListener('webkitfullscreenchange', handleFullscreenChange);
 });
 
 /**
- * Inicializa conexão Socket.IO para streaming em tempo real
+ * Inicializa conexão Socket.IO para streaming em tempo real.
+ * Só o evento deste tipo de dispositivo; leituras mais antigas que a exibida
+ * (ou repetidas, já que o backend envia pressurizacao_reading e dashboard_update juntos) são ignoradas.
  */
 function initRealtimeConnection() {
-    if (typeof io !== 'undefined') {
-        try {
-            const socketUrl = window.API_BASE || (window.location.origin.includes(':') ? window.location.origin : 'http://localhost:3000');
-            socketInstance = io(socketUrl, {
-                auth: { token: localStorage.getItem('sensorium_token') },
-                reconnection: true,
-                reconnectionAttempts: Infinity,
-                reconnectionDelay: 1000,
-                transports: ['websocket', 'polling']
-            });
-
-            socketInstance.on('connect', () => {
-                console.log('[Pressurização Socket] Conectado em tempo real.');
-            });
-
-            socketInstance.on('pressurizacao_reading', (data) => {
-                handleLivePressurizacaoReading(data);
-            });
-
-            socketInstance.on('rele_reading', (data) => {
-                handleLivePressurizacaoReading(data);
-            });
-
-            socketInstance.on('dashboard_update', (data) => {
-                if (data?.data && (data.type === 'pressurizacao_data' || data.type === 'reles_data')) {
-                    handleLivePressurizacaoReading(data.data);
-                } else {
-                    loadPressurizacaoData(true);
-                }
-            });
-
-            socketInstance.on('disconnect', () => {
-                console.warn('[Pressurização Socket] Desconectado.');
-                setLiveBadgeState(false);
-            });
-        } catch (err) {
-            console.error('[Pressurização Socket] Erro ao conectar:', err);
-            setLiveBadgeState(false);
-        }
-    }
-}
-
-function getAuthHeaders() {
-    const token = localStorage.getItem('sensorium_token');
-    return token ? { 'Authorization': `Bearer ${token}` } : {};
+    if (!window.SensoriumRealtime) return;
+    const receber = (data) => {
+        if (!data || !data.numeroSerie) return;
+        const dev = currentPressurizacoes.find(d => d.numero_serie === data.numeroSerie);
+        if (!window.SensoriumRealtime.isNewerReading(data, dev && dev.ultima_leitura)) return;
+        handleLivePressurizacaoReading(data);
+    };
+    socketInstance = window.SensoriumRealtime.createRealtimeSocket({
+        logPrefix: 'Pressurização',
+        events: {
+            pressurizacao_reading: receber,
+            dashboard_update: (pacote) => {
+                if (pacote?.type === 'pressurizacao_data' && pacote.data) receber(pacote.data);
+            }
+        },
+        onDisconnect: () => setLiveBadgeState(false)
+    });
 }
 
 /**
@@ -212,8 +108,8 @@ async function loadPressurizacaoData(silent = false) {
         }
 
         if (loadedData !== null && loadedData.length > 0) {
-            currentPressurizacoes = loadedData;
-        } else if (currentPressurizacoes.length === 0) {
+            currentPressurizacoes = window.SensoriumRealtime ? window.SensoriumRealtime.mergeKeepingNewest(currentPressurizacoes, loadedData) : loadedData;
+        } else if (window.SENSORIUM_DEMO && currentPressurizacoes.length === 0) {
             currentPressurizacoes = JSON.parse(JSON.stringify(SIMULATED_PRESSURIZACAO_DEVICES));
         }
 
@@ -222,7 +118,7 @@ async function loadPressurizacaoData(silent = false) {
         updateExecutiveSummary(currentPressurizacoes);
 
         if (document.body.classList.contains('fullscreen-active')) {
-            renderFullscreenStation(fullscreenActiveIndex);
+            renderFullscreenStation(fsCarousel.getActiveIndex());
         }
 
         const hasData = currentPressurizacoes.length > 0 && currentPressurizacoes.some(d => d.ultima_leitura && d.ultima_leitura.sensor1 !== null && d.ultima_leitura.sensor1 !== undefined);
@@ -260,79 +156,13 @@ async function loadPressurizacaoData(silent = false) {
 
 /**
  * Simulação contínua do ciclo hidropneumático das bombas de pressurização
+ * (Dados e motor simulados em ../../shared/mocks/pressurizacao.mock.js)
  */
-let simStep = 0;
 function simulateLivePressurizacaoStep() {
     if (!currentPressurizacoes || currentPressurizacoes.length === 0) return;
-    simStep++;
-
-    let hasSimulated = false;
-
-    currentPressurizacoes.forEach((dev, idx) => {
-        if (dev.isSimulated || dev.numero_serie.startsWith('PRESS-')) {
-            hasSimulated = true;
-            if (!dev.ultima_leitura) {
-                dev.ultima_leitura = {
-                    sensor1: 42.0,
-                    rele1_on: 35.0,
-                    rele1_off: 50.0,
-                    rele1_acionamentos: 100,
-                    rele1_estado: 0,
-                    rele2_on: 32.0,
-                    rele2_off: 50.0,
-                    rele2_acionamentos: 25,
-                    rele2_estado: 0,
-                    timestamp: new Date().toISOString()
-                };
-            }
-
-            const l = dev.ultima_leitura;
-            const r1_on = Number(l.rele1_on || 35.0);
-            const r1_off = Number(l.rele1_off || 50.0);
-            const r2_on = Number(l.rele2_on || 32.0);
-
-            // Simula consumo e pressurização
-            let currentP = Number(l.sensor1);
-            let b1 = l.rele1_estado || 0;
-            let b2 = l.rele2_estado || 0;
-
-            if (b1 === 1 || b2 === 1) {
-                // Bomba ligada: pressão sobe rapidamente
-                currentP += 1.6 + (Math.random() * 0.4);
-                if (currentP >= r1_off) {
-                    currentP = r1_off;
-                    b1 = 0;
-                    b2 = 0;
-                }
-            } else {
-                // Bombas desligadas: consumo d'água faz a pressão decair suavemente
-                currentP -= 0.5 + (Math.random() * 0.3);
-                if (currentP <= r2_on) {
-                    b1 = 1;
-                    b2 = 1; // Demanda muito alta: ambas ligadas
-                    l.rele1_acionamentos = (l.rele1_acionamentos || 0) + 1;
-                    l.rele2_acionamentos = (l.rele2_acionamentos || 0) + 1;
-                } else if (currentP <= r1_on) {
-                    b1 = 1; // Liga bomba principal
-                    l.rele1_acionamentos = (l.rele1_acionamentos || 0) + 1;
-                }
-            }
-
-            l.sensor1 = Number(currentP.toFixed(1));
-            l.rele1_estado = b1;
-            l.rele2_estado = b2;
-            l.timestamp = new Date().toISOString();
-
-            // Avaliação de status
-            if (currentP < 20.0) {
-                dev.status = 'Crítico';
-            } else if (currentP > 65.0) {
-                dev.status = 'Atenção';
-            } else {
-                dev.status = 'Operacional';
-            }
-        }
-    });
+    const hasSimulated = typeof stepPressurizacaoSimulation === 'function'
+        ? stepPressurizacaoSimulation(currentPressurizacoes)
+        : false;
 
     if (hasSimulated) {
         setLiveBadgeState(true);
@@ -340,7 +170,7 @@ function simulateLivePressurizacaoStep() {
         updateExecutiveSummary(currentPressurizacoes);
 
         if (document.body.classList.contains('fullscreen-active')) {
-            renderFullscreenStation(fullscreenActiveIndex);
+            renderFullscreenStation(fsCarousel.getActiveIndex());
         }
 
         if (selectedDeviceSerial) {
@@ -387,9 +217,9 @@ function handleLivePressurizacaoReading(reading) {
     }
 
     if (document.body.classList.contains('fullscreen-active')) {
-        const activeDev = currentPressurizacoes[fullscreenActiveIndex];
+        const activeDev = currentPressurizacoes[fsCarousel.getActiveIndex()];
         if (activeDev && activeDev.numero_serie === numeroSerie) {
-            renderFullscreenStation(fullscreenActiveIndex);
+            renderFullscreenStation(fsCarousel.getActiveIndex());
         }
     }
 }
@@ -574,15 +404,15 @@ function renderPressurizacaoGrid(devices) {
         const timeStr = u.timestamp ? new Date(u.timestamp).toLocaleTimeString('pt-BR') : 'Sem leitura';
 
         return `
-            <div class="pressurizacao-card ${isSel ? 'selected' : ''}" id="press-card-${dev.numero_serie}" data-serie="${dev.numero_serie}" onclick="selectStationForChart('${dev.numero_serie}')">
+            <div class="pressurizacao-card ${isSel ? 'selected' : ''}" id="press-card-${escapeHtml(dev.numero_serie)}" data-serie="${escapeHtml(dev.numero_serie)}" onclick="selectStationForChart(this.dataset.serie)">
                 <div class="pressurizacao-card-header">
-                    <span class="pressurizacao-card-title">Estação #${dev.numero_serie}</span>
-                    <span class="status-dot-fine ${dotClass}" title="${dev.status || 'Operacional'}"></span>
+                    <span class="pressurizacao-card-title">Estação #${escapeHtml(dev.numero_serie)}</span>
+                    <span class="status-dot-fine ${dotClass}" title="${escapeHtml(dev.status || 'Operacional')}"></span>
                 </div>
                 <div class="pressurizacao-card-body" style="display: flex; flex-direction: column; gap: 8px; font-size: 12px; color: var(--text-muted);">
                     <div style="display: flex; justify-content: space-between; align-items: center;">
                         <span>Pressão Atual:</span>
-                        <strong class="pressurizacao-pressure-val" id="pval-${dev.numero_serie}" style="color: var(--primary-blue); font-size: 14px; font-weight: 600;">${pressureDisplay}</strong>
+                        <strong class="pressurizacao-pressure-val" id="pval-${escapeHtml(dev.numero_serie)}" style="color: var(--primary-blue); font-size: 14px; font-weight: 600;">${pressureDisplay}</strong>
                     </div>
                     <div style="display: flex; justify-content: space-between; align-items: center;">
                         <span>Setpoints (B1):</span>
@@ -590,7 +420,7 @@ function renderPressurizacaoGrid(devices) {
                     </div>
                     <div style="display: flex; justify-content: space-between; align-items: center;">
                         <span>Última Transmissão:</span>
-                        <span class="pressurizacao-time-val" id="ptime-${dev.numero_serie}">${timeStr}</span>
+                        <span class="pressurizacao-time-val" id="ptime-${escapeHtml(dev.numero_serie)}">${timeStr}</span>
                     </div>
                 </div>
             </div>
@@ -722,52 +552,19 @@ async function loadPressurizacaoChart(serial, forcePeriodChange = false) {
     let r1OffData = [];
     let r2OnData = [];
 
-    // Tenta carregar histórico do backend primeiro
-    let hasLoadedRemote = false;
-    try {
-        const queryParams = new URLSearchParams({
-            serial: devSerial,
-            period: period
-        });
-        const res = await fetch(`${API_BASE}/api/pressurizacao/historico?${queryParams.toString()}`, {
-            headers: getAuthHeaders()
-        });
-        if (res.ok) {
-            const histRes = await res.json();
-            if (histRes.success && Array.isArray(histRes.data) && histRes.data.length > 0) {
-                histRes.data.forEach(item => {
-                    const t = new Date(item.timestamp);
-                    labels.push(t.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', second: '2-digit' }));
-                    pressureData.push(item.sensor1 !== null && item.sensor1 !== undefined ? Number(Number(item.sensor1).toFixed(1)) : null);
-                    r1OnData.push(item.rele1_on !== null && item.rele1_on !== undefined ? Number(item.rele1_on) : r1_on);
-                    r1OffData.push(item.rele1_off !== null && item.rele1_off !== undefined ? Number(item.rele1_off) : r1_off);
-                    r2OnData.push(item.rele2_on !== null && item.rele2_on !== undefined ? Number(item.rele2_on) : r2_on);
-                });
-                hasLoadedRemote = true;
-            }
-        }
-    } catch (e) {
-        // Fallback silencioso para geração local
-    }
-
-    if (!hasLoadedRemote) {
-        const now = Date.now();
-        const pointsCount = period === '1h' ? 30 : (period === '6h' ? 50 : 25);
-        const intervalMs = (period === '1h' ? 60000 : 3000) * 2;
-
-        let baseP = Number(dev?.ultima_leitura?.sensor1 || 42.0);
-        for (let i = pointsCount - 1; i >= 0; i--) {
-            const t = new Date(now - i * intervalMs);
-            labels.push(t.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', second: '2-digit' }));
-            
-            const offset = Math.sin(i * 0.4) * 6.0 + (Math.random() * 2.0);
-            const p = Math.max(25, Math.min(55, baseP + offset));
-            pressureData.push(Number(p.toFixed(1)));
-            r1OnData.push(r1_on);
-            r1OffData.push(r1_off);
-            r2OnData.push(r2_on);
-        }
-    }
+    // Histórico real (GET /api/pressurizacao/:numeroSerie/leituras?periodo=).
+    // Sem dados, o gráfico abre vazio e é preenchido pelas leituras ao vivo.
+    const historico = dev?.isSimulated
+        ? []
+        : await window.SensoriumHistory.load(`/api/pressurizacao/${encodeURIComponent(devSerial)}/leituras`, period === 'all' ? 30 : 0, period);
+    if (pressurizacaoChartInstance) return; // outra carga terminou primeiro
+    historico.forEach(item => {
+        labels.push(window.SensoriumHistory.label(item));
+        pressureData.push(item.sensor1 !== null && item.sensor1 !== undefined ? Number(Number(item.sensor1).toFixed(1)) : null);
+        r1OnData.push(item.rele1_on !== null && item.rele1_on !== undefined ? Number(item.rele1_on) : r1_on);
+        r1OffData.push(item.rele1_off !== null && item.rele1_off !== undefined ? Number(item.rele1_off) : r1_off);
+        r2OnData.push(item.rele2_on !== null && item.rele2_on !== undefined ? Number(item.rele2_on) : r2_on);
+    });
 
     const ctx = canvas.getContext('2d');
     pressurizacaoChartInstance = new Chart(ctx, {
@@ -867,157 +664,13 @@ async function loadPressurizacaoChart(serial, forcePeriodChange = false) {
 // ====================================================
 // FULLSCREEN PRESENTATION MODE (CARROSSEL COM CARDS E GRÁFICO)
 // ====================================================
-function toggleFullscreen() {
-    if (!document.fullscreenElement && !document.webkitFullscreenElement) {
-        if (document.documentElement.requestFullscreen) {
-            document.documentElement.requestFullscreen();
-        } else if (document.documentElement.webkitRequestFullscreen) {
-            document.documentElement.webkitRequestFullscreen();
-        }
-    } else {
-        if (document.exitFullscreen) {
-            document.exitFullscreen();
-        } else if (document.webkitExitFullscreen) {
-            document.webkitExitFullscreen();
-        }
-    }
-}
-
-function handleFullscreenChange() {
-    const isFs = !!(document.fullscreenElement || document.webkitFullscreenElement);
-    const fsText = document.getElementById('fullscreenText');
-    if (fsText) {
-        fsText.innerText = isFs ? 'Sair Tela Cheia' : 'Tela Cheia';
-    }
-
-    document.body.classList.toggle('fullscreen-active', isFs);
-
-    if (isFs) {
-        setupFullscreenPresentation();
-    } else {
-        stopFsAutoplay();
-    }
-}
-
-function setupFullscreenPresentation() {
-    if (!fsKeyboardListenerAttached) {
-        document.addEventListener('keydown', handleFullscreenKeydown);
-        fsKeyboardListenerAttached = true;
-    }
-
-    populateFsDeviceSelect();
-
-    const standardSelect = document.getElementById('pressurizacaoSelect');
-    if (standardSelect && standardSelect.value && currentPressurizacoes && currentPressurizacoes.length > 0) {
-        const foundIdx = currentPressurizacoes.findIndex(d => d.numero_serie === standardSelect.value);
-        if (foundIdx >= 0) fullscreenActiveIndex = foundIdx;
-    }
-
-    renderFullscreenStation(fullscreenActiveIndex);
-    startFsAutoplay();
-}
-
-function populateFsDeviceSelect() {
-    const select = document.getElementById('fsDeviceSelect');
-    if (!select) return;
-
-    if (!currentPressurizacoes || currentPressurizacoes.length === 0) {
-        select.innerHTML = '<option value="">Nenhuma estação</option>';
-        return;
-    }
-
-    select.innerHTML = currentPressurizacoes.map((d, idx) => `
-        <option value="${d.numero_serie}">${d.numero_serie} - ${d.nome || 'Estação'} (${idx + 1}/${currentPressurizacoes.length})</option>
-    `).join('');
-}
-
-function onFsDeviceSelectChange(selectedSerial) {
-    if (!selectedSerial || !currentPressurizacoes) return;
-    const idx = currentPressurizacoes.findIndex(d => d.numero_serie === selectedSerial);
-    if (idx >= 0) {
-        renderFullscreenStation(idx);
-    }
-}
-
-function handleFullscreenKeydown(e) {
-    if (!document.body.classList.contains('fullscreen-active')) return;
-
-    if (e.key === 'ArrowLeft') {
-        e.preventDefault();
-        navigateFullscreenCarousel(-1);
-    } else if (e.key === 'ArrowRight') {
-        e.preventDefault();
-        navigateFullscreenCarousel(1);
-    } else if (e.key === ' ' || e.code === 'Space') {
-        e.preventDefault();
-        toggleFullscreenAutoplay();
-    }
-}
-
-function navigateFullscreenCarousel(direction) {
-    if (!currentPressurizacoes || currentPressurizacoes.length === 0) return;
-    fullscreenActiveIndex += direction;
-    if (fullscreenActiveIndex < 0) fullscreenActiveIndex = currentPressurizacoes.length - 1;
-    if (fullscreenActiveIndex >= currentPressurizacoes.length) fullscreenActiveIndex = 0;
-
-    renderFullscreenStation(fullscreenActiveIndex);
-}
-
-function toggleFullscreenAutoplay() {
-    if (fsAutoplayInterval) {
-        stopFsAutoplay();
-    } else {
-        startFsAutoplay();
-    }
-}
-
-function startFsAutoplay() {
-    stopFsAutoplay();
-    const btn = document.getElementById('fsAutoplayBtn');
-    const txt = document.getElementById('fsAutoplayText');
-    const icon = document.getElementById('fsAutoplayIcon');
-
-    if (btn) btn.classList.add('playing');
-    if (txt) txt.innerText = 'Pausar (8s)';
-    if (icon) icon.innerHTML = '<rect x="6" y="4" width="4" height="16"></rect><rect x="14" y="4" width="4" height="16"></rect>';
-
-    fsAutoplayInterval = setInterval(() => {
-        navigateFullscreenCarousel(1);
-    }, fsAutoplayDuration);
-}
-
-function stopFsAutoplay() {
-    if (fsAutoplayInterval) {
-        clearInterval(fsAutoplayInterval);
-        fsAutoplayInterval = null;
-    }
-    const btn = document.getElementById('fsAutoplayBtn');
-    const txt = document.getElementById('fsAutoplayText');
-    const icon = document.getElementById('fsAutoplayIcon');
-
-    if (btn) btn.classList.remove('playing');
-    if (txt) txt.innerText = 'Auto (8s)';
-    if (icon) icon.innerHTML = '<polygon points="5 3 19 12 5 21 5 3"></polygon>';
-}
-
-function renderFsDots() {
-    const container = document.getElementById('fsDotsContainer');
-    if (!container || !currentPressurizacoes) return;
-
-    container.innerHTML = currentPressurizacoes.map((_, idx) => `
-        <div class="fs-dot ${idx === fullscreenActiveIndex ? 'active' : ''}" onclick="renderFullscreenStation(${idx})" title="Ir para estação ${idx + 1}"></div>
-    `).join('');
-}
-
 /**
  * Renderiza a estação ativa no Modo Tela Cheia com os 4 Cards e o Gráfico dedicado
  */
 function renderFullscreenStation(index) {
     if (!currentPressurizacoes || currentPressurizacoes.length === 0) return;
 
-    if (index < 0) index = currentPressurizacoes.length - 1;
-    if (index >= currentPressurizacoes.length) index = 0;
-    fullscreenActiveIndex = index;
+    index = fsCarousel.setActiveIndex(index);
 
     const dev = currentPressurizacoes[index];
     const u = dev.ultima_leitura || {};
@@ -1149,75 +802,28 @@ function renderFullscreenStation(index) {
     renderFullscreenChart(dev);
 
     // 7. Sincroniza select, dots e contador
-    renderFsDots();
+    fsCarousel.renderFsDots();
     const select = document.getElementById('fsDeviceSelect');
     if (select && select.value !== dev.numero_serie) {
         select.value = dev.numero_serie;
     }
     const counterEl = document.getElementById('fsDeviceCounterText');
     if (counterEl) {
-        counterEl.innerText = `Estação ${fullscreenActiveIndex + 1} de ${currentPressurizacoes.length}`;
+        counterEl.innerText = `Estação ${fsCarousel.getActiveIndex() + 1} de ${currentPressurizacoes.length}`;
     }
 }
 
-function updateFsGaugeChart(value, min, max, fillColor) {
-    const canvas = document.getElementById('fsGaugePressureCanvas');
-    if (!canvas || typeof Chart === 'undefined') return;
-
-    const val = (value !== null && value !== undefined && !isNaN(value)) ? Number(value) : min;
-    const clamped = Math.max(min, Math.min(max, val));
-    const progress = clamped - min;
-    const remaining = max - clamped;
-
-    if (fsGaugeChartInstance) {
-        try {
-            if (fsGaugeChartInstance.canvas === canvas) {
-                fsGaugeChartInstance.data.datasets[0].data = [progress, remaining];
-                fsGaugeChartInstance.data.datasets[0].backgroundColor = [fillColor, '#e2e8f0'];
-                fsGaugeChartInstance.update('none');
-                return;
-            } else {
-                fsGaugeChartInstance.destroy();
-                fsGaugeChartInstance = null;
-            }
-        } catch (e) {
-            fsGaugeChartInstance = null;
-        }
-    }
-
-    try {
-        const ctx = canvas.getContext('2d');
-        fsGaugeChartInstance = new Chart(ctx, {
-            type: 'doughnut',
-            data: {
-                datasets: [{
-                    data: [progress, remaining],
-                    backgroundColor: [fillColor, '#e2e8f0'],
-                    borderWidth: 0,
-                    circumference: 180,
-                    rotation: 270,
-                    borderRadius: [4, 4]
-                }]
-            },
-            options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                cutout: '74%',
-                animation: false,
-                plugins: {
-                    tooltip: { enabled: false },
-                    legend: { display: false }
-                }
-            }
-        });
-    } catch (err) {
-        console.warn('Erro ao criar manômetro fullscreen:', err);
-    }
-}
-
-function renderFullscreenChart(dev) {
+async function renderFullscreenChart(dev) {
     const canvas = document.getElementById('fsPressurizacaoChart');
     if (!canvas || typeof Chart === 'undefined') return;
+
+    // Histórico real da estação (antes: pontos gerados com Math.random). Recarrega
+    // ao trocar de estação ou a cada 30 s; entre uma carga e outra mantém o gráfico.
+    if (fsChartSerial === dev.numero_serie && fsChartInstanceReady() && Date.now() - fsChartLoadedAt < 30000) return;
+    fsChartSerial = dev.numero_serie;
+    fsChartLoadedAt = Date.now();
+    const historico = dev.isSimulated ? [] : await window.SensoriumHistory.load(`/api/pressurizacao/${encodeURIComponent(dev.numero_serie)}/leituras`, 30);
+    if (fsChartSerial !== dev.numero_serie) return;
 
     const u = dev.ultima_leitura || {};
     const r1_on = u.rele1_on || 35.0;
@@ -1230,21 +836,13 @@ function renderFullscreenChart(dev) {
     const r1OffData = [];
     const r2OnData = [];
 
-    const now = Date.now();
-    const pointsCount = 30;
-    const intervalMs = 3000;
-
-    let baseP = Number(u.sensor1 || 42.0);
-    for (let i = pointsCount - 1; i >= 0; i--) {
-        const t = new Date(now - i * intervalMs);
-        labels.push(t.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', second: '2-digit' }));
-        const offset = Math.sin(i * 0.45) * 5.5 + (Math.random() * 1.5);
-        const p = Math.max(25, Math.min(55, baseP + offset));
-        pressureData.push(Number(p.toFixed(1)));
-        r1OnData.push(r1_on);
-        r1OffData.push(r1_off);
-        r2OnData.push(r2_on);
-    }
+    historico.forEach((item) => {
+        labels.push(window.SensoriumHistory.label(item));
+        pressureData.push(item.sensor1 !== null && item.sensor1 !== undefined ? Number(Number(item.sensor1).toFixed(1)) : null);
+        r1OnData.push(item.rele1_on !== null && item.rele1_on !== undefined ? Number(item.rele1_on) : r1_on);
+        r1OffData.push(item.rele1_off !== null && item.rele1_off !== undefined ? Number(item.rele1_off) : r1_off);
+        r2OnData.push(item.rele2_on !== null && item.rele2_on !== undefined ? Number(item.rele2_on) : r2_on);
+    });
 
     if (fsPressurizacaoChartInstance) {
         try {
@@ -1331,25 +929,16 @@ function renderFullscreenChart(dev) {
 
 /**
  * Modal de Registros e Histórico
+ * (Utilitários compartilhados em ../../shared/ui/registros-modal.js)
  */
 function openRegistrosModal(serialFilter) {
     const modal = document.getElementById('registrosModal');
     if (!modal) return;
 
     modal.classList.add('active');
+    document.addEventListener('keydown', handleRegistrosEscKey);
     populateModalDeviceFilter(serialFilter);
     filtrarRegistrosModal();
-}
-
-function closeRegistrosModal() {
-    const modal = document.getElementById('registrosModal');
-    if (modal) modal.classList.remove('active');
-}
-
-function handleRegistrosModalBackdrop(e) {
-    if (e.target.id === 'registrosModal') {
-        closeRegistrosModal();
-    }
 }
 
 function populateModalDeviceFilter(selectedSerial) {
@@ -1366,42 +955,6 @@ function populateModalDeviceFilter(selectedSerial) {
         }
         select.appendChild(opt);
     });
-}
-
-function aplicarAtalhoData(tipo) {
-    const ini = document.getElementById('filterModalDataInicio');
-    const fim = document.getElementById('filterModalDataFim');
-    if (!ini || !fim) return;
-
-    const now = new Date();
-    const formatInput = (d) => {
-        const pad = (n) => String(n).padStart(2, '0');
-        return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
-    };
-
-    fim.value = formatInput(now);
-
-    const past = new Date(now);
-    if (tipo === 'hoje') {
-        past.setHours(0, 0, 0, 0);
-    } else if (tipo === '7dias') {
-        past.setDate(past.getDate() - 7);
-    } else if (tipo === '30dias') {
-        past.setDate(past.getDate() - 30);
-    }
-
-    ini.value = formatInput(past);
-    filtrarRegistrosModal();
-}
-
-function limparFiltrosRegistrosModal() {
-    const ini = document.getElementById('filterModalDataInicio');
-    const fim = document.getElementById('filterModalDataFim');
-    const dev = document.getElementById('filterModalDispositivo');
-    if (ini) ini.value = '';
-    if (fim) fim.value = '';
-    if (dev) dev.value = 'todos';
-    filtrarRegistrosModal();
 }
 
 let registrosDataItems = [];
@@ -1422,7 +975,7 @@ async function filtrarRegistrosModal() {
         const queryParams = new URLSearchParams({
             page: registrosCurrentPage,
             limit: registrosPageLimit,
-            serial: selectedDev,
+            numeroSerie: selectedDev,
             dataInicio: dataInicio,
             dataFim: dataFim
         });
@@ -1435,9 +988,9 @@ async function filtrarRegistrosModal() {
             const result = await res.json();
             if (result.success) {
                 registrosDataItems = (result.data || []).map(r => ({
-                    numero_serie: r.numero_serie,
-                    nome: r.dispositivo_nome || r.nome,
-                    timestamp: r.timestamp,
+                    numero_serie: r.dispositivo_numero_serie || r.numero_serie,
+                    nome: r.cliente || r.dispositivo_nome || r.nome,
+                    timestamp: r.timestamp_leitura || r.timestamp,
                     sensor1: Number(r.sensor1 || 0),
                     rele1_on: Number(r.rele1_on || 35.0),
                     rele1_off: Number(r.rele1_off || 50.0),
@@ -1446,17 +999,23 @@ async function filtrarRegistrosModal() {
                     rele2_off: Number(r.rele2_off || 50.0),
                     rele2_ac: r.rele2_acionamentos || 0
                 }));
-                totalRegistrosCount = result.total || 0;
-                registrosTotalPages = result.totalPages || 1;
-                registrosCurrentPage = result.page || 1;
+                const pag = result.pagination || result;
+                totalRegistrosCount = pag.total || 0;
+                registrosTotalPages = pag.totalPages || 1;
+                registrosCurrentPage = pag.page || 1;
                 remoteLoaded = true;
             }
         }
     } catch (e) {
-        // Fallback para geração local se API não estiver pronta
+        console.warn('[Pressurização] Falha ao consultar registros:', e.message);
     }
 
-    if (!remoteLoaded) {
+    if (!remoteLoaded && !window.SENSORIUM_DEMO) {
+        registrosDataItems = [];
+        totalRegistrosCount = 0;
+        registrosTotalPages = 1;
+        exibirFeedbackModal('Não foi possível consultar os registros no servidor.', 'error');
+    } else if (!remoteLoaded) {
         mockRegistrosHistory = [];
         const now = Date.now();
         const devicesToInclude = selectedDev === 'todos' ? currentPressurizacoes : currentPressurizacoes.filter(d => d.numero_serie === selectedDev);
@@ -1516,16 +1075,16 @@ function renderRegistrosPage() {
         const timeFormatted = new Date(item.timestamp).toLocaleString('pt-BR');
         return `
             <tr>
-                <td><strong>${item.numero_serie}</strong></td>
-                <td>${item.nome || 'Estação'}</td>
+                <td><strong>${escapeHtml(item.numero_serie)}</strong></td>
+                <td>${escapeHtml(item.nome || 'Estação')}</td>
                 <td>${timeFormatted}</td>
                 <td><strong style="color: ${getPressureColor(item.sensor1)};">${Number(item.sensor1).toFixed(1)} psi</strong></td>
                 <td>${Number(item.rele1_on).toFixed(1)} psi</td>
                 <td>${Number(item.rele1_off).toFixed(1)} psi</td>
-                <td>${item.rele1_ac}</td>
+                <td>${escapeHtml(item.rele1_ac)}</td>
                 <td>${Number(item.rele2_on).toFixed(1)} psi</td>
                 <td>${Number(item.rele2_off).toFixed(1)} psi</td>
-                <td>${item.rele2_ac}</td>
+                <td>${escapeHtml(item.rele2_ac)}</td>
             </tr>
         `;
     }).join('');
@@ -1544,61 +1103,15 @@ async function exportarRegistrosCSV() {
     const dataInicio = document.getElementById('filterModalDataInicio')?.value || '';
     const dataFim = document.getElementById('filterModalDataFim')?.value || '';
 
-    try {
-        const queryParams = new URLSearchParams({
-            serial: selectedDev,
-            dataInicio: dataInicio,
-            dataFim: dataFim
-        });
-
-        const res = await fetch(`${API_BASE}/api/pressurizacao/exportar-csv?${queryParams.toString()}`, {
-            headers: getAuthHeaders()
-        });
-
-        if (res.ok) {
-            const csvText = await res.text();
-            const blob = new Blob(["\ufeff", csvText], { type: 'text/csv;charset=utf-8;' });
-            const url = URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = `registros_pressurizacao_${new Date().toISOString().slice(0,10)}.csv`;
-            document.body.appendChild(a);
-            a.click();
-            document.body.removeChild(a);
-            return;
-        }
-    } catch (e) {
-        // Fallback local se backend não responder
-    }
-
-    if (!mockRegistrosHistory || mockRegistrosHistory.length === 0) {
-        alert('Nenhum registro disponível para exportação.');
-        return;
-    }
-
-    let csv = 'Estacao;Local;Data_Hora;Pressao_psi;Bomba1_ON_psi;Bomba1_OFF_psi;Partidas_B1;Bomba2_ON_psi;Bomba2_OFF_psi;Partidas_B2\r\n';
-    mockRegistrosHistory.forEach(r => {
-        csv += `${r.numero_serie};${r.nome};${r.timestamp};${r.sensor1};${r.rele1_on};${r.rele1_off};${r.rele1_ac};${r.rele2_on};${r.rele2_off};${r.rele2_ac}\r\n`;
-    });
-
-    const blob = new Blob(["\ufeff", csv], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `registros_pressurizacao_${new Date().toISOString().slice(0,10)}.csv`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
+    const r = await baixarCsvAutenticado('/api/pressurizacao/exportar-csv',
+        { numeroSerie: selectedDev, dataInicio, dataFim },
+        `registros_pressurizacao_${new Date().toISOString().slice(0, 10)}.csv`);
+    exibirFeedbackModal(r.message, r.ok ? 'success' : 'error');
 }
 
 function abrirConfirmacaoExclusao() {
     const modal = document.getElementById('confirmDeleteModal');
     if (modal) modal.classList.add('active');
-}
-
-function fecharConfirmacaoExclusao() {
-    const modal = document.getElementById('confirmDeleteModal');
-    if (modal) modal.classList.remove('active');
 }
 
 async function executarExclusaoRegistros() {
@@ -1608,44 +1121,23 @@ async function executarExclusaoRegistros() {
     const dataInicio = document.getElementById('filterModalDataInicio')?.value || '';
     const dataFim = document.getElementById('filterModalDataFim')?.value || '';
 
-    let success = false;
-    let feedbackMsg = 'Registros do período selecionado limpos com sucesso.';
-
     try {
-        const queryParams = new URLSearchParams({
-            serial: selectedDev,
-            dataInicio: dataInicio,
-            dataFim: dataFim
-        });
-
-        const res = await fetch(`${API_BASE}/api/pressurizacao/registros?${queryParams.toString()}`, {
+        const res = await fetch(`${API_BASE}/api/pressurizacao/registros`, {
             method: 'DELETE',
-            headers: getAuthHeaders()
+            headers: { ...getAuthHeaders(), 'Content-Type': 'application/json' },
+            body: JSON.stringify({ numeroSerie: selectedDev, dataInicio, dataFim })
         });
-
-        if (res.ok) {
-            const result = await res.json();
-            feedbackMsg = result.message || feedbackMsg;
-            success = true;
+        const result = await res.json().catch(() => ({}));
+        if (!res.ok || result.success === false) {
+            exibirFeedbackModal(result.message || 'Não foi possível apagar os registros.', 'error');
+            return;
         }
+        exibirFeedbackModal(result.message || 'Registros apagados com sucesso.', 'success');
     } catch (e) {
-        success = true; // Fallback mock
+        exibirFeedbackModal('Erro de conexão ao apagar registros.', 'error');
+        return;
     }
 
-    const feedback = document.getElementById('modalRegistrosFeedback');
-    if (feedback) {
-        feedback.className = 'modal-feedback-box success';
-        feedback.innerText = feedbackMsg;
-        feedback.style.display = 'block';
-        setTimeout(() => { feedback.style.display = 'none'; }, 4000);
-    }
     registrosCurrentPage = 1;
     filtrarRegistrosModal();
-}
-
-function toggleNavDropdown(btn) {
-    const dropdown = btn.closest('.nav-dropdown');
-    if (dropdown) {
-        dropdown.classList.toggle('open');
-    }
 }

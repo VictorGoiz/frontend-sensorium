@@ -5,46 +5,23 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Sensimonitor - Monitoramento de Sistema de Pressurização de Água</title>
     <link rel="icon" type="image/png" href="../img/logo_head.png">
+    <!-- Estilos compartilhados (mesma ordem de shared/styles/main.css) -->
+    <link rel="stylesheet" href="../../shared/styles/_tokens.css">
+    <link rel="stylesheet" href="../../shared/styles/_layout.css">
+    <link rel="stylesheet" href="../../shared/styles/_cards.css">
+    <link rel="stylesheet" href="../../shared/styles/_fullscreen.css">
+    <link rel="stylesheet" href="../../shared/styles/_modals.css">
     <link rel="stylesheet" href="pressurizacao.css">
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.5.1"></script>
     <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
     <script src="../config.js"></script>
 </head>
 <body>
     <div class="app-layout">
         <!-- Sidebar Navigation -->
-        <aside class="sidebar">
-            <div class="logo-container">
-                <img src="../img/logo_sensimonitor.png" alt="SensiMonitor" class="sidebar-logo">
-            </div>
-            <nav>
-                <a href="../home/index.html" class="nav-item">Visão Geral</a>
-                <a href="../sensores/index.html" class="nav-item">Sensores</a>
-                <a href="../reles/index.html" class="nav-item">Relés</a>
-                
-                <!-- Dropdown Apresentação de Dispositivos -->
-                <div class="nav-dropdown open">
-                    <button class="nav-dropdown-toggle active" onclick="toggleNavDropdown(this)">
-                        <span>Dispositivos</span>
-                        <svg class="chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                            <polyline points="6 9 12 15 18 9"></polyline>
-                        </svg>
-                    </button>
-                    <div class="nav-dropdown-menu">
-                        <a href="../chopeiras/index.html" class="nav-subitem">Chopeiras</a>
-                        <a href="../lfg60/index.html" class="nav-subitem">LFG60</a>
-                        <a href="../incendio/index.html" class="nav-subitem">Sistema de Incêndio</a>
-                        <a href="index.html" class="nav-subitem active">Pressurização de Água</a>
-                        <a href="smartfit/index.html" class="nav-subitem">Pressurização Smart Fit</a>
-                        <a href="../hidraulico/index.html" class="nav-subitem">Sistema Hidráulico</a>
-                    </div>
-                </div>
-            </nav>
-            <div class="user-info">
-                <a href="../login/index.html" class="logout-btn">Sair</a>
-            </div>
-        </aside>
+        <aside class="sidebar"></aside>
+        <script src="../../shared/ui/sidebar.js"></script>
 
         <!-- Main Content Presentation -->
         <main class="main-content">
@@ -519,6 +496,13 @@
         </div>
     </div>
 
+    <!-- Módulos compartilhados (Core, UI & Mocks) -->
+    <script src="../../shared/core/fluid-telemetry-engine.js"></script>
+    <script src="../../shared/core/realtime-client.js"></script>
+    <script src="../../shared/ui/live-badge.js"></script>
+    <script src="../../shared/ui/fullscreen-presenter.js"></script>
+    <script src="../../shared/ui/registros-modal.js"></script>
+    <script src="../../shared/mocks/pressurizacao.mock.js"></script>
     <script src="pressurizacao.js"></script>
 </body>
 </html>

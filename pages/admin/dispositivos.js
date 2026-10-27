@@ -176,20 +176,20 @@ document.addEventListener('DOMContentLoaded', () => {
             let optionsHtml = `<option value="">-- Sem Cliente (Desvinculado) --</option>`;
             listaEmpresas.forEach(emp => {
                 const isSelected = (disp.empresa_id && Number(disp.empresa_id) === Number(emp.id)) ? 'selected' : '';
-                optionsHtml += `<option value="${emp.id}" ${isSelected}>${escapeHtml(emp.nome)}</option>`;
+                optionsHtml += `<option value="${escapeHtml(emp.id)}" ${isSelected}>${escapeHtml(emp.nome)}</option>`;
             });
 
             tr.innerHTML = `
                 <td><strong>${escapeHtml(disp.numero_serie)}</strong></td>
                 <td>
-                    <select class="select-empresa" id="select-empresa-${disp.numero_serie}">
+                    <select class="select-empresa" id="select-empresa-${escapeHtml(disp.numero_serie)}">
                         ${optionsHtml}
                     </select>
                 </td>
-                <td><span class="status-badge ${statusClass}">${disp.status || 'Operacional'}</span></td>
+                <td><span class="status-badge ${statusClass}">${escapeHtml(disp.status || 'Operacional')}</span></td>
                 <td>${dataFormatada}</td>
                 <td style="text-align: center;">
-                    <button class="btn-salvar-vinculo" id="btn-save-${disp.numero_serie}" onclick="salvarVinculo('${disp.numero_serie}')">
+                    <button class="btn-salvar-vinculo" id="btn-save-${escapeHtml(disp.numero_serie)}" data-serie="${escapeHtml(disp.numero_serie)}" onclick="salvarVinculo(this.dataset.serie)">
                         Salvar
                     </button>
                 </td>
@@ -198,15 +198,8 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    function escapeHtml(str) {
-        if (!str) return '';
-        return String(str)
-            .replace(/&/g, '&amp;')
-            .replace(/</g, '&lt;')
-            .replace(/>/g, '&gt;')
-            .replace(/"/g, '&quot;')
-            .replace(/'/g, '&#039;');
-    }
+    // escapeHtml é provido globalmente por config.js / shared/core/formatters.js
+
 
     /**
      * Renderiza a tabela lateral de clientes com a quantidade de dispositivos vinculados e botão de edição.
@@ -243,7 +236,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     <span class="${badgeClass}">${count} disp.</span>
                 </td>
                 <td style="text-align: center;">
-                    <button type="button" class="btn-action-edit" onclick="abrirModalEditarCliente(${emp.id})">Editar</button>
+                    <button type="button" class="btn-action-edit" onclick="abrirModalEditarCliente(Number(this.dataset.id))" data-id="${escapeHtml(emp.id)}">Editar</button>
                 </td>
             `;
             tbody.appendChild(tr);
@@ -404,16 +397,6 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     };
 
-    function showToast(message, type = 'success') {
-        const toast = document.getElementById('toast');
-        if (!toast) return;
-
-        toast.className = `toast-feedback ${type === 'success' ? 'toast-success' : 'toast-error'}`;
-        toast.innerText = message;
-        toast.style.display = 'block';
-
-        setTimeout(() => {
-            toast.style.display = 'none';
-        }, 3500);
-    }
+    // escapeHtml é provido globalmente por config.js / shared/core/formatters.js
+    // showToast é provido globalmente por shared/ui/toast.js
 });

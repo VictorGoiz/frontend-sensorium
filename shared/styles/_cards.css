@@ -1,0 +1,224 @@
+/* ==========================================================================
+   SENSIMONITOR DESIGN SYSTEM — 3. CARDS EXECUTIVOS, GRÁFICOS & GRIDS (_cards.css)
+   ========================================================================== */
+
+/* --- Cards Executivos de Apresentação --- */
+.executive-cards-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+    gap: 16px;
+    margin-bottom: 24px;
+}
+
+.exec-card {
+    background: #ffffff;
+    border: 1px solid var(--border-fine);
+    border-radius: 8px;
+    padding: 20px;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    transition: all 0.2s ease;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.02);
+}
+
+.exec-card:hover {
+    border-color: var(--border-hover);
+    box-shadow: 0 4px 12px rgba(30, 96, 172, 0.05);
+}
+
+.exec-card-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 12px;
+}
+
+.exec-card-header h3 {
+    font-size: 12px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: var(--text-muted);
+}
+
+.exec-card-icon {
+    width: 28px;
+    height: 28px;
+    border-radius: 6px;
+    background: var(--primary-blue-light);
+    color: var(--primary-blue);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 13px;
+}
+
+.exec-main-value {
+    display: flex;
+    align-items: baseline;
+    gap: 6px;
+    margin-bottom: 8px;
+}
+
+.exec-number {
+    font-size: 32px;
+    font-weight: 700;
+    color: var(--text-main);
+    letter-spacing: -1px;
+    transition: color 0.2s ease, transform 0.2s ease;
+    display: inline-block;
+}
+
+.exec-number.pulse {
+    transform: scale(1.04);
+    color: var(--primary-blue) !important;
+}
+
+.exec-unit {
+    font-size: 14px;
+    font-weight: 500;
+    color: var(--text-muted);
+}
+
+.exec-card-footer {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 12px;
+    color: var(--text-muted);
+    border-top: 1px solid #f1f5f9;
+    padding-top: 10px;
+    margin-top: 6px;
+}
+
+.exec-sublabel {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.val-pill {
+    padding: 2px 6px;
+    border-radius: 4px;
+    font-size: 11px;
+    font-weight: 600;
+}
+
+.val-pill.blue { background: var(--primary-blue-light); color: var(--primary-blue); }
+.val-pill.green { background: #ecfdf5; color: #059669; }
+.val-pill.yellow { background: #fffbe8; color: #d97706; }
+.val-pill.orange { background: #fff7ed; color: #ea580c; }
+.val-pill.red { background: #fef2f2; color: #dc2626; }
+.val-pill.gray { background: #f1f5f9; color: #475569; }
+
+/* --- Container do Gráfico Principal --- */
+.presentation-chart-card {
+    background: #ffffff;
+    border: 1px solid var(--border-fine);
+    border-radius: 8px;
+    padding: 24px;
+    margin-bottom: 24px;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.02);
+}
+
+.chart-card-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 18px;
+    flex-wrap: wrap;
+    gap: 12px;
+}
+
+.chart-card-header h2 {
+    font-size: 15px;
+    font-weight: 600;
+    color: var(--text-main);
+}
+
+.chart-subtitle {
+    display: block;
+    font-size: 12px;
+    color: var(--text-muted);
+    font-weight: 400;
+    margin-top: 2px;
+}
+
+.chart-card-meta {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    font-size: 12px;
+    color: var(--text-muted);
+}
+
+.legend-inline {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex-wrap: wrap;
+}
+
+.legend-item {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 12px;
+    color: var(--text-muted);
+}
+
+.legend-line {
+    width: 14px;
+    height: 2.5px;
+    border-radius: 2px;
+    display: inline-block;
+}
+
+.legend-line.blue { background-color: var(--primary-blue); }
+.legend-line.green { background-color: #10b981; }
+.legend-line.red { background-color: #ef4444; }
+.legend-line.orange { background-color: #ea580c; }
+.legend-line.yellow { background-color: #f59e0b; }
+
+.chart-stage-wrapper {
+    position: relative;
+    height: 340px;
+    width: 100%;
+}
+
+.chart-stage-wrapper canvas {
+    display: block;
+    width: 100% !important;
+    height: 100% !important;
+    will-change: transform;
+    transform: translateZ(0);
+}
+
+/* --- Indicadores de Status em Cards de Dispositivos --- */
+.status-dot-fine {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    display: inline-block;
+}
+
+.status-dot-fine.green { background: #10b981; }
+.status-dot-fine.yellow { background: #f59e0b; }
+.status-dot-fine.red { background: #ef4444; }
+
+@media (max-width: 900px) {
+    .chart-stage-wrapper {
+        height: 280px;
+    }
+}
+
+@media (min-width: 1900px) {
+    .exec-number {
+        font-size: 40px;
+    }
+
+    .chart-stage-wrapper {
+        height: 440px;
+    }
+}

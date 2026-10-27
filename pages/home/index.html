@@ -7,8 +7,8 @@
     <link rel="icon" type="image/png" href="../img/logo_head.png">
     <link rel="stylesheet" href="home.css">
     <link rel="stylesheet" href="../components/chat.css">
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap" rel="stylesheet">
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.5.1"></script>
     <script src="../config.js"></script>
     <script>
         (function() {
@@ -26,31 +26,8 @@
 </head>
 <body>
     <div class="app-layout">
-        <aside class="sidebar">
-            <nav>
-                <a href="index.html" class="nav-item active">Visão Geral</a>
-                <a href="../sensores/index.html" class="nav-item">Sensores</a>
-                <a href="../reles/index.html" class="nav-item">Relés</a>
-                <div class="nav-dropdown">
-                    <button class="nav-dropdown-toggle" onclick="toggleNavDropdown(this)">
-                        <span>Dispositivos</span>
-                        <svg class="chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                            <polyline points="6 9 12 15 18 9"></polyline>
-                        </svg>
-                    </button>
-                    <div class="nav-dropdown-menu">
-                        <a href="../chopeiras/index.html" class="nav-subitem">Chopeiras</a>
-                        <a href="../lfg60/index.html" class="nav-subitem">LFG60</a>
-                        <a href="../incendio/index.html" class="nav-subitem">Sistema de Incêndio</a>
-                        <a href="../pressurizacao/index.html" class="nav-subitem">Pressurização de Água</a>
-                        <a href="../hidraulico/index.html" class="nav-subitem">Sistema Hidráulico</a>
-                    </div>
-                </div>
-            </nav>
-            <div class="user-info">
-                <a href="../login/index.html" class="logout-btn">Sair</a>
-            </div>
-        </aside>
+        <aside class="sidebar"></aside>
+        <script src="../../shared/ui/sidebar.js"></script>
 
         <main class="main-content">
             <header>

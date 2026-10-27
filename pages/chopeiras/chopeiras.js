@@ -6,13 +6,8 @@ let isUpdatingDashboard = false;
 let lastChartSignature = '';
 let lastDevicesSignature = '';
 let lastProcessedReadingSignature = '';
-let liveBadgeWatchdog = null;
 
 // Estado do Modo Tela Cheia
-let fullscreenActiveIndex = 0;
-let fsAutoplayInterval = null;
-const fsAutoplayDuration = 8000;
-let fsKeyboardListenerAttached = false;
 let fsGaugeChartInstance = null;
 let fsChopeirasChartInstance = null;
 
@@ -22,102 +17,67 @@ let registrosTotalPages = 1;
 const registrosPageLimit = 20;
 let isFetchingRegistros = false;
 
+// Controlador compartilhado da badge de transmissão (../../shared/ui/live-badge.js)
+const liveBadgeCtrl = window.SensoriumLiveBadge
+    ? window.SensoriumLiveBadge.createLiveBadgeController()
+    : null;
 
-/**
- * Atualiza o estado da badge de transmissão (Verde pulsante se ao vivo, Cinza se sem dados)
- */
+// Tela cheia / carrossel: mecânica em ../../shared/ui/fullscreen-presenter.js
+const fsCarousel = window.SensoriumFullscreen.bindFullscreenCarousel({
+    getDevices: () => currentChopeiras,
+    render: (index) => renderFullscreenStation(index),
+    standardSelectId: 'chopeiraSelect',
+    formatOptionLabel: (d, i, n) => `Chopeira #${d.numero_serie} (${i + 1}/${n})`,
+    emptyOptionLabel: 'Nenhuma chopeira',
+    dotTitlePrefix: 'Ir para chopeira',
+    labels: { enter: 'Tela Cheia', exit: 'Sair da Tela Cheia' },
+    swapIcon: true,
+    onFullscreenToggle: () => {
+        if (fluidTelemetry) setTimeout(() => fluidTelemetry.setupCanvas(), 100);
+        if (fsFluidTelemetry) setTimeout(() => fsFluidTelemetry.setupCanvas(), 100);
+    },
+});
+
 function setLiveBadgeState(isLive) {
-    const badge = document.getElementById('livePresentationBadge');
-    const badgeText = document.getElementById('liveBadgeText');
-    if (!badge) return;
-
-    if (isLive) {
-        badge.classList.add('active');
-        if (badgeText) badgeText.innerText = 'TRANSMISSÃO AO VIVO';
-
-        // Reseta watchdog de 15 segundos para voltar a cinza se parar de receber dados
-        if (liveBadgeWatchdog) clearTimeout(liveBadgeWatchdog);
-        liveBadgeWatchdog = setTimeout(() => {
-            setLiveBadgeState(false);
-        }, 15000);
-    } else {
-        badge.classList.remove('active');
-        if (badgeText) badgeText.innerText = 'AGUARDANDO DADOS';
-    }
+    if (liveBadgeCtrl) liveBadgeCtrl.setState(isLive);
 }
 
 document.addEventListener('DOMContentLoaded', function() {
-    const userStr = localStorage.getItem('sensorium_user');
-    if (userStr) {
-        try {
-            const user = JSON.parse(userStr);
-            if (user.perfil === 'apresentacao') {
-                document.querySelectorAll('.sidebar nav > a.nav-item').forEach(el => {
-                    el.style.display = 'none';
-                });
-            }
-        } catch (e) {}
-    }
-
     initRealtimeConnection();
     loadChopeirasData();
 
-    // Polling ultrarrápido a cada 160ms para captura contínua e fluida de dados atualizados a cada 300ms
-    setInterval(() => {
-        loadChopeirasData(true);
-    }, 160);
+    // Consulta de garantia a cada 0,5 s (o socket é a via principal; pausa com a aba oculta)
+    if (window.SensoriumRealtime) {
+        window.SensoriumRealtime.startSmartPolling(() => loadChopeirasData(true), 500);
+    } else {
+        setInterval(() => loadChopeirasData(true), 500);
+    }
 
-    // Monitora mudanças de tela cheia para atualizar botão
-    document.addEventListener('fullscreenchange', handleFullscreenChange);
-    document.addEventListener('webkitfullscreenchange', handleFullscreenChange);
 });
 
 /**
- * Inicializa conexão Socket.IO para streaming em tempo real
+ * Inicializa conexão Socket.IO para streaming em tempo real.
+ * Só o evento deste tipo de dispositivo; leituras mais antigas que a exibida
+ * (ou repetidas, já que o backend envia rele_reading e dashboard_update juntos) são ignoradas.
  */
 function initRealtimeConnection() {
-    if (typeof io !== 'undefined') {
-        try {
-            const socketUrl = window.API_BASE || (window.location.origin.includes(':') ? window.location.origin : 'http://localhost:3000');
-            socketInstance = io(socketUrl, {
-                auth: { token: localStorage.getItem('sensorium_token') },
-                reconnection: true,
-                reconnectionAttempts: Infinity,
-                reconnectionDelay: 1000,
-                transports: ['websocket', 'polling']
-            });
-
-            socketInstance.on('connect', () => {
-                console.log('[Chopeiras Socket] Conectado em tempo real.');
-            });
-
-            // Recepção instantânea de leituras (latência zero)
-            socketInstance.on('rele_reading', (data) => {
-                handleLiveChopeiraReading(data);
-            });
-
-            socketInstance.on('dashboard_update', (data) => {
-                if (data?.data && data.type === 'reles_data') {
-                    handleLiveChopeiraReading(data.data);
-                } else {
-                    loadChopeirasData(true);
-                }
-            });
-
-            socketInstance.on('disconnect', () => {
-                console.warn('[Chopeiras Socket] Desconectado.');
-                setLiveBadgeState(false);
-            });
-        } catch (err) {
-            console.error('[Chopeiras Socket] Erro ao conectar:', err);
-            setLiveBadgeState(false);
-        }
-    }
-}
-
-function getAuthHeaders() {
-    const token = localStorage.getItem('sensorium_token');
-    return token ? { 'Authorization': `Bearer ${token}` } : {};
+    if (!window.SensoriumRealtime) return;
+    const receber = (data) => {
+        if (!data || !data.numeroSerie) return;
+        const dev = currentChopeiras.find(d => d.numero_serie === data.numeroSerie);
+        if (!window.SensoriumRealtime.isNewerReading(data, dev && dev.ultima_leitura)) return;
+        handleLiveChopeiraReading(data);
+    };
+    socketInstance = window.SensoriumRealtime.createRealtimeSocket({
+        logPrefix: 'Chopeiras',
+        events: {
+            rele_reading: receber,
+            dashboard_update: (pacote) => {
+                if (pacote?.type === 'reles_data' && pacote.data) receber(pacote.data);
+            }
+        },
+        onDisconnect: () => setLiveBadgeState(false)
+    });
 }
 
 /**
@@ -135,13 +95,13 @@ async function loadChopeirasData(silent = false) {
         const result = await res.json();
 
         if (result.success && Array.isArray(result.data)) {
-            currentChopeiras = result.data;
+            currentChopeiras = window.SensoriumRealtime ? window.SensoriumRealtime.mergeKeepingNewest(currentChopeiras, result.data) : result.data;
             populateChopeirasSelect(currentChopeiras);
             renderChopeirasGrid(currentChopeiras);
             updateExecutiveSummary(currentChopeiras);
 
             if (document.body.classList.contains('fullscreen-active')) {
-                renderFullscreenStation(fullscreenActiveIndex);
+                renderFullscreenStation(fsCarousel.getActiveIndex());
             }
 
             // Verifica se há dados recebidos para ativar a badge
@@ -233,9 +193,9 @@ function handleLiveChopeiraReading(reading) {
 
     // 5. Se estiver em Modo Tela Cheia, atualiza o palco se for a chopeira ativa
     if (document.body.classList.contains('fullscreen-active')) {
-        const activeDev = currentChopeiras[fullscreenActiveIndex];
+        const activeDev = currentChopeiras[fsCarousel.getActiveIndex()];
         if (activeDev && activeDev.numero_serie === numeroSerie) {
-            renderFullscreenStation(fullscreenActiveIndex);
+            renderFullscreenStation(fsCarousel.getActiveIndex());
         }
     }
 }
@@ -410,10 +370,10 @@ function renderChopeirasGrid(devices) {
             const timeStr = l.timestamp ? new Date(l.timestamp).toLocaleTimeString('pt-BR') : 'Sem leitura';
 
             return `
-                <div class="chopeira-card ${isSel ? 'selected' : ''}" data-serie="${d.numero_serie}" onclick="selectChopeira('${d.numero_serie}')">
+                <div class="chopeira-card ${isSel ? 'selected' : ''}" data-serie="${escapeHtml(d.numero_serie)}" onclick="selectChopeira(this.dataset.serie)">
                     <div class="chopeira-card-header">
-                        <span class="chopeira-card-title">Chopeira #${d.numero_serie}</span>
-                        <span class="status-dot-fine ${dotClass}" title="${d.status || 'Operacional'}"></span>
+                        <span class="chopeira-card-title">Chopeira #${escapeHtml(d.numero_serie)}</span>
+                        <span class="status-dot-fine ${dotClass}" title="${escapeHtml(d.status || 'Operacional')}"></span>
                     </div>
                     <div class="chopeira-card-body">
                         <div class="chopeira-row">
@@ -454,451 +414,8 @@ function renderChopeirasGrid(devices) {
 }
 
 /* ==========================================================================
-   MOTOR DE TELEMETRIA CONTÍNUA ULTRA-FLUIDA (60/120 FPS PERMANENTE)
+   MOTOR DE TELEMETRIA CONTÍNUA ULTRA-FLUIDA (../../shared/core/fluid-telemetry-engine.js)
    ========================================================================== */
-
-class FluidTelemetryEngine {
-    constructor(canvasId) {
-        this.canvasId = canvasId;
-        this.canvas = document.getElementById(canvasId);
-        if (this.canvas) {
-            this.ctx = this.canvas.getContext('2d');
-        }
-        
-        this.numPoints = 60; // 60 amostras cobrindo 100% da largura do canvas
-        this.points = new Array(this.numPoints).fill(0);
-        
-        this.targetPressure = 0;
-        this.currentPressure = 0;
-        this.setpointOn = null;
-        this.setpointOff = null;
-        
-        this.minVal = 0;
-        this.maxVal = 100;
-        
-        this.isRunning = false;
-        this.animFrameId = null;
-        this.lastFrameTime = performance.now();
-        this.pulsePhase = 0;
-        this.sampleTimer = 0;
-        this.sampleIntervalMs = 150; // Amostragem contínua fluida a cada 150ms
-        
-        this.mouseX = -1;
-        this.mouseY = -1;
-        this.isHovering = false;
-        
-        this.setupCanvas();
-        this.setupEvents();
-        this.start();
-    }
-    
-    setupCanvas() {
-        if (!this.canvas) {
-            this.canvas = document.getElementById(this.canvasId);
-            if (!this.canvas) return;
-            this.ctx = this.canvas.getContext('2d');
-        }
-        const rect = this.canvas.getBoundingClientRect();
-        const dpr = window.devicePixelRatio || 1;
-        const parentW = this.canvas.parentElement ? this.canvas.parentElement.clientWidth : 800;
-        const parentH = this.canvas.parentElement ? this.canvas.parentElement.clientHeight : 340;
-        this.width = rect.width > 0 ? rect.width : parentW;
-        this.height = rect.height > 0 ? rect.height : parentH;
-        this.canvas.width = this.width * dpr;
-        this.canvas.height = this.height * dpr;
-        if (this.ctx) {
-            this.ctx.setTransform(1, 0, 0, 1, 0, 0);
-            this.ctx.scale(dpr, dpr);
-        }
-    }
-    
-    setupEvents() {
-        if (!this.canvas) return;
-        
-        window.addEventListener('resize', () => {
-            this.setupCanvas();
-        });
-        
-        this.canvas.addEventListener('mousemove', (e) => {
-            const rect = this.canvas.getBoundingClientRect();
-            this.mouseX = e.clientX - rect.left;
-            this.mouseY = e.clientY - rect.top;
-            this.isHovering = true;
-        });
-        
-        this.canvas.addEventListener('mouseleave', () => {
-            this.isHovering = false;
-        });
-    }
-    
-    start() {
-        if (this.isRunning) return;
-        this.isRunning = true;
-        this.lastFrameTime = performance.now();
-        const loop = (now) => {
-            if (!this.isRunning) return;
-            const dt = Math.min(100, now - this.lastFrameTime);
-            this.lastFrameTime = now;
-            
-            this.update(dt);
-            this.render(now);
-            
-            this.animFrameId = requestAnimationFrame(loop);
-        };
-        this.animFrameId = requestAnimationFrame(loop);
-    }
-    
-    stop() {
-        this.isRunning = false;
-        if (this.animFrameId) {
-            cancelAnimationFrame(this.animFrameId);
-            this.animFrameId = null;
-        }
-    }
-    
-    pushReading(sensor1, rele1_on, rele1_off, timestamp = null) {
-        const val = sensor1 !== null && sensor1 !== undefined ? Number(sensor1) : null;
-        if (val !== null && !isNaN(val)) {
-            this.targetPressure = val;
-            if (this.points.every(p => p === 0)) {
-                this.currentPressure = val;
-                this.points.fill(val);
-            }
-        }
-        
-        if (rele1_on !== null && rele1_on !== undefined) this.setpointOn = Number(rele1_on);
-        if (rele1_off !== null && rele1_off !== undefined) this.setpointOff = Number(rele1_off);
-    }
-    
-    loadHistory(data, serial) {
-        // Identifica setpoints
-        let spOn = null;
-        let spOff = null;
-        for (let i = data.length - 1; i >= 0; i--) {
-            if (spOn === null && data[i].rele1_on !== null && data[i].rele1_on !== undefined) spOn = Number(data[i].rele1_on);
-            if (spOff === null && data[i].rele1_off !== null && data[i].rele1_off !== undefined) spOff = Number(data[i].rele1_off);
-        }
-        if (spOn !== null) this.setpointOn = spOn;
-        if (spOff !== null) this.setpointOff = spOff;
-        
-        const validValues = data.map(d => (d.sensor1 !== null && d.sensor1 !== undefined ? Number(d.sensor1) : null)).filter(v => v !== null && !isNaN(v));
-        
-        if (validValues.length > 0) {
-            const lastVal = validValues[validValues.length - 1];
-            this.targetPressure = lastVal;
-            this.currentPressure = lastVal;
-            
-            // Popula todo o buffer de 60 pontos
-            this.points = [];
-            for (let i = 0; i < this.numPoints; i++) {
-                const ratio = i / (this.numPoints - 1);
-                const dataIdx = Math.floor(ratio * (validValues.length - 1));
-                this.points.push(validValues[dataIdx] !== undefined ? validValues[dataIdx] : lastVal);
-            }
-        }
-    }
-    
-    update(dt) {
-        // Interpolação suave e orgânica de fluido (60-120 FPS)
-        const lerpSpeed = 0.20;
-        this.currentPressure += (this.targetPressure - this.currentPressure) * lerpSpeed;
-        this.pulsePhase += dt * 0.005;
-        
-        // Auto-alimentação contínua da esteira de dados
-        this.sampleTimer += dt;
-        if (this.sampleTimer >= this.sampleIntervalMs) {
-            this.sampleTimer = 0;
-            this.points.push(this.currentPressure);
-            if (this.points.length > this.numPoints) {
-                this.points.shift();
-            }
-        }
-    }
-    
-    getY(val, padTop, plotHeight) {
-        const clamped = Math.max(this.minVal, Math.min(this.maxVal, val));
-        const ratio = (clamped - this.minVal) / (this.maxVal - this.minVal);
-        return padTop + plotHeight * (1 - ratio);
-    }
-    
-    render(now) {
-        const ctx = this.ctx;
-        const w = this.width;
-        const h = this.height;
-        if (!ctx || w <= 0 || h <= 0) return;
-        
-        ctx.clearRect(0, 0, w, h);
-        
-        const padTop = 22;
-        const padBottom = 32;
-        const padLeft = 60;
-        const padRight = 85;
-        const plotWidth = w - padLeft - padRight;
-        const plotHeight = h - padTop - padBottom;
-        
-        // 1. Grid e Escala 0 a 100 bar
-        ctx.lineWidth = 1;
-        ctx.textAlign = 'right';
-        ctx.textBaseline = 'middle';
-        ctx.font = '500 11px Inter, sans-serif';
-        
-        const steps = [0, 20, 40, 60, 80, 100];
-        steps.forEach(step => {
-            const y = this.getY(step, padTop, plotHeight);
-            
-            // Linha de grade sutil
-            ctx.beginPath();
-            ctx.strokeStyle = step === 0 ? 'rgba(203, 213, 225, 0.8)' : 'rgba(226, 232, 240, 0.6)';
-            ctx.setLineDash([]);
-            ctx.moveTo(padLeft, y);
-            ctx.lineTo(w - padRight, y);
-            ctx.stroke();
-            
-            // Marcador numérico do eixo Y
-            ctx.fillStyle = '#64748b';
-            ctx.fillText(`${step} psi`, padLeft - 10, y);
-        });
-        
-        // 2. Linha Fixa de Setpoint ON (Verde Esmeralda)
-        if (this.setpointOn !== null && !isNaN(this.setpointOn)) {
-            const yOn = this.getY(this.setpointOn, padTop, plotHeight);
-            ctx.save();
-            ctx.beginPath();
-            ctx.strokeStyle = '#10b981';
-            ctx.lineWidth = 1.8;
-            ctx.setLineDash([5, 5]);
-            ctx.moveTo(padLeft, yOn);
-            ctx.lineTo(w - padRight, yOn);
-            ctx.stroke();
-            
-            // Badge / Pill de Setpoint ON
-            ctx.setLineDash([]);
-            ctx.fillStyle = '#ecfdf5';
-            ctx.strokeStyle = '#10b981';
-            ctx.lineWidth = 1;
-            const badgeW = 72;
-            const badgeH = 20;
-            const badgeX = w - padRight + 6;
-            const badgeY = yOn - badgeH / 2;
-            ctx.beginPath();
-            ctx.roundRect(badgeX, badgeY, badgeW, badgeH, 4);
-            ctx.fill();
-            ctx.stroke();
-            
-            ctx.fillStyle = '#059669';
-            ctx.font = '600 10.5px Inter, sans-serif';
-            ctx.textAlign = 'center';
-            ctx.fillText(`ON: ${this.setpointOn.toFixed(1)}`, badgeX + badgeW / 2, yOn);
-            ctx.restore();
-        }
-        
-        // 3. Linha Fixa de Setpoint OFF (Vermelho Coral)
-        if (this.setpointOff !== null && !isNaN(this.setpointOff)) {
-            const yOff = this.getY(this.setpointOff, padTop, plotHeight);
-            ctx.save();
-            ctx.beginPath();
-            ctx.strokeStyle = '#ef4444';
-            ctx.lineWidth = 1.8;
-            ctx.setLineDash([5, 5]);
-            ctx.moveTo(padLeft, yOff);
-            ctx.lineTo(w - padRight, yOff);
-            ctx.stroke();
-            
-            // Badge / Pill de Setpoint OFF
-            ctx.setLineDash([]);
-            ctx.fillStyle = '#fef2f2';
-            ctx.strokeStyle = '#ef4444';
-            ctx.lineWidth = 1;
-            const badgeW = 72;
-            const badgeH = 20;
-            const badgeX = w - padRight + 6;
-            const badgeY = yOff - badgeH / 2;
-            ctx.beginPath();
-            ctx.roundRect(badgeX, badgeY, badgeW, badgeH, 4);
-            ctx.fill();
-            ctx.stroke();
-            
-            ctx.fillStyle = '#dc2626';
-            ctx.font = '600 10.5px Inter, sans-serif';
-            ctx.textAlign = 'center';
-            ctx.fillText(`OFF: ${this.setpointOff.toFixed(1)}`, badgeX + badgeW / 2, yOff);
-            ctx.restore();
-        }
-        
-        // 4. Curva de Pressão Contínua (60 pontos distribuídos em 100% do gráfico)
-        const renderPoints = [];
-        const count = this.points.length;
-        
-        for (let i = 0; i < count; i++) {
-            const x = padLeft + (plotWidth / Math.max(1, count - 1)) * i;
-            // Para o último ponto, usa a pressão suavizada em tempo real
-            const val = (i === count - 1) ? this.currentPressure : this.points[i];
-            const y = this.getY(val, padTop, plotHeight);
-            renderPoints.push({ x, y, val });
-        }
-        
-        const leadX = renderPoints[count - 1].x;
-        const leadY = renderPoints[count - 1].y;
-        
-        if (renderPoints.length >= 2) {
-            ctx.save();
-            
-            // Recorte da área de desenho
-            ctx.beginPath();
-            ctx.rect(padLeft, padTop - 5, plotWidth + 2, plotHeight + 10);
-            ctx.clip();
-            
-            // Constrói Spline Suave (Catmull-Rom / Bezier)
-            ctx.beginPath();
-            ctx.moveTo(renderPoints[0].x, renderPoints[0].y);
-            
-            for (let i = 0; i < renderPoints.length - 1; i++) {
-                const p0 = renderPoints[Math.max(0, i - 1)];
-                const p1 = renderPoints[i];
-                const p2 = renderPoints[i + 1];
-                const p3 = renderPoints[Math.min(renderPoints.length - 1, i + 2)];
-                
-                const cp1x = p1.x + (p2.x - p0.x) / 6;
-                const cp1y = p1.y + (p2.y - p0.y) / 6;
-                const cp2x = p2.x - (p3.x - p1.x) / 6;
-                const cp2y = p2.y - (p3.y - p1.y) / 6;
-                
-                ctx.bezierCurveTo(cp1x, cp1y, cp2x, cp2y, p2.x, p2.y);
-            }
-            
-            // Preenchimento de gradiente translúcido
-            const grad = ctx.createLinearGradient(0, padTop, 0, padTop + plotHeight);
-            grad.addColorStop(0, 'rgba(30, 96, 172, 0.28)');
-            grad.addColorStop(0.7, 'rgba(30, 96, 172, 0.05)');
-            grad.addColorStop(1, 'rgba(30, 96, 172, 0.0)');
-            
-            ctx.lineTo(leadX, padTop + plotHeight);
-            ctx.lineTo(renderPoints[0].x, padTop + plotHeight);
-            ctx.closePath();
-            ctx.fillStyle = grad;
-            ctx.fill();
-            
-            // Traçado da Linha
-            ctx.beginPath();
-            ctx.moveTo(renderPoints[0].x, renderPoints[0].y);
-            for (let i = 0; i < renderPoints.length - 1; i++) {
-                const p0 = renderPoints[Math.max(0, i - 1)];
-                const p1 = renderPoints[i];
-                const p2 = renderPoints[i + 1];
-                const p3 = renderPoints[Math.min(renderPoints.length - 1, i + 2)];
-                
-                const cp1x = p1.x + (p2.x - p0.x) / 6;
-                const cp1y = p1.y + (p2.y - p0.y) / 6;
-                const cp2x = p2.x - (p3.x - p1.x) / 6;
-                const cp2y = p2.y - (p3.y - p1.y) / 6;
-                
-                ctx.bezierCurveTo(cp1x, cp1y, cp2x, cp2y, p2.x, p2.y);
-            }
-            
-            ctx.shadowColor = 'rgba(30, 96, 172, 0.35)';
-            ctx.shadowBlur = 6;
-            ctx.strokeStyle = '#1e60ac';
-            ctx.lineWidth = 2.8;
-            ctx.lineCap = 'round';
-            ctx.lineJoin = 'round';
-            ctx.stroke();
-            
-            ctx.restore();
-        }
-        
-        // 5. Farol Luminoso na Ponta Ativa em Tempo Real (Live Pulse Beacon)
-        ctx.save();
-        const waveRadius = 7 + (this.pulsePhase * 8) % 14;
-        const waveAlpha = Math.max(0, 1 - waveRadius / 21);
-        
-        // Onda expansiva
-        ctx.beginPath();
-        ctx.arc(leadX, leadY, waveRadius, 0, Math.PI * 2);
-        ctx.strokeStyle = `rgba(30, 96, 172, ${waveAlpha * 0.7})`;
-        ctx.lineWidth = 1.5;
-        ctx.stroke();
-        
-        // Ponto central
-        ctx.beginPath();
-        ctx.arc(leadX, leadY, 4.5, 0, Math.PI * 2);
-        ctx.fillStyle = '#1e60ac';
-        ctx.fill();
-        ctx.lineWidth = 2;
-        ctx.strokeStyle = '#ffffff';
-        ctx.stroke();
-        ctx.restore();
-        
-        // 6. Eixo X de Tempo
-        ctx.fillStyle = '#94a3b8';
-        ctx.font = '500 10.5px Inter, sans-serif';
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'top';
-        const timeSteps = 4;
-        const totalDurationSec = Math.round((this.numPoints * this.sampleIntervalMs) / 1000);
-        for (let i = 0; i <= timeSteps; i++) {
-            const x = padLeft + (plotWidth / timeSteps) * i;
-            const pastSec = Math.round(((timeSteps - i) / timeSteps) * totalDurationSec);
-            const label = pastSec === 0 ? 'Agora' : `-${pastSec}s`;
-            ctx.fillText(label, x, padTop + plotHeight + 8);
-        }
-        
-        // 7. Cursor Interativo e Tooltip ao passar o mouse
-        if (this.isHovering && this.mouseX >= padLeft && this.mouseX <= w - padRight) {
-            ctx.save();
-            ctx.beginPath();
-            ctx.strokeStyle = '#cbd5e1';
-            ctx.lineWidth = 1;
-            ctx.setLineDash([3, 3]);
-            ctx.moveTo(this.mouseX, padTop);
-            ctx.lineTo(this.mouseX, padTop + plotHeight);
-            ctx.stroke();
-            
-            // Encontra o ponto mais próximo
-            let closest = null;
-            let minDist = Infinity;
-            renderPoints.forEach(p => {
-                const dist = Math.abs(p.x - this.mouseX);
-                if (dist < minDist) {
-                    minDist = dist;
-                    closest = p;
-                }
-            });
-            
-            if (closest) {
-                ctx.setLineDash([]);
-                ctx.beginPath();
-                ctx.arc(closest.x, closest.y, 5, 0, Math.PI * 2);
-                ctx.fillStyle = '#1e60ac';
-                ctx.fill();
-                ctx.lineWidth = 2;
-                ctx.strokeStyle = '#ffffff';
-                ctx.stroke();
-                
-                const ttText = `${Number(closest.val).toFixed(2)} psi`;
-                ctx.font = '600 11px Inter, sans-serif';
-                const textWidth = ctx.measureText(ttText).width;
-                const ttBoxW = textWidth + 18;
-                const ttBoxH = 24;
-                let ttX = closest.x - ttBoxW / 2;
-                let ttY = closest.y - ttBoxH - 8;
-                if (ttY < padTop) ttY = closest.y + 10;
-                if (ttX < padLeft) ttX = padLeft;
-                if (ttX + ttBoxW > w - padRight) ttX = w - padRight - ttBoxW;
-                
-                ctx.fillStyle = 'rgba(15, 23, 42, 0.9)';
-                ctx.beginPath();
-                ctx.roundRect(ttX, ttY, ttBoxW, ttBoxH, 4);
-                ctx.fill();
-                
-                ctx.fillStyle = '#ffffff';
-                ctx.textAlign = 'center';
-                ctx.textBaseline = 'middle';
-                ctx.fillText(ttText, ttX + ttBoxW / 2, ttY + ttBoxH / 2);
-            }
-            ctx.restore();
-        }
-    }
-}
 
 // Instância única do Motor de Telemetria Fluida (Geral)
 let fluidTelemetry = null;
@@ -979,173 +496,13 @@ function getPressureColor(val, minOn, maxOff) {
     return '#0284c7';
 }
 
-function toggleFullscreen() {
-    if (!document.fullscreenElement && !document.webkitFullscreenElement) {
-        if (document.documentElement.requestFullscreen) {
-            document.documentElement.requestFullscreen();
-        } else if (document.documentElement.webkitRequestFullscreen) {
-            document.documentElement.webkitRequestFullscreen();
-        }
-    } else {
-        if (document.exitFullscreen) {
-            document.exitFullscreen();
-        } else if (document.webkitExitFullscreen) {
-            document.webkitExitFullscreen();
-        }
-    }
-}
-
-function handleFullscreenChange() {
-    const isFs = !!(document.fullscreenElement || document.webkitFullscreenElement);
-    const textEl = document.getElementById('fullscreenText');
-    const iconEl = document.getElementById('fullscreenIcon');
-    document.body.classList.toggle('fullscreen-active', isFs);
-
-    if (textEl) {
-        textEl.innerText = isFs ? 'Sair da Tela Cheia' : 'Tela Cheia';
-    }
-
-    if (iconEl) {
-        if (isFs) {
-            iconEl.innerHTML = '<path d="M8 3v3a2 2 0 0 1-2 2H3m18 0h-3a2 2 0 0 1-2-2V3m0 18v-3a2 2 0 0 1 2-2h3M3 16h3a2 2 0 0 1 2 2v3"/>';
-        } else {
-            iconEl.innerHTML = '<path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"/>';
-        }
-    }
-
-    if (isFs) {
-        setupFullscreenPresentation();
-    } else {
-        stopFsAutoplay();
-    }
-
-    if (fluidTelemetry) {
-        setTimeout(() => fluidTelemetry.setupCanvas(), 100);
-    }
-    if (fsFluidTelemetry) {
-        setTimeout(() => fsFluidTelemetry.setupCanvas(), 100);
-    }
-}
-
-function setupFullscreenPresentation() {
-    if (!fsKeyboardListenerAttached) {
-        document.addEventListener('keydown', handleFullscreenKeydown);
-        fsKeyboardListenerAttached = true;
-    }
-
-    populateFsDeviceSelect();
-
-    const standardSelect = document.getElementById('chopeiraSelect');
-    if (standardSelect && standardSelect.value && currentChopeiras && currentChopeiras.length > 0) {
-        const foundIdx = currentChopeiras.findIndex(d => d.numero_serie === standardSelect.value);
-        if (foundIdx >= 0) fullscreenActiveIndex = foundIdx;
-    }
-
-    renderFullscreenStation(fullscreenActiveIndex);
-    startFsAutoplay();
-}
-
-function populateFsDeviceSelect() {
-    const select = document.getElementById('fsDeviceSelect');
-    if (!select) return;
-
-    if (!currentChopeiras || currentChopeiras.length === 0) {
-        select.innerHTML = '<option value="">Nenhuma chopeira</option>';
-        return;
-    }
-
-    select.innerHTML = currentChopeiras.map((d, idx) => `
-        <option value="${d.numero_serie}">Chopeira #${d.numero_serie} (${idx + 1}/${currentChopeiras.length})</option>
-    `).join('');
-}
-
-function onFsDeviceSelectChange(selectedSerial) {
-    if (!selectedSerial || !currentChopeiras) return;
-    const idx = currentChopeiras.findIndex(d => d.numero_serie === selectedSerial);
-    if (idx >= 0) {
-        renderFullscreenStation(idx);
-    }
-}
-
-function handleFullscreenKeydown(e) {
-    if (!document.body.classList.contains('fullscreen-active')) return;
-
-    if (e.key === 'ArrowLeft') {
-        e.preventDefault();
-        navigateFullscreenCarousel(-1);
-    } else if (e.key === 'ArrowRight') {
-        e.preventDefault();
-        navigateFullscreenCarousel(1);
-    } else if (e.key === ' ' || e.code === 'Space') {
-        e.preventDefault();
-        toggleFullscreenAutoplay();
-    }
-}
-
-function navigateFullscreenCarousel(direction) {
-    if (!currentChopeiras || currentChopeiras.length === 0) return;
-    fullscreenActiveIndex += direction;
-    if (fullscreenActiveIndex < 0) fullscreenActiveIndex = currentChopeiras.length - 1;
-    if (fullscreenActiveIndex >= currentChopeiras.length) fullscreenActiveIndex = 0;
-
-    renderFullscreenStation(fullscreenActiveIndex);
-}
-
-function toggleFullscreenAutoplay() {
-    if (fsAutoplayInterval) {
-        stopFsAutoplay();
-    } else {
-        startFsAutoplay();
-    }
-}
-
-function startFsAutoplay() {
-    stopFsAutoplay();
-    const btn = document.getElementById('fsAutoplayBtn');
-    const txt = document.getElementById('fsAutoplayText');
-    const icon = document.getElementById('fsAutoplayIcon');
-
-    if (btn) btn.classList.add('playing');
-    if (txt) txt.innerText = 'Pausar (8s)';
-    if (icon) icon.innerHTML = '<rect x="6" y="4" width="4" height="16"></rect><rect x="14" y="4" width="4" height="16"></rect>';
-
-    fsAutoplayInterval = setInterval(() => {
-        navigateFullscreenCarousel(1);
-    }, fsAutoplayDuration);
-}
-
-function stopFsAutoplay() {
-    if (fsAutoplayInterval) {
-        clearInterval(fsAutoplayInterval);
-        fsAutoplayInterval = null;
-    }
-    const btn = document.getElementById('fsAutoplayBtn');
-    const txt = document.getElementById('fsAutoplayText');
-    const icon = document.getElementById('fsAutoplayIcon');
-
-    if (btn) btn.classList.remove('playing');
-    if (txt) txt.innerText = 'Auto (8s)';
-    if (icon) icon.innerHTML = '<polygon points="5 3 19 12 5 21 5 3"></polygon>';
-}
-
-function renderFsDots() {
-    const container = document.getElementById('fsDotsContainer');
-    if (!container || !currentChopeiras) return;
-
-    container.innerHTML = currentChopeiras.map((_, idx) => `
-        <div class="fs-dot ${idx === fullscreenActiveIndex ? 'active' : ''}" onclick="renderFullscreenStation(${idx})" title="Ir para chopeira ${idx + 1}"></div>
-    `).join('');
-}
-
 /**
  * Renderiza a chopeira ativa no Modo Tela Cheia com os 4 Cards e o Gráfico dedicado
  */
 function renderFullscreenStation(index) {
     if (!currentChopeiras || currentChopeiras.length === 0) return;
 
-    if (index < 0) index = currentChopeiras.length - 1;
-    if (index >= currentChopeiras.length) index = 0;
-    fullscreenActiveIndex = index;
+    index = fsCarousel.setActiveIndex(index);
 
     const dev = currentChopeiras[index];
     const u = dev.ultima_leitura || {};
@@ -1294,69 +651,14 @@ function renderFullscreenStation(index) {
     renderFullscreenChart(dev);
 
     // 7. Sincroniza select, dots e contador
-    renderFsDots();
+    fsCarousel.renderFsDots();
     const select = document.getElementById('fsDeviceSelect');
     if (select && select.value !== dev.numero_serie) {
         select.value = dev.numero_serie;
     }
     const counterEl = document.getElementById('fsDeviceCounterText');
     if (counterEl) {
-        counterEl.innerText = `Chopeira ${fullscreenActiveIndex + 1} de ${currentChopeiras.length}`;
-    }
-}
-
-function updateFsGaugeChart(value, min, max, fillColor) {
-    const canvas = document.getElementById('fsGaugePressureCanvas');
-    if (!canvas || typeof Chart === 'undefined') return;
-
-    const val = (value !== null && value !== undefined && !isNaN(value)) ? Number(value) : min;
-    const clamped = Math.max(min, Math.min(max, val));
-    const progress = clamped - min;
-    const remaining = max - clamped;
-
-    if (fsGaugeChartInstance) {
-        try {
-            if (fsGaugeChartInstance.canvas === canvas) {
-                fsGaugeChartInstance.data.datasets[0].data = [progress, remaining];
-                fsGaugeChartInstance.data.datasets[0].backgroundColor = [fillColor, '#e2e8f0'];
-                fsGaugeChartInstance.update('none');
-                return;
-            } else {
-                fsGaugeChartInstance.destroy();
-                fsGaugeChartInstance = null;
-            }
-        } catch (e) {
-            fsGaugeChartInstance = null;
-        }
-    }
-
-    try {
-        const ctx = canvas.getContext('2d');
-        fsGaugeChartInstance = new Chart(ctx, {
-            type: 'doughnut',
-            data: {
-                datasets: [{
-                    data: [progress, remaining],
-                    backgroundColor: [fillColor, '#e2e8f0'],
-                    borderWidth: 0,
-                    circumference: 180,
-                    rotation: 270,
-                    borderRadius: [4, 4]
-                }]
-            },
-            options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                cutout: '74%',
-                animation: false,
-                plugins: {
-                    tooltip: { enabled: false },
-                    legend: { display: false }
-                }
-            }
-        });
-    } catch (err) {
-        console.warn('Erro ao criar manômetro fullscreen:', err);
+        counterEl.innerText = `Chopeira ${fsCarousel.getActiveIndex() + 1} de ${currentChopeiras.length}`;
     }
 }
 
@@ -1412,18 +714,9 @@ async function renderFullscreenChart(dev) {
     }
 }
 
-/**
- * Alterna o Dropdown de Apresentação na Sidebar
- */
-function toggleNavDropdown(btn) {
-    const dropdown = btn.closest('.nav-dropdown');
-    if (dropdown) {
-        dropdown.classList.toggle('open');
-    }
-}
-
 /* ==========================================================================
    MODAL DE REGISTROS DE LEITURAS DOS RELÉS & EXPORTAÇÃO CSV / EXCLUSÃO
+   (Utilitários compartilhados em ../../shared/ui/registros-modal.js)
    ========================================================================== */
 
 /**
@@ -1460,41 +753,6 @@ function openRegistrosModal() {
 
     // Carrega a primeira página de registros do banco
     carregarRegistrosModal(1);
-}
-
-/**
- * Fecha o modal de registros de leituras
- */
-function closeRegistrosModal() {
-    const modal = document.getElementById('registrosModal');
-    if (modal) {
-        modal.classList.remove('active');
-    }
-    fecharConfirmacaoExclusao();
-    document.removeEventListener('keydown', handleRegistrosEscKey);
-}
-
-/**
- * Fecha modal ao clicar no fundo escuro (backdrop)
- */
-function handleRegistrosModalBackdrop(event) {
-    if (event.target && event.target.id === 'registrosModal') {
-        closeRegistrosModal();
-    }
-}
-
-/**
- * Fecha modais ao pressionar a tecla ESC
- */
-function handleRegistrosEscKey(e) {
-    if (e.key === 'Escape') {
-        const confirmModal = document.getElementById('confirmDeleteModal');
-        if (confirmModal && confirmModal.classList.contains('active')) {
-            fecharConfirmacaoExclusao();
-        } else {
-            closeRegistrosModal();
-        }
-    }
 }
 
 /**
@@ -1564,39 +822,11 @@ async function carregarRegistrosModal(page = 1) {
     } catch (err) {
         console.error('[Registros Modal] Erro na consulta:', err);
         if (tableBody) {
-            tableBody.innerHTML = `<tr><td colspan="10" class="table-state-message" style="color: var(--status-red);">Erro ao carregar registros: ${err.message}</td></tr>`;
+            tableBody.innerHTML = `<tr><td colspan="10" class="table-state-message" style="color: var(--status-red);">Erro ao carregar registros: ${escapeHtml(err.message)}</td></tr>`;
         }
     } finally {
         isFetchingRegistros = false;
     }
-}
-
-/**
- * Formata data e hora de leituras com exatidão máxima de segundos e sem distorção de fuso
- */
-function formatarDataHoraLeitura(row) {
-    if (!row) return '--';
-    const str = row.timestamp_leitura || row.timestamp_formatado || row.created_at;
-    if (!str) return '--';
-
-    const s = String(str).trim();
-    // Se vier no formato SQL exato "YYYY-MM-DD HH:mm:ss" ou "YYYY-MM-DDTHH:mm:ss"
-    if (/^\d{4}-\d{2}-\d{2}[ T]\d{2}:\d{2}:\d{2}/.test(s)) {
-        const [datePart, timePart] = s.replace('T', ' ').split(' ');
-        const [yyyy, mm, dd] = datePart.split('-');
-        return `${dd}/${mm}/${yyyy} ${timePart.slice(0, 8)}`;
-    }
-
-    const d = new Date(str);
-    if (isNaN(d.getTime())) return String(str);
-    return d.toLocaleString('pt-BR', {
-        day: '2-digit',
-        month: '2-digit',
-        year: 'numeric',
-        hour: '2-digit',
-        minute: '2-digit',
-        second: '2-digit'
-    });
 }
 
 /**
@@ -1626,7 +856,7 @@ function renderTabelaRegistros(rows) {
 
         return `
             <tr>
-                <td><span class="pill-cell blue">#${r.dispositivo_numero_serie}</span></td>
+                <td><span class="pill-cell blue">#${escapeHtml(r.dispositivo_numero_serie)}</span></td>
                 <td><span class="pill-cell gray">${empresaNome}</span></td>
                 <td><strong>${formattedDate}</strong></td>
                 <td><strong style="color: var(--primary-blue);">${pressaoVal}</strong></td>
@@ -1647,72 +877,6 @@ function renderTabelaRegistros(rows) {
 function filtrarRegistrosModal() {
     limparFeedbackModal();
     carregarRegistrosModal(1);
-}
-
-/**
- * Limpa todos os filtros de data e dispositivo
- */
-function limparFiltrosRegistrosModal() {
-    const filterDevSelect = document.getElementById('filterModalDispositivo');
-    const dataInicioInput = document.getElementById('filterModalDataInicio');
-    const dataFimInput = document.getElementById('filterModalDataFim');
-
-    if (filterDevSelect) filterDevSelect.value = 'todos';
-    if (dataInicioInput) dataInicioInput.value = '';
-    if (dataFimInput) dataFimInput.value = '';
-
-    // Remove destaque dos chips de atalho
-    document.querySelectorAll('.btn-preset-chip').forEach(btn => btn.classList.remove('active'));
-
-    limparFeedbackModal();
-    carregarRegistrosModal(1);
-}
-
-/**
- * Formata um objeto Date para string aceita por input datetime-local (YYYY-MM-DDTHH:mm)
- */
-function formatDatetimeLocalInput(d) {
-    const yyyy = d.getFullYear();
-    const mm = String(d.getMonth() + 1).padStart(2, '0');
-    const dd = String(d.getDate()).padStart(2, '0');
-    const hh = String(d.getHours()).padStart(2, '0');
-    const min = String(d.getMinutes()).padStart(2, '0');
-    return `${yyyy}-${mm}-${dd}T${hh}:${min}`;
-}
-
-/**
- * Atalhos rápidos para preencher filtros de data (Hoje, Últimos 7 dias, Últimos 30 dias)
- */
-function aplicarAtalhoData(tipo) {
-    const inputInicio = document.getElementById('filterModalDataInicio');
-    const inputFim = document.getElementById('filterModalDataFim');
-    if (!inputInicio || !inputFim) return;
-
-    // Destaca o botão selecionado
-    document.querySelectorAll('.btn-preset-chip').forEach(btn => btn.classList.remove('active'));
-    if (event && event.currentTarget) {
-        event.currentTarget.classList.add('active');
-    }
-
-    const agora = new Date();
-    const fim = new Date(agora.getFullYear(), agora.getMonth(), agora.getDate(), 23, 59, 59);
-    let inicio;
-
-    if (tipo === 'hoje') {
-        inicio = new Date(agora.getFullYear(), agora.getMonth(), agora.getDate(), 0, 0, 0);
-    } else if (tipo === '7dias') {
-        inicio = new Date(agora.getTime() - (7 * 24 * 60 * 60 * 1000));
-        inicio.setHours(0, 0, 0, 0);
-    } else if (tipo === '30dias') {
-        inicio = new Date(agora.getTime() - (30 * 24 * 60 * 60 * 1000));
-        inicio.setHours(0, 0, 0, 0);
-    }
-
-    if (inicio) {
-        inputInicio.value = formatDatetimeLocalInput(inicio);
-        inputFim.value = formatDatetimeLocalInput(fim);
-        filtrarRegistrosModal();
-    }
 }
 
 /**
@@ -1826,11 +990,6 @@ function abrirConfirmacaoExclusao() {
     if (confirmModal) confirmModal.classList.add('active');
 }
 
-function fecharConfirmacaoExclusao() {
-    const confirmModal = document.getElementById('confirmDeleteModal');
-    if (confirmModal) confirmModal.classList.remove('active');
-}
-
 /**
  * Executa a exclusão de registros por período selecionado
  */
@@ -1882,34 +1041,6 @@ async function executarExclusaoRegistros() {
             btnConfirm.disabled = false;
             btnConfirm.innerText = 'Sim, Apagar Registros';
         }
-    }
-}
-
-/**
- * Exibe mensagem de feedback visual no modal
- */
-function exibirFeedbackModal(mensagem, tipo = 'info') {
-    const box = document.getElementById('modalRegistrosFeedback');
-    if (!box) return;
-
-    box.className = `modal-feedback-box ${tipo}`;
-    box.innerText = mensagem;
-    box.style.display = 'block';
-
-    if (tipo === 'success') {
-        setTimeout(() => {
-            if (box.innerText === mensagem) {
-                limparFeedbackModal();
-            }
-        }, 6000);
-    }
-}
-
-function limparFeedbackModal() {
-    const box = document.getElementById('modalRegistrosFeedback');
-    if (box) {
-        box.style.display = 'none';
-        box.innerText = '';
     }
 }
 

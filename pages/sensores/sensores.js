@@ -44,19 +44,24 @@ document.addEventListener('DOMContentLoaded', function() {
     // Conectar via Socket.IO para atualizações em tempo real
     if (typeof io !== 'undefined') {
         const socket = io(API_BASE, { auth: { token: localStorage.getItem('sensorium_token') } });
+        // Só atualizações de sensores; várias leituras seguidas viram uma única recarga.
+        let recargaPendente = null;
         socket.on('dashboard_update', (data) => {
-            console.log('Recebido update via WebSocket:', data);
+            if (data?.type && data.type !== 'sensor_data') return;
             setSensorLiveBadgeState(true);
-            loadDashboardData();
-            
-            // Se o modal do dispositivo atualizado estiver aberto, atualiza o histórico também
-            const modal = document.getElementById('sensorModal');
-            if (modal && modal.classList.contains('active')) {
-                const title = document.getElementById('modalSensorTitle').innerText;
-                if (title.includes(data.numeroSerie)) {
-                    fetchDeviceHistory(data.numeroSerie);
+            const serie = data?.data?.numeroSerie || data?.numeroSerie;
+            if (recargaPendente) return;
+            recargaPendente = setTimeout(() => {
+                recargaPendente = null;
+                loadDashboardData();
+
+                // Se o modal do dispositivo atualizado estiver aberto, atualiza o histórico também
+                const modal = document.getElementById('sensorModal');
+                if (serie && modal && modal.classList.contains('active')) {
+                    const title = document.getElementById('modalSensorTitle').innerText;
+                    if (title.includes(serie)) fetchDeviceHistory(serie);
                 }
-            }
+            }, 800);
         });
 
         socket.on('disconnect', () => {
@@ -84,11 +89,6 @@ async function loadDashboardData() {
         fetchDevicesFromApi(),
         fetchAlertsFromApi()
     ]);
-}
-
-function getAuthHeaders() {
-    const token = localStorage.getItem('sensorium_token');
-    return token ? { 'Authorization': `Bearer ${token}` } : {};
 }
 
 // ----------------------------------------------------
@@ -142,9 +142,9 @@ function renderSensorCards(devices) {
         const statusText = dev.status || 'Operacional';
 
         return `
-            <div class="sensor-card ${isAlert ? 'alert' : ''}" onclick="openDeviceDetailModal('${dev.numero_serie}')">
+            <div class="sensor-card ${isAlert ? 'alert' : ''}" data-serie="${escapeHtml(dev.numero_serie)}" onclick="openDeviceDetailModal(this.dataset.serie)">
                 <div class="sensor-header">
-                    <h4>Transmissor ${dev.numero_serie}</h4>
+                    <h4>Transmissor ${escapeHtml(dev.numero_serie)}</h4>
                     <div style="display:flex; align-items:center; gap:8px;">
                         <span class="status-dot ${dotClass}" title="LED: ${led}"></span>
                     </div>
@@ -193,120 +193,9 @@ function updateDashboardSummary(devices) {
 }
 
 // ----------------------------------------------------
-// 2. CENTRAL DE AVISOS E ALERTAS NO HEADER
+// 2. CENTRAL DE AVISOS E ALERTAS NO HEADER (shared/ui/alerts-popover.js)
 // ----------------------------------------------------
-async function fetchAlertsFromApi() {
-    try {
-        const res = await fetch(`${API_BASE}/api/alertas?unreadOnly=true`, {
-            headers: getAuthHeaders()
-        });
-        if (!res.ok) throw new Error('Falha ao buscar alertas.');
-        const result = await res.json();
 
-        if (result.success) {
-            currentAlerts = result.data || [];
-            updateHeaderAlertBadge(result.summary ? result.summary.unread : currentAlerts.length);
-            renderAlertsList();
-
-            const cardCountAlertas = document.getElementById('cardCountAlertas');
-            if (cardCountAlertas) cardCountAlertas.innerText = result.summary ? result.summary.unread : currentAlerts.length;
-        }
-    } catch (err) {
-        console.warn('[Alertas] Erro ao carregar alertas:', err.message);
-    }
-}
-
-function updateHeaderAlertBadge(unreadCount) {
-    const badge = document.getElementById('headerAlertBadge');
-    if (!badge) return;
-
-    badge.innerText = unreadCount;
-    if (unreadCount > 0) {
-        badge.style.display = 'flex';
-    } else {
-        badge.style.display = 'none';
-    }
-}
-
-function toggleHeaderAlerts() {
-    const popover = document.getElementById('headerAlertsPopover');
-    if (!popover) return;
-    popover.classList.toggle('active');
-}
-
-function filterAlerts(filterType, element) {
-    activeAlertFilter = filterType;
-
-    const tabs = document.querySelectorAll('.popover-filters .filter-tab');
-    tabs.forEach(t => t.classList.remove('active'));
-    if (element) element.classList.add('active');
-
-    renderAlertsList();
-}
-
-function renderAlertsList() {
-    const list = document.getElementById('headerAlertsList');
-    if (!list) return;
-
-    let filtered = currentAlerts;
-    if (activeAlertFilter === 'Critico') {
-        filtered = currentAlerts.filter(a => a.nivel === 'Critico');
-    } else if (activeAlertFilter === 'Aviso') {
-        filtered = currentAlerts.filter(a => a.nivel === 'Aviso');
-    }
-
-    if (filtered.length === 0) {
-        list.innerHTML = `<div class="alerts-empty">Nenhum aviso ou alerta pendente no momento.</div>`;
-        return;
-    }
-
-    list.innerHTML = filtered.map(a => {
-        const isCrit = a.nivel === 'Critico';
-        const dateStr = a.created_at ? new Date(a.created_at).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }) : '';
-        
-        return `
-            <div class="alert-item-card ${isCrit ? 'critico' : ''}">
-                <div class="alert-item-header">
-                    <span class="alert-device-name">Dispositivo: ${a.dispositivo_numero_serie}</span>
-                    <span class="alert-badge-pill ${isCrit ? 'critico' : 'aviso'}">${a.nivel}</span>
-                </div>
-                <div class="alert-msg-text"><strong>${a.parametro}:</strong> ${a.mensagem}</div>
-                <div class="alert-item-footer">
-                    <span>${dateStr}</span>
-                    <button class="btn-read-alert" onclick="markAlertAsRead(${a.id})">Marcar Lido</button>
-                </div>
-            </div>
-        `;
-    }).join('');
-}
-
-async function markAlertAsRead(alertId) {
-    try {
-        const res = await fetch(`${API_BASE}/api/alertas/${alertId}/lido`, {
-            method: 'PUT',
-            headers: getAuthHeaders()
-        });
-        if (res.ok) {
-            fetchAlertsFromApi();
-        }
-    } catch (e) {
-        console.error('Erro ao marcar alerta como lido:', e);
-    }
-}
-
-async function markAllAlertsAsRead() {
-    try {
-        const res = await fetch(`${API_BASE}/api/alertas/limpar-todos`, {
-            method: 'PUT',
-            headers: getAuthHeaders()
-        });
-        if (res.ok) {
-            fetchAlertsFromApi();
-        }
-    } catch (e) {
-        console.error('Erro ao limpar alertas:', e);
-    }
-}
 
 // ----------------------------------------------------
 // 3. MODAL DE DETALHES DO DISPOSITIVO
@@ -388,7 +277,7 @@ async function fetchDeviceHistory(numeroSerie) {
                 return `
                     <div style="padding: 6px 0; border-bottom: 1px dashed #334155; display: flex; justify-content: space-between; align-items: center; gap: 10px;">
                         <div>
-                            <span style="color: ${ledColor}; font-weight: bold;">● [${item.led || 'Verde'}]</span> 
+                            <span style="color: ${ledColor}; font-weight: bold;">● [${escapeHtml(item.led || 'Verde')}]</span> 
                             <span style="color: #94a3b8;">${time}</span>
                         </div>
                         <div style="text-align: right; color: #e2e8f0;">
@@ -457,7 +346,7 @@ async function openPrescribedRangesModal() {
             html += `
             <tr data-param="${key}">
                 <td style="white-space: nowrap;"><strong>${l.label || key}</strong></td>
-                <td>${l.unit}</td>
+                <td>${escapeHtml(l.unit)}</td>
                 <td style="white-space: nowrap;">
                     ${hasMin ? 
                         `<input type="number" step="${step}" class="input-limite" data-field="min_ideal" value="${minIdealVal}" style="${inputStyle}"> a 
